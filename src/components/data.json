@@ -1,0 +1,21 @@
+{
+  "revenue": [
+    { "month": "Jan", "value": 4000 },
+    { "month": "Feb", "value": 3000 },
+    { "month": "Mar", "value": 5000 },
+    { "month": "Apr", "value": 4500 },
+    { "month": "May", "value": 6000 },
+    { "month": "Jun", "value": 5500 }
+  ],
+  "users": [
+    { "name": "John Doe", "email": "john@example.com", "role": "Admin", "status": "active" },
+    { "name": "Jane Smith", "email": "jane@example.com", "role": "User", "status": "active" },
+    { "name": "Bob Johnson", "email": "bob@example.com", "role": "User", "status": "inactive" }
+  ],
+  "stats": {
+    "totalRevenue": "$27,000",
+    "activeUsers": "1,234",
+    "newProjects": "42",
+    "uptime": "99.9%"
+  }
+}

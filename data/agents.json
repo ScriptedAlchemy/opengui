@@ -1,0 +1,33 @@
+[
+  {
+    "id": "agent_1756592409575_yd2f5y8c2",
+    "name": "Test Agent",
+    "description": "A test agent for API verification",
+    "temperature": 0.7,
+    "maxTokens": 2000,
+    "systemPrompt": "You are a helpful assistant.",
+    "tools": {
+      "bash": false,
+      "edit": true,
+      "glob": false,
+      "grep": false,
+      "ls": false,
+      "patch": false,
+      "read": false,
+      "task": false,
+      "todoread": false,
+      "todowrite": false,
+      "webfetch": false,
+      "write": false
+    },
+    "model": "gpt-4",
+    "enabled": true,
+    "createdAt": 1756592409575,
+    "updatedAt": 1756592409575,
+    "isTemplate": false,
+    "category": "custom",
+    "tags": [],
+    "usageCount": 1,
+    "lastUsed": 1756592435762
+  }
+]
