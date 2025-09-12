@@ -1,0 +1,3581 @@
+{
+  "config": {
+    "configFile": "/Users/bytedance/dev/opencode-1/playwright.config.ts",
+    "rootDir": "/Users/bytedance/dev/opencode-1/test/e2e",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 3,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "json"
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/Users/bytedance/dev/opencode-1/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/bytedance/dev/opencode-1/test/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.e2e.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.55.0",
+    "workers": 1,
+    "webServer": {
+      "command": "bun run build:prod && bun run start",
+      "url": "http://127.0.0.1:45504",
+      "reuseExistingServer": true,
+      "timeout": 60000,
+      "stdout": "pipe",
+      "stderr": "pipe",
+      "env": {
+        "PORT": "45504",
+        "HOST": "127.0.0.1",
+        "NODE_ENV": "production"
+      }
+    }
+  },
+  "suites": [
+    {
+      "title": "agent-management.e2e.ts",
+      "file": "agent-management.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Agent Management",
+          "file": "agent-management.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to agent management page",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 10904,
+                      "error": {
+                        "message": "Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, open '/Users/bytedance/dev/opencode-1/test-results/.playwright-artifacts-0/traces/3f8400e17fab33815471-7794fc6ecc0d6772afbc.trace'",
+                        "stack": "Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, open '/Users/bytedance/dev/opencode-1/test-results/.playwright-artifacts-0/traces/3f8400e17fab33815471-7794fc6ecc0d6772afbc.trace'"
+                      },
+                      "errors": [
+                        {
+                          "message": "Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, open '/Users/bytedance/dev/opencode-1/test-results/.playwright-artifacts-0/traces/3f8400e17fab33815471-7794fc6ecc0d6772afbc.trace'"
+                        },
+                        {
+                          "message": "Error: ENOENT: no such file or directory, open '/Users/bytedance/dev/opencode-1/test-results/.playwright-artifacts-0/984368d8ee44da3ee12bde6189f08fd8.zip'"
+                        },
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-08T08:14:15.191Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-e3735-te-to-agent-management-page-chromium/test-finished-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-e3735-te-to-agent-management-page-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "3f8400e17fab33815471-7794fc6ecc0d6772afbc",
+              "file": "agent-management.e2e.ts",
+              "line": 73,
+              "column": 3
+            },
+            {
+              "title": "should display agent templates dialog",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10158,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-08T08:15:27.427Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-3675f-play-agent-templates-dialog-chromium/test-finished-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-3675f-play-agent-templates-dialog-chromium/video.webm"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-3675f-play-agent-templates-dialog-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3f8400e17fab33815471-1f110c28d74a2c564f87",
+              "file": "agent-management.e2e.ts",
+              "line": 100,
+              "column": 3
+            },
+            {
+              "title": "should create a new agent",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 11352,
+                      "error": {
+                        "message": "Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, open '/Users/bytedance/dev/opencode-1/test-results/.playwright-artifacts-1/traces/3f8400e17fab33815471-320de71a1394b488e0e3-recording1.trace'",
+                        "stack": "Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, open '/Users/bytedance/dev/opencode-1/test-results/.playwright-artifacts-1/traces/3f8400e17fab33815471-320de71a1394b488e0e3-recording1.trace'"
+                      },
+                      "errors": [
+                        {
+                          "message": "Error: apiRequestContext._wrapApiCall: ENOENT: no such file or directory, open '/Users/bytedance/dev/opencode-1/test-results/.playwright-artifacts-1/traces/3f8400e17fab33815471-320de71a1394b488e0e3-recording1.trace'"
+                        },
+                        {
+                          "message": "Error: ENOENT: no such file or directory, open '/Users/bytedance/dev/opencode-1/test-results/.playwright-artifacts-1/568fb5868edb9a3a76db6098fe65ff52.zip'"
+                        },
+                        {
+                          "message": "\u001b[31mTest timeout of 60000ms exceeded.\u001b[39m"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-08T08:15:37.732Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-699c3-t-should-create-a-new-agent-chromium/test-finished-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-699c3-t-should-create-a-new-agent-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "3f8400e17fab33815471-320de71a1394b488e0e3",
+              "file": "agent-management.e2e.ts",
+              "line": 133,
+              "column": 3
+            },
+            {
+              "title": "should display existing agents list",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 169,
+                      "error": {
+                        "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:45504/\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:45504/\", waiting until \"load\"\u001b[22m\n",
+                        "stack": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:45504/\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:45504/\", waiting until \"load\"\u001b[22m\n\n    at /Users/bytedance/dev/opencode-1/test/e2e/agent-management.e2e.ts:49:16",
+                        "location": {
+                          "file": "/Users/bytedance/dev/opencode-1/test/e2e/agent-management.e2e.ts",
+                          "column": 16,
+                          "line": 49
+                        },
+                        "snippet": "  47 |\n  48 |     // Navigate to app and get a project\n> 49 |     await page.goto(\"/\")\n     |                ^\n  50 |     await page.waitForSelector(\"#root\", { state: \"visible\" })\n  51 |     await page.waitForTimeout(2000)\n  52 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/bytedance/dev/opencode-1/test/e2e/agent-management.e2e.ts",
+                            "column": 16,
+                            "line": 49
+                          },
+                          "message": "Error: page.goto: net::ERR_CONNECTION_REFUSED at http://127.0.0.1:45504/\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:45504/\", waiting until \"load\"\u001b[22m\n\n\n  47 |\n  48 |     // Navigate to app and get a project\n> 49 |     await page.goto(\"/\")\n     |                ^\n  50 |     await page.waitForSelector(\"#root\", { state: \"visible\" })\n  51 |     await page.waitForTimeout(2000)\n  52 |\n    at /Users/bytedance/dev/opencode-1/test/e2e/agent-management.e2e.ts:49:16"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-08T08:16:49.556Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-963a0-isplay-existing-agents-list-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-963a0-isplay-existing-agents-list-chromium/video.webm"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/agent-management.e2e.ts-Ag-963a0-isplay-existing-agents-list-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/bytedance/dev/opencode-1/test/e2e/agent-management.e2e.ts",
+                        "column": 16,
+                        "line": 49
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "3f8400e17fab33815471-d5e551a66063418150ec",
+              "file": "agent-management.e2e.ts",
+              "line": 195,
+              "column": 3
+            },
+            {
+              "title": "should handle search and filter functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3f8400e17fab33815471-0c9f96fb7c1ed0bdfa97",
+              "file": "agent-management.e2e.ts",
+              "line": 221,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "chat-interface-enhanced.e2e.ts",
+      "file": "chat-interface-enhanced.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Enhanced Chat Interface",
+          "file": "chat-interface-enhanced.e2e.ts",
+          "line": 191,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should handle multiple message types and formats",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-c129e11176650c48ee04",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 270,
+              "column": 3
+            },
+            {
+              "title": "should handle file attachments and uploads",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-65bc14a95c2ae0acdf5b",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 316,
+              "column": 3
+            },
+            {
+              "title": "should handle session switching and management",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-c8986a49ce42bfe90b54",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 380,
+              "column": 3
+            },
+            {
+              "title": "should persist message history across page reloads",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-d4a97b9fe5d8f195cede",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 448,
+              "column": 3
+            },
+            {
+              "title": "should handle chat interface interactions and features",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-5b2c0de11a0f7d3bed84",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 514,
+              "column": 3
+            },
+            {
+              "title": "should handle error states and recovery",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-e79bbb6abaddebd0cacf",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 583,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "chat-interface-v2.e2e.ts",
+      "file": "chat-interface-v2.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Chat Interface V2",
+          "file": "chat-interface-v2.e2e.ts",
+          "line": 15,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate through UI flow and test chat functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d19bde5e5bfd8f4e20d6-55d5ad932a63d55499dc",
+              "file": "chat-interface-v2.e2e.ts",
+              "line": 16,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "chat-v2-simple.e2e.ts",
+      "file": "chat-v2-simple.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "ChatInterfaceV2 - Simple Test",
+          "file": "chat-v2-simple.e2e.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Basic chat functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "5561b468442b9ed12fd6-6908118120db6478de25",
+              "file": "chat-v2-simple.e2e.ts",
+              "line": 10,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "crystal-project-flow.e2e.ts",
+      "file": "crystal-project-flow.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Crystal Project Flow",
+          "file": "crystal-project-flow.e2e.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should add Crystal project and navigate through app",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "9c4445e83b4d22555e33-7f5725e155cbec18f745",
+              "file": "crystal-project-flow.e2e.ts",
+              "line": 9,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "debug.e2e.ts",
+      "file": "debug.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Debug what's actually on the page",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "cb9db76a0cb9d97cfabb-ff46793ca892beedc5ba",
+          "file": "debug.e2e.ts",
+          "line": 3,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "file-browser.e2e.ts",
+      "file": "file-browser.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "File Browser",
+          "file": "file-browser.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to file browser page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-0d6452f670dcca08e957",
+              "file": "file-browser.e2e.ts",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "should display file tree structure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-5e5fb0665b506ce3e58a",
+              "file": "file-browser.e2e.ts",
+              "line": 62,
+              "column": 3
+            },
+            {
+              "title": "should expand and collapse folders",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-5e7080ddf6244a297cbc",
+              "file": "file-browser.e2e.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "should open and display file content",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-4148d3b5d1d79e1072b4",
+              "file": "file-browser.e2e.ts",
+              "line": 104,
+              "column": 3
+            },
+            {
+              "title": "should handle file search functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-31df060c0e13cf671be9",
+              "file": "file-browser.e2e.ts",
+              "line": 129,
+              "column": 3
+            },
+            {
+              "title": "should handle file editing and saving",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-30eee901bfaa5745e5c0",
+              "file": "file-browser.e2e.ts",
+              "line": 154,
+              "column": 3
+            },
+            {
+              "title": "should display breadcrumb navigation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-5261a846fa293d54a0ec",
+              "file": "file-browser.e2e.ts",
+              "line": 206,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "git-operations.e2e.ts",
+      "file": "git-operations.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Git Operations",
+          "file": "git-operations.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to git operations page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-30408393fe9b69469cef",
+              "file": "git-operations.e2e.ts",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "should display git status information",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-a680e9c2ccb6a057d3d3",
+              "file": "git-operations.e2e.ts",
+              "line": 62,
+              "column": 3
+            },
+            {
+              "title": "should display current branch information",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-607bbaad152b382a3dfc",
+              "file": "git-operations.e2e.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "should display commit history",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-f5714766059fb397a82b",
+              "file": "git-operations.e2e.ts",
+              "line": 94,
+              "column": 3
+            },
+            {
+              "title": "should have git action buttons",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-f55a82e5a213691f3696",
+              "file": "git-operations.e2e.ts",
+              "line": 110,
+              "column": 3
+            },
+            {
+              "title": "should handle commit creation workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-256c0ade22b9cfa50254",
+              "file": "git-operations.e2e.ts",
+              "line": 131,
+              "column": 3
+            },
+            {
+              "title": "should handle branch operations",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-608167c82bd0d8baa8d6",
+              "file": "git-operations.e2e.ts",
+              "line": 177,
+              "column": 3
+            },
+            {
+              "title": "should handle push/pull operations",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-294cf4eb943b7b49e3f3",
+              "file": "git-operations.e2e.ts",
+              "line": 206,
+              "column": 3
+            },
+            {
+              "title": "should display file changes and diffs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-5f96f2da9256f5d7057e",
+              "file": "git-operations.e2e.ts",
+              "line": 249,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "project-dashboard.e2e.ts",
+      "file": "project-dashboard.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Project Dashboard",
+          "file": "project-dashboard.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should display project dashboard with main sections",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-79545f69aeafadc10ad9",
+              "file": "project-dashboard.e2e.ts",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "should display and interact with quick actions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-86e6a50ecb24922802e0",
+              "file": "project-dashboard.e2e.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "should display project status and controls",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-2d019142954af50200f4",
+              "file": "project-dashboard.e2e.ts",
+              "line": 148,
+              "column": 3
+            },
+            {
+              "title": "should display project statistics and metrics",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-073e1b74fe3717d4af5d",
+              "file": "project-dashboard.e2e.ts",
+              "line": 181,
+              "column": 3
+            },
+            {
+              "title": "should display recent activity and sessions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-8e9474a722210c2a19c5",
+              "file": "project-dashboard.e2e.ts",
+              "line": 211,
+              "column": 3
+            },
+            {
+              "title": "should handle dashboard navigation and sidebar",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-26ce8edc0b355d16200e",
+              "file": "project-dashboard.e2e.ts",
+              "line": 239,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "project-lifecycle-comprehensive.e2e.ts",
+      "file": "project-lifecycle-comprehensive.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Comprehensive Project Lifecycle",
+          "file": "project-lifecycle-comprehensive.e2e.ts",
+          "line": 34,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should complete full project lifecycle workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/bytedance/dev/opencode-1/test/e2e/project-lifecycle-comprehensive.e2e.ts",
+                        "line": 84,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d35d711d0fbbf96845cb-70a6160195bdc633bcd8",
+              "file": "project-lifecycle-comprehensive.e2e.ts",
+              "line": 84,
+              "column": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "project-settings.e2e.ts",
+      "file": "project-settings.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Project Settings",
+          "file": "project-settings.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to project settings page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-e8cecb861137c697b7b6",
+              "file": "project-settings.e2e.ts",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "should display settings navigation tabs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-f2dc2fd7c4a458c56ba1",
+              "file": "project-settings.e2e.ts",
+              "line": 74,
+              "column": 3
+            },
+            {
+              "title": "should display general settings section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-b6d2ecd60e7506ebc7d5",
+              "file": "project-settings.e2e.ts",
+              "line": 111,
+              "column": 3
+            },
+            {
+              "title": "should display AI settings section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-dedf638c1b0185f37ab4",
+              "file": "project-settings.e2e.ts",
+              "line": 148,
+              "column": 3
+            },
+            {
+              "title": "should display environment variables section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-499ad038ce93efe1ea81",
+              "file": "project-settings.e2e.ts",
+              "line": 186,
+              "column": 3
+            },
+            {
+              "title": "should display permissions section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-efed4fb71e44ad98904a",
+              "file": "project-settings.e2e.ts",
+              "line": 224,
+              "column": 3
+            },
+            {
+              "title": "should handle settings form interactions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-25b2da8df741000e2481",
+              "file": "project-settings.e2e.ts",
+              "line": 261,
+              "column": 3
+            },
+            {
+              "title": "should have save/apply buttons",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-55cf9b81d9e6b5663697",
+              "file": "project-settings.e2e.ts",
+              "line": 326,
+              "column": 3
+            },
+            {
+              "title": "should handle settings save workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-ae32f19101e9d7f3eb97",
+              "file": "project-settings.e2e.ts",
+              "line": 358,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "quick-actions.e2e.ts",
+      "file": "quick-actions.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Quick Actions Navigation",
+          "file": "quick-actions.e2e.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate correctly when clicking quick action buttons",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "90ab07d97124848ff550-8632ea7622446cc035da",
+              "file": "quick-actions.e2e.ts",
+              "line": 36,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Project Dashboard",
+          "file": "quick-actions.e2e.ts",
+          "line": 95,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to project dashboard and start instance",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "90ab07d97124848ff550-dbce029fb01e7387f204",
+              "file": "quick-actions.e2e.ts",
+              "line": 124,
+              "column": 3
+            },
+            {
+              "title": "should handle session navigation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "90ab07d97124848ff550-c2b3e0a61973b4b12af8",
+              "file": "quick-actions.e2e.ts",
+              "line": 151,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "session-list.e2e.ts",
+      "file": "session-list.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Session List",
+          "file": "session-list.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to session list page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-51b25d4d6e10074ee9f3",
+              "file": "session-list.e2e.ts",
+              "line": 54,
+              "column": 3
+            },
+            {
+              "title": "should display session list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-8142914a9fe237ac9484",
+              "file": "session-list.e2e.ts",
+              "line": 82,
+              "column": 3
+            },
+            {
+              "title": "should have new session creation button",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-ab6b7cfcd19e982b21dd",
+              "file": "session-list.e2e.ts",
+              "line": 109,
+              "column": 3
+            },
+            {
+              "title": "should handle new session creation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-5cf4e6e25566c6d0d689",
+              "file": "session-list.e2e.ts",
+              "line": 136,
+              "column": 3
+            },
+            {
+              "title": "should display search functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-dea25db490fe50ff4e6a",
+              "file": "session-list.e2e.ts",
+              "line": 174,
+              "column": 3
+            },
+            {
+              "title": "should display sorting options",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-2b7d9d6fd7fc8e049b8d",
+              "file": "session-list.e2e.ts",
+              "line": 211,
+              "column": 3
+            },
+            {
+              "title": "should handle session item interactions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-05bc6eccbcd009ba51bd",
+              "file": "session-list.e2e.ts",
+              "line": 247,
+              "column": 3
+            },
+            {
+              "title": "should display session context menu options",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-4d36708ff950b6024739",
+              "file": "session-list.e2e.ts",
+              "line": 285,
+              "column": 3
+            },
+            {
+              "title": "should handle session deletion workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-76408bde9e3bba6b2229",
+              "file": "session-list.e2e.ts",
+              "line": 329,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "simple-chat-test.e2e.ts",
+      "file": "simple-chat-test.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Simple Chat Test",
+          "file": "simple-chat-test.e2e.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should send message and verify it appears in UI",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "5514c8c63e0f8069a22f-f90b430d2c6855973bea",
+              "file": "simple-chat-test.e2e.ts",
+              "line": 9,
+              "column": 3
+            },
+            {
+              "title": "should verify messages are in the DOM",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "5514c8c63e0f8069a22f-a812d1f1b3641e43691b",
+              "file": "simple-chat-test.e2e.ts",
+              "line": 94,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "thinking-component.e2e.ts",
+      "file": "thinking-component.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Thinking Component E2E Tests",
+          "file": "thinking-component.e2e.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should verify thinking tokens exist in API responses",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c1fa0e3df4c09f6890bf-79e20fda933fee2c451a",
+              "file": "thinking-component.e2e.ts",
+              "line": 39,
+              "column": 3
+            },
+            {
+              "title": "should verify basic chat functionality works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c1fa0e3df4c09f6890bf-d9696e0a5f44c2b81959",
+              "file": "thinking-component.e2e.ts",
+              "line": 115,
+              "column": 3
+            },
+            {
+              "title": "should handle reasoning-capable models when available",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c1fa0e3df4c09f6890bf-6bfdd03e1cbfdbad935a",
+              "file": "thinking-component.e2e.ts",
+              "line": 135,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "message": "\u001b[31mTesting stopped early after 3 maximum allowed failures.\u001b[39m"
+    }
+  ],
+  "stats": {
+    "startTime": "2025-09-08T08:14:11.403Z",
+    "duration": 158455.342,
+    "expected": 1,
+    "skipped": 60,
+    "unexpected": 3,
+    "flaky": 0
+  }
+}
+5504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "Messages before sending: 1\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "Messages after sending: 2\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/session?directory=%2FUsers%2Fbytedance%2Fdev%2Fcrystal\n"
+                        },
+                        {
+                          "text": "⚠️ Timeout waiting for AI response completion, proceeding anyway\n"
+                        },
+                        {
+                          "text": "Found 2 user messages after sending file-related messages\n"
+                        },
+                        {
+                          "text": "✅ File-related messages tested\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-08T08:14:25.248Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-4c7f9-ile-attachments-and-uploads-chromium/test-finished-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-4c7f9-ile-attachments-and-uploads-chromium/video.webm"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-4c7f9-ile-attachments-and-uploads-chromium/trace.zip"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-65bc14a95c2ae0acdf5b",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 316,
+              "column": 3
+            },
+            {
+              "title": "should handle session switching and management",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 31611,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 20000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/sessions/**/chat\" until \"load\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 20000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/sessions/**/chat\" until \"load\"\n============================================================\n    at createNewChatSession (/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts:57:18)\n    at /Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts:384:5",
+                        "location": {
+                          "file": "/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts",
+                          "column": 18,
+                          "line": 57
+                        },
+                        "snippet": "  55 |       \n  56 |       // Wait for navigation to chat page\n> 57 |       await page.waitForURL('**/sessions/**/chat', { timeout: 20000 })\n     |                  ^\n  58 |       \n  59 |       // Additional wait for chat interface to fully load  \n  60 |       await page.waitForTimeout(5000)"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts",
+                            "column": 18,
+                            "line": 57
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 20000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/sessions/**/chat\" until \"load\"\n============================================================\n\n  55 |       \n  56 |       // Wait for navigation to chat page\n> 57 |       await page.waitForURL('**/sessions/**/chat', { timeout: 20000 })\n     |                  ^\n  58 |       \n  59 |       // Additional wait for chat interface to fully load  \n  60 |       await page.waitForTimeout(5000)\n    at createNewChatSession (/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts:57:18)\n    at /Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts:384:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "✅ Extracted project ID: 4b4c0500704253a5\n"
+                        },
+                        {
+                          "text": "Testing session switching and management...\n"
+                        },
+                        {
+                          "text": "Using project ID: 4b4c0500704253a5\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/projects/4b4c0500704253a5/sessions\n"
+                        },
+                        {
+                          "text": "Creating new session from sessions page...\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-08T08:15:09.504Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-51f63-on-switching-and-management-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-51f63-on-switching-and-management-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-51f63-on-switching-and-management-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-51f63-on-switching-and-management-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts",
+                        "column": 18,
+                        "line": 57
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-c8986a49ce42bfe90b54",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 380,
+              "column": 3
+            },
+            {
+              "title": "should persist message history across page reloads",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 31685,
+                      "error": {
+                        "message": "TimeoutError: page.waitForURL: Timeout 20000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/sessions/**/chat\" until \"load\"\n============================================================",
+                        "stack": "TimeoutError: page.waitForURL: Timeout 20000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/sessions/**/chat\" until \"load\"\n============================================================\n    at createNewChatSession (/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts:57:18)\n    at /Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts:451:5",
+                        "location": {
+                          "file": "/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts",
+                          "column": 18,
+                          "line": 57
+                        },
+                        "snippet": "  55 |       \n  56 |       // Wait for navigation to chat page\n> 57 |       await page.waitForURL('**/sessions/**/chat', { timeout: 20000 })\n     |                  ^\n  58 |       \n  59 |       // Additional wait for chat interface to fully load  \n  60 |       await page.waitForTimeout(5000)"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts",
+                            "column": 18,
+                            "line": 57
+                          },
+                          "message": "TimeoutError: page.waitForURL: Timeout 20000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation to \"**/sessions/**/chat\" until \"load\"\n============================================================\n\n  55 |       \n  56 |       // Wait for navigation to chat page\n> 57 |       await page.waitForURL('**/sessions/**/chat', { timeout: 20000 })\n     |                  ^\n  58 |       \n  59 |       // Additional wait for chat interface to fully load  \n  60 |       await page.waitForTimeout(5000)\n    at createNewChatSession (/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts:57:18)\n    at /Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts:451:5"
+                        }
+                      ],
+                      "stdout": [
+                        {
+                          "text": "✅ Extracted project ID: 4b4c0500704253a5\n"
+                        },
+                        {
+                          "text": "Testing message history persistence...\n"
+                        },
+                        {
+                          "text": "Using project ID: 4b4c0500704253a5\n"
+                        },
+                        {
+                          "text": "🔍 API response: 200 http://127.0.0.1:45504/projects/4b4c0500704253a5/sessions\n"
+                        },
+                        {
+                          "text": "Creating new session from sessions page...\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-09-08T08:15:42.218Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-a6a15-history-across-page-reloads-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-a6a15-history-across-page-reloads-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-a6a15-history-across-page-reloads-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/bytedance/dev/opencode-1/test-results/chat-interface-enhanced.e2-a6a15-history-across-page-reloads-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/bytedance/dev/opencode-1/test/e2e/chat-interface-enhanced.e2e.ts",
+                        "column": 18,
+                        "line": 57
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-d4a97b9fe5d8f195cede",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 448,
+              "column": 3
+            },
+            {
+              "title": "should handle chat interface interactions and features",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-5b2c0de11a0f7d3bed84",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 514,
+              "column": 3
+            },
+            {
+              "title": "should handle error states and recovery",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4cc4e57df4ef568fca56-e79bbb6abaddebd0cacf",
+              "file": "chat-interface-enhanced.e2e.ts",
+              "line": 583,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "chat-interface-v2.e2e.ts",
+      "file": "chat-interface-v2.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Chat Interface V2",
+          "file": "chat-interface-v2.e2e.ts",
+          "line": 15,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate through UI flow and test chat functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d19bde5e5bfd8f4e20d6-55d5ad932a63d55499dc",
+              "file": "chat-interface-v2.e2e.ts",
+              "line": 16,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "chat-v2-simple.e2e.ts",
+      "file": "chat-v2-simple.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "ChatInterfaceV2 - Simple Test",
+          "file": "chat-v2-simple.e2e.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "Basic chat functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "5561b468442b9ed12fd6-6908118120db6478de25",
+              "file": "chat-v2-simple.e2e.ts",
+              "line": 10,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "crystal-project-flow.e2e.ts",
+      "file": "crystal-project-flow.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Crystal Project Flow",
+          "file": "crystal-project-flow.e2e.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should add Crystal project and navigate through app",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "9c4445e83b4d22555e33-7f5725e155cbec18f745",
+              "file": "crystal-project-flow.e2e.ts",
+              "line": 9,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "debug.e2e.ts",
+      "file": "debug.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "Debug what's actually on the page",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 60000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [],
+              "status": "skipped"
+            }
+          ],
+          "id": "cb9db76a0cb9d97cfabb-ff46793ca892beedc5ba",
+          "file": "debug.e2e.ts",
+          "line": 3,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "file-browser.e2e.ts",
+      "file": "file-browser.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "File Browser",
+          "file": "file-browser.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to file browser page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-0d6452f670dcca08e957",
+              "file": "file-browser.e2e.ts",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "should display file tree structure",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-5e5fb0665b506ce3e58a",
+              "file": "file-browser.e2e.ts",
+              "line": 62,
+              "column": 3
+            },
+            {
+              "title": "should expand and collapse folders",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-5e7080ddf6244a297cbc",
+              "file": "file-browser.e2e.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "should open and display file content",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-4148d3b5d1d79e1072b4",
+              "file": "file-browser.e2e.ts",
+              "line": 104,
+              "column": 3
+            },
+            {
+              "title": "should handle file search functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-31df060c0e13cf671be9",
+              "file": "file-browser.e2e.ts",
+              "line": 129,
+              "column": 3
+            },
+            {
+              "title": "should handle file editing and saving",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-30eee901bfaa5745e5c0",
+              "file": "file-browser.e2e.ts",
+              "line": 154,
+              "column": 3
+            },
+            {
+              "title": "should display breadcrumb navigation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "a51e98d3bcbe9ea9fad5-5261a846fa293d54a0ec",
+              "file": "file-browser.e2e.ts",
+              "line": 206,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "git-operations.e2e.ts",
+      "file": "git-operations.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Git Operations",
+          "file": "git-operations.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to git operations page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-30408393fe9b69469cef",
+              "file": "git-operations.e2e.ts",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "should display git status information",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-a680e9c2ccb6a057d3d3",
+              "file": "git-operations.e2e.ts",
+              "line": 62,
+              "column": 3
+            },
+            {
+              "title": "should display current branch information",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-607bbaad152b382a3dfc",
+              "file": "git-operations.e2e.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "should display commit history",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-f5714766059fb397a82b",
+              "file": "git-operations.e2e.ts",
+              "line": 94,
+              "column": 3
+            },
+            {
+              "title": "should have git action buttons",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-f55a82e5a213691f3696",
+              "file": "git-operations.e2e.ts",
+              "line": 110,
+              "column": 3
+            },
+            {
+              "title": "should handle commit creation workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-256c0ade22b9cfa50254",
+              "file": "git-operations.e2e.ts",
+              "line": 131,
+              "column": 3
+            },
+            {
+              "title": "should handle branch operations",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-608167c82bd0d8baa8d6",
+              "file": "git-operations.e2e.ts",
+              "line": 177,
+              "column": 3
+            },
+            {
+              "title": "should handle push/pull operations",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-294cf4eb943b7b49e3f3",
+              "file": "git-operations.e2e.ts",
+              "line": 206,
+              "column": 3
+            },
+            {
+              "title": "should display file changes and diffs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e7d478c884a0af83c5ca-5f96f2da9256f5d7057e",
+              "file": "git-operations.e2e.ts",
+              "line": 249,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "project-dashboard.e2e.ts",
+      "file": "project-dashboard.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Project Dashboard",
+          "file": "project-dashboard.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should display project dashboard with main sections",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-79545f69aeafadc10ad9",
+              "file": "project-dashboard.e2e.ts",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "should display and interact with quick actions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-86e6a50ecb24922802e0",
+              "file": "project-dashboard.e2e.ts",
+              "line": 78,
+              "column": 3
+            },
+            {
+              "title": "should display project status and controls",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-2d019142954af50200f4",
+              "file": "project-dashboard.e2e.ts",
+              "line": 148,
+              "column": 3
+            },
+            {
+              "title": "should display project statistics and metrics",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-073e1b74fe3717d4af5d",
+              "file": "project-dashboard.e2e.ts",
+              "line": 181,
+              "column": 3
+            },
+            {
+              "title": "should display recent activity and sessions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-8e9474a722210c2a19c5",
+              "file": "project-dashboard.e2e.ts",
+              "line": 211,
+              "column": 3
+            },
+            {
+              "title": "should handle dashboard navigation and sidebar",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "53710c4030ad36a9b4f6-26ce8edc0b355d16200e",
+              "file": "project-dashboard.e2e.ts",
+              "line": 239,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "project-lifecycle-comprehensive.e2e.ts",
+      "file": "project-lifecycle-comprehensive.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Comprehensive Project Lifecycle",
+          "file": "project-lifecycle-comprehensive.e2e.ts",
+          "line": 34,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should complete full project lifecycle workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/bytedance/dev/opencode-1/test/e2e/project-lifecycle-comprehensive.e2e.ts",
+                        "line": 84,
+                        "column": 8
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d35d711d0fbbf96845cb-70a6160195bdc633bcd8",
+              "file": "project-lifecycle-comprehensive.e2e.ts",
+              "line": 84,
+              "column": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "project-settings.e2e.ts",
+      "file": "project-settings.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Project Settings",
+          "file": "project-settings.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to project settings page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-e8cecb861137c697b7b6",
+              "file": "project-settings.e2e.ts",
+              "line": 45,
+              "column": 3
+            },
+            {
+              "title": "should display settings navigation tabs",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-f2dc2fd7c4a458c56ba1",
+              "file": "project-settings.e2e.ts",
+              "line": 74,
+              "column": 3
+            },
+            {
+              "title": "should display general settings section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-b6d2ecd60e7506ebc7d5",
+              "file": "project-settings.e2e.ts",
+              "line": 111,
+              "column": 3
+            },
+            {
+              "title": "should display AI settings section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-dedf638c1b0185f37ab4",
+              "file": "project-settings.e2e.ts",
+              "line": 148,
+              "column": 3
+            },
+            {
+              "title": "should display environment variables section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-499ad038ce93efe1ea81",
+              "file": "project-settings.e2e.ts",
+              "line": 186,
+              "column": 3
+            },
+            {
+              "title": "should display permissions section",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-efed4fb71e44ad98904a",
+              "file": "project-settings.e2e.ts",
+              "line": 224,
+              "column": 3
+            },
+            {
+              "title": "should handle settings form interactions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-25b2da8df741000e2481",
+              "file": "project-settings.e2e.ts",
+              "line": 261,
+              "column": 3
+            },
+            {
+              "title": "should have save/apply buttons",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-55cf9b81d9e6b5663697",
+              "file": "project-settings.e2e.ts",
+              "line": 326,
+              "column": 3
+            },
+            {
+              "title": "should handle settings save workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "010ed929b42ceaf20a8d-ae32f19101e9d7f3eb97",
+              "file": "project-settings.e2e.ts",
+              "line": 358,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "quick-actions.e2e.ts",
+      "file": "quick-actions.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Quick Actions Navigation",
+          "file": "quick-actions.e2e.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate correctly when clicking quick action buttons",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "90ab07d97124848ff550-8632ea7622446cc035da",
+              "file": "quick-actions.e2e.ts",
+              "line": 36,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Project Dashboard",
+          "file": "quick-actions.e2e.ts",
+          "line": 95,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to project dashboard and start instance",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "90ab07d97124848ff550-dbce029fb01e7387f204",
+              "file": "quick-actions.e2e.ts",
+              "line": 124,
+              "column": 3
+            },
+            {
+              "title": "should handle session navigation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "90ab07d97124848ff550-c2b3e0a61973b4b12af8",
+              "file": "quick-actions.e2e.ts",
+              "line": 151,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "session-list.e2e.ts",
+      "file": "session-list.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Session List",
+          "file": "session-list.e2e.ts",
+          "line": 3,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should navigate to session list page",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-51b25d4d6e10074ee9f3",
+              "file": "session-list.e2e.ts",
+              "line": 54,
+              "column": 3
+            },
+            {
+              "title": "should display session list",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-8142914a9fe237ac9484",
+              "file": "session-list.e2e.ts",
+              "line": 82,
+              "column": 3
+            },
+            {
+              "title": "should have new session creation button",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-ab6b7cfcd19e982b21dd",
+              "file": "session-list.e2e.ts",
+              "line": 109,
+              "column": 3
+            },
+            {
+              "title": "should handle new session creation",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-5cf4e6e25566c6d0d689",
+              "file": "session-list.e2e.ts",
+              "line": 136,
+              "column": 3
+            },
+            {
+              "title": "should display search functionality",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-dea25db490fe50ff4e6a",
+              "file": "session-list.e2e.ts",
+              "line": 174,
+              "column": 3
+            },
+            {
+              "title": "should display sorting options",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-2b7d9d6fd7fc8e049b8d",
+              "file": "session-list.e2e.ts",
+              "line": 211,
+              "column": 3
+            },
+            {
+              "title": "should handle session item interactions",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-05bc6eccbcd009ba51bd",
+              "file": "session-list.e2e.ts",
+              "line": 247,
+              "column": 3
+            },
+            {
+              "title": "should display session context menu options",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-4d36708ff950b6024739",
+              "file": "session-list.e2e.ts",
+              "line": 285,
+              "column": 3
+            },
+            {
+              "title": "should handle session deletion workflow",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c3393c8df51b47808c4d-76408bde9e3bba6b2229",
+              "file": "session-list.e2e.ts",
+              "line": 329,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "simple-chat-test.e2e.ts",
+      "file": "simple-chat-test.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Simple Chat Test",
+          "file": "simple-chat-test.e2e.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should send message and verify it appears in UI",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "5514c8c63e0f8069a22f-f90b430d2c6855973bea",
+              "file": "simple-chat-test.e2e.ts",
+              "line": 9,
+              "column": 3
+            },
+            {
+              "title": "should verify messages are in the DOM",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "5514c8c63e0f8069a22f-a812d1f1b3641e43691b",
+              "file": "simple-chat-test.e2e.ts",
+              "line": 94,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "thinking-component.e2e.ts",
+      "file": "thinking-component.e2e.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "Thinking Component E2E Tests",
+          "file": "thinking-component.e2e.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "should verify thinking tokens exist in API responses",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c1fa0e3df4c09f6890bf-79e20fda933fee2c451a",
+              "file": "thinking-component.e2e.ts",
+              "line": 39,
+              "column": 3
+            },
+            {
+              "title": "should verify basic chat functionality works",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c1fa0e3df4c09f6890bf-d9696e0a5f44c2b81959",
+              "file": "thinking-component.e2e.ts",
+              "line": 115,
+              "column": 3
+            },
+            {
+              "title": "should handle reasoning-capable models when available",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "c1fa0e3df4c09f6890bf-6bfdd03e1cbfdbad935a",
+              "file": "thinking-component.e2e.ts",
+              "line": 135,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "message": "\u001b[31mTesting stopped early after 3 maximum allowed failures.\u001b[39m"
+    }
+  ],
+  "stats": {
+    "startTime": "2025-09-08T08:12:59.178Z",
+    "duration": 194988.569,
+    "expected": 6,
+    "skipped": 55,
+    "unexpected": 3,
+    "flaky": 0
+  }
+}

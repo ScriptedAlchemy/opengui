@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    
+    /* Remove DOM-specific libs for server */
+    "types": ["node"]
+  },
+  "include": [
+    "src/server/**/*"
+  ],
+  "exclude": [
+    "./opencode/**/*",
+    "src/components/**/*",
+    "src/pages/**/*", 
+    "src/hooks/**/*",
+    "src/contexts/**/*",
+    "src/services/**/*",
+    "src/lib/api/**/*",
+    "test/**",
+    "node_modules",
+    "web-dist",
+    "server-dist"
+  ]
+}
