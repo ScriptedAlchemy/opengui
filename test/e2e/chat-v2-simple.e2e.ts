@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+ 
 import { openFirstProjectAndGetId, goToChat } from "./helpers"
 
 // Updated for SDK-only architecture:
@@ -18,7 +19,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       if (response.url().includes("/session") || response.url().includes("/message")) {
         // Only log non-200 responses to reduce noise
         if (response.status() !== 200) {
-          console.log(`🔍 SDK response: ${response.status()} ${response.url()}`)
+          // quiet
         }
         
         if (response.status() >= 400) {
@@ -28,14 +29,14 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
             status: response.status(),
             method: method
           })
-          console.log(`❌ API Error: ${method} ${response.url()} returned ${response.status()}`)
+          
         }
       }
     })
 
     const projectId = await openFirstProjectAndGetId(page)
     await goToChat(page, projectId)
-    console.log("✅ New chat session created and navigated to chat")
+    
     // Don't wait for networkidle - SSE connections keep network active
     await page.waitForLoadState("domcontentloaded")
     await page.waitForTimeout(3000)
@@ -46,10 +47,10 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     
     // Use consistent data-testid for input (chat-input-textarea, not chat-input)
     expect(await chatInput.isVisible({ timeout: 10000 })).toBe(true)
-    console.log("✅ Chat input visible")
+    
     
     const sidebarVisible = await chatSidebar.isVisible()
-    console.log(`Sidebar visible: ${sidebarVisible}`)
+    
 
     // Send a message using proper data-testid
     const textarea = page.locator('[data-testid="chat-input-textarea"]')
@@ -68,7 +69,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       
       if (criticalErrors.length > 0) {
         const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-        console.log(`⚠️ API errors detected: ${errorDetails}`)
+        
         // Temporarily disable failing on API errors to focus on UI functionality
         // throw new Error(`Critical API calls failed: ${errorDetails}. Test should fail when API returns error status codes.`)
       }
@@ -81,11 +82,10 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     const userMsg = await userMessages.count()
     const assistantMsg = await assistantMessages.count()
 
-    console.log(`User messages: ${userMsg}`)
-    console.log(`Assistant messages: ${assistantMsg}`)
+    
 
     // Test should verify that at least one user message exists
     expect(userMsg).toBeGreaterThan(0)
-    console.log("✅ Test passed - message sent and verified!")
+    
   })
 })

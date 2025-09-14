@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+ 
 
 test.describe("Git Operations", () => {
   let projectId: string
@@ -13,7 +14,7 @@ test.describe("Git Operations", () => {
           status: response.status(),
           statusText: response.statusText()
         })
-        console.log(`API Error: ${response.status()} ${response.statusText()} - ${response.url()}`)
+        
       }
     })
 
@@ -56,7 +57,7 @@ test.describe("Git Operations", () => {
     const gitPage = page.locator('[data-testid="git-operations-page"]')
     expect(await gitPage.isVisible({ timeout: 5000 })).toBe(true)
 
-    console.log("✅ Git operations page loaded successfully")
+    
   })
 
   test("should display git status information", async ({ page }) => {
@@ -72,7 +73,7 @@ test.describe("Git Operations", () => {
     const gitStatus = page.locator('[data-testid="git-status"]')
     expect(await gitStatus.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("✅ Git status information found")
+    
   })
 
   test("should display current branch information", async ({ page }) => {
@@ -88,7 +89,7 @@ test.describe("Git Operations", () => {
     const branchSelector = page.locator('[data-testid="branch-selector"]')
     expect(await branchSelector.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("✅ Branch selector found")
+    
   })
 
   test("should display commit history", async ({ page }) => {
@@ -104,7 +105,7 @@ test.describe("Git Operations", () => {
     const commitHistory = page.locator('[data-testid="commit-history"]')
     expect(await commitHistory.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("✅ Commit history found")
+    
   })
 
   test("should have git action buttons", async ({ page }) => {
@@ -125,7 +126,7 @@ test.describe("Git Operations", () => {
     expect(await pushButton.isVisible({ timeout: 5000 })).toBe(true)
     expect(await pullButton.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("✅ Git action buttons found")
+    
   })
 
   test("should handle commit creation workflow", async ({ page }) => {
@@ -141,7 +142,7 @@ test.describe("Git Operations", () => {
     const commitButton = page.locator('[data-testid="commit-button"]')
     expect(await commitButton.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found commit button, testing commit workflow")
+    
     
     await commitButton.click()
     await page.waitForTimeout(2000)
@@ -150,7 +151,7 @@ test.describe("Git Operations", () => {
     const commitMessageInput = page.locator('[data-testid="commit-message-input"]')
     expect(await commitMessageInput.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found commit message input")
+    
     
     // Try to fill commit message
     await commitMessageInput.fill("Test commit from e2e test")
@@ -161,7 +162,7 @@ test.describe("Git Operations", () => {
     expect(await submitButton.isVisible({ timeout: 5000 })).toBe(true)
     
     // Don't actually commit, just verify the workflow exists
-    console.log("✅ Commit workflow is functional")
+    
     
     // Clear the message
     await commitMessageInput.fill("")
@@ -187,7 +188,7 @@ test.describe("Git Operations", () => {
     const branchSelector = page.locator('[data-testid="branch-selector"]')
     expect(await branchSelector.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found branch selector")
+    
     
     await branchSelector.click()
     await page.waitForTimeout(1000)
@@ -196,7 +197,7 @@ test.describe("Git Operations", () => {
     const branchInput = page.locator('[data-testid="branch-name-input"]')
     expect(await branchInput.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("✅ Branch operation interface found")
+    
     
     // Close the modal
     await page.keyboard.press('Escape')
@@ -221,7 +222,7 @@ test.describe("Git Operations", () => {
     expect(await pullButton.isVisible({ timeout: 5000 })).toBe(true)
     expect(await fetchButton.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found sync operation buttons")
+    
     
     // Test button click only if enabled (but don't actually perform the operation)
     if (await pushButton.isEnabled({ timeout: 1000 })) {
@@ -231,7 +232,7 @@ test.describe("Git Operations", () => {
       // Look for confirmation dialog - test fails if not found
       const confirmDialog = page.locator('[data-testid="push-confirm-dialog"]')
       if (await confirmDialog.isVisible({ timeout: 2000 })) {
-        console.log("Found confirmation dialog")
+        
         
         // Close the dialog - test fails if cancel button not found
         const cancelButton = page.locator('[data-testid="push-cancel-button"]')
@@ -239,10 +240,10 @@ test.describe("Git Operations", () => {
         await cancelButton.click()
       }
     } else {
-      console.log("Push button not enabled, which is expected")
+      
     }
     
-    console.log("✅ Sync operations available")
+    
     await page.waitForTimeout(500)
   })
 
@@ -259,6 +260,6 @@ test.describe("Git Operations", () => {
     const diffDisplay = page.locator('[data-testid="file-changes-diff"]')
     expect(await diffDisplay.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("✅ File changes/diff display available")
+    
   })
 })

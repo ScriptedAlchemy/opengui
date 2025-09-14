@@ -41,6 +41,8 @@ function ChatInterfaceV2Inner() {
       setProjectPath(project.path)
     }
   }, [project?.path, projectPath])
+  const resolvedPath = projectPath || project?.path || currentProject?.path
+
   const {
     providers,
     selectedProvider,
@@ -48,7 +50,7 @@ function ChatInterfaceV2Inner() {
     setSelectedProvider,
     setSelectedModel,
     availableModels,
-  } = useProvidersSDK(projectId, projectPath, instanceStatus)
+  } = useProvidersSDK(projectId, resolvedPath, instanceStatus)
 
   // Sessions hook with loadMessages dependency
   const {
@@ -60,7 +62,7 @@ function ChatInterfaceV2Inner() {
     handleDeleteSession,
   } = useSessionsSDK(
     projectId,
-    projectPath,
+    resolvedPath,
     sessionId,
     instanceStatus,
     async () => Promise.resolve()
@@ -82,10 +84,11 @@ function ChatInterfaceV2Inner() {
     loadMessages,
   } = useMessagesSDK(
     projectId,
-    projectPath,
+    resolvedPath,
     currentSession || null,
     selectedModel,
-    selectedProvider
+    selectedProvider,
+    sessionId
   )
 
   // Ensure messages load when the current session changes
@@ -94,6 +97,16 @@ function ChatInterfaceV2Inner() {
       loadMessages(currentSession.id)
     }
   }, [currentSession?.id])
+
+  // Defensive: if messages are still empty shortly after mount with a valid session, refetch once
+  React.useEffect(() => {
+    if (!currentSession?.id) return
+    if (messages.length > 0) return
+    const t = setTimeout(() => {
+      loadMessages(currentSession.id!)
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [currentSession?.id, messages.length])
 
   // SSE hook for real-time updates
   useSSESDK(client, projectPath, currentSession, instanceStatus, setMessages, setIsStreaming)
