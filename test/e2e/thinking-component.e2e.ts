@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+ 
 import { openFirstProjectAndGetId, goToChat } from "./helpers"
 
 // Simplified E2E test for thinking component functionality
@@ -30,7 +31,7 @@ test.describe("Thinking Component E2E Tests", () => {
         const urlParts = currentUrl.split("/projects/")[1]
         if (urlParts) {
           projectId = urlParts.split("/")[0]
-          console.log(`Using project ID: ${projectId}`)
+          
         }
       }
     }
@@ -56,7 +57,7 @@ test.describe("Thinking Component E2E Tests", () => {
     
     // At this point we are on chat page
     
-    console.log(`Final URL: ${page.url()}`)
+    
     
     // Find message input using proper data-testid
     const messageInput = page.locator('[data-testid="chat-input-textarea"]')
@@ -75,7 +76,7 @@ test.describe("Thinking Component E2E Tests", () => {
     // Check if thinking component appears using proper data-testid
     const thinkingButton = page.locator('[data-testid="thinking-toggle"]')
     if (await thinkingButton.isVisible({ timeout: 5000 })) {
-      console.log("✓ Thinking component found")
+      
       
       // Click to expand
       await thinkingButton.click()
@@ -86,7 +87,7 @@ test.describe("Thinking Component E2E Tests", () => {
       if (await reasoningContent.isVisible({ timeout: 2000 })) {
         const text = await reasoningContent.textContent()
         if (text && text.trim().length > 0) {
-          console.log(`✓ Reasoning content found: ${text.length} characters`)
+          
           expect(text.trim().length).toBeGreaterThan(0)
           
           // Use inline snapshot to capture content
@@ -100,7 +101,7 @@ test.describe("Thinking Component E2E Tests", () => {
       if (response.parts) {
         for (const part of response.parts) {
           if (part.type === "reasoning" && part.text && part.text.trim().length > 0) {
-            console.log(`✓ Found reasoning tokens in API: ${part.text.length} characters`)
+            
             expect(part.text.trim().length).toBeGreaterThan(0)
             break
           }
@@ -109,7 +110,7 @@ test.describe("Thinking Component E2E Tests", () => {
     }
     
     // At least verify we can send messages (even if no reasoning)
-    console.log("✓ Message sending functionality verified")
+    
   })
   
   test("should verify basic chat functionality works", async ({ page }) => {
@@ -120,13 +121,13 @@ test.describe("Thinking Component E2E Tests", () => {
     // Verify page loads and basic elements exist
     const pageTitle = page.locator('h1, h2').filter({ hasText: /session|chat/i }).first()
     if (await pageTitle.isVisible({ timeout: 5000 })) {
-      console.log("✓ Sessions page loaded successfully")
+    
     }
     
     // Look for new session button using proper data-testid
     const newSessionButton = page.locator('[data-testid="new-session-button"]')
     expect(await newSessionButton.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("✓ New session button found")
+    
     
     // Basic functionality verification
     expect(page.url()).toContain('/sessions')
@@ -149,18 +150,14 @@ test.describe("Thinking Component E2E Tests", () => {
     const modelVisible = await modelSelect.isVisible({ timeout: 2000 })
     const chatInputVisible = await chatInput.isVisible({ timeout: 2000 })
     
-    console.log(`Chat interface elements found:`);
-    console.log(`- Chat header: ${chatHeaderVisible}`);
-    console.log(`- Provider selector: ${providerVisible}`);
-    console.log(`- Model selector: ${modelVisible}`);
-    console.log(`- Chat input: ${chatInputVisible}`);
+    
     
     const providerFound = providerVisible && modelVisible
     const chatInterfaceFound = chatHeaderVisible && chatInputVisible
     
     // If no provider selector found, check if we're in the right interface
     if (!providerFound) {
-      console.log(`Current URL: ${page.url()}`)
+      
       // Try to navigate directly to a chat session
       if (!page.url().includes('/chat')) {
         await page.goto(`/projects/${projectId}/sessions/new/chat`)
@@ -171,18 +168,16 @@ test.describe("Thinking Component E2E Tests", () => {
     // Assert that we found all required chat interface elements - test should fail if not on proper chat page
      if (!chatInterfaceFound) {
        const currentUrl = page.url()
-       console.log(`❌ Chat interface not accessible. Current URL: ${currentUrl}`)
-       console.log(`Missing elements: Header=${!chatHeaderVisible}, Input=${!chatInputVisible}`)
+       
        expect(chatInterfaceFound).toBe(true) // This will fail the test
      }
      
      if (!providerFound) {
        const currentUrl = page.url()
-       console.log(`❌ Provider/Model selectors not found. Current URL: ${currentUrl}`)
-       console.log(`Missing selectors: Provider=${!providerVisible}, Model=${!modelVisible}`)
+       
        expect(providerFound).toBe(true) // This will fail the test
      }
      
-     console.log("✅ Successfully reached chat interface with all required elements")
+     
   })
 })

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { tlog } from "./log"
 
 test.describe("Project Settings", () => {
   let projectId: string
@@ -13,7 +14,7 @@ test.describe("Project Settings", () => {
           status: response.status(),
           statusText: response.statusText()
         })
-        console.log(`API Error: ${response.status()} ${response.statusText()} - ${response.url()}`)
+        
       }
     })
 
@@ -95,7 +96,7 @@ test.describe("Project Settings", () => {
     expect(await generalTab.isVisible({ timeout: 5000 })).toBe(true)
     
     const tabText = await generalTab.textContent()
-    console.log(`Found general settings tab: ${tabText}`)
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -132,7 +133,7 @@ test.describe("Project Settings", () => {
 
     // Test should fail if general settings section is not found
     expect(await generalSettingsSection.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found general settings section")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -170,7 +171,7 @@ test.describe("Project Settings", () => {
 
     // AI settings section should exist - test should fail if not found
     expect(await aiSettingsSection.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found AI settings section")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -208,7 +209,7 @@ test.describe("Project Settings", () => {
 
     // Environment settings section should exist - test should fail if not found
     expect(await envSettingsSection.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found environment variables settings section")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -245,7 +246,7 @@ test.describe("Project Settings", () => {
 
     // Permissions section should exist - test should fail if not found
     expect(await permissionsSection.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found permissions settings section")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -280,7 +281,7 @@ test.describe("Project Settings", () => {
     let interactionCount = 0
     for (const input of formInputs) {
       if (await input.isVisible({ timeout: 3000 })) {
-        console.log(`Testing form interaction with: ${await input.getAttribute('type') || 'unknown'}`)
+        
         
         const inputType = await input.getAttribute('type')
         const tagName = await input.evaluate(el => el.tagName.toLowerCase())
@@ -303,14 +304,14 @@ test.describe("Project Settings", () => {
           
           interactionCount++
         } catch (error) {
-          console.log(`Could not interact with input: ${error}`)
+          
         }
         
         if (interactionCount >= 3) break // Limit interactions
       }
     }
 
-    console.log(`Successfully interacted with ${interactionCount} form elements`)
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -342,7 +343,7 @@ test.describe("Project Settings", () => {
     expect(await saveButton.isVisible({ timeout: 5000 })).toBe(true)
     
     const buttonText = await saveButton.textContent()
-    console.log(`Found save button: ${buttonText}`)
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -368,7 +369,7 @@ test.describe("Project Settings", () => {
     const textInput = page.locator('[data-testid="project-name-input"]')
     expect(await textInput.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found project name input, testing save workflow")
+    
       
       const originalValue = await textInput.inputValue()
       
@@ -380,7 +381,7 @@ test.describe("Project Settings", () => {
     const saveButton = page.locator('[data-testid="save-settings-button"]')
     expect(await saveButton.isVisible({ timeout: 5000 })).toBe(true)
       
-    console.log("Found save button, testing save workflow")
+    
         
     await saveButton.click()
     await page.waitForTimeout(2000)
@@ -390,7 +391,7 @@ test.describe("Project Settings", () => {
     
     // Success message should appear - test should fail if not found
     expect(await successMessage.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found success confirmation")
+    
     
     // Restore original value
     await textInput.fill(originalValue)

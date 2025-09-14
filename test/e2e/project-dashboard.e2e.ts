@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+ 
 
 test.describe("Project Dashboard", () => {
   let projectId: string
@@ -13,7 +14,7 @@ test.describe("Project Dashboard", () => {
           status: response.status(),
           statusText: response.statusText()
         })
-        console.log(`API Error: ${response.status()} ${response.statusText()} - ${response.url()}`)
+        
       }
     })
 
@@ -71,7 +72,7 @@ test.describe("Project Dashboard", () => {
       error.url.includes("/project")
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -141,7 +142,7 @@ test.describe("Project Dashboard", () => {
       (error.url.includes("/session") || error.url.includes("/project"))
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -165,7 +166,7 @@ test.describe("Project Dashboard", () => {
     expect(await statusBadge.isVisible({ timeout: 3000 })).toBe(true)
     const badgeText = await statusBadge.textContent()
     expect(badgeText).toContain("Ready")
-    console.log("Project status: Ready (SDK mode)")
+    
 
     // Check for API errors (log but don't fail test)
     await page.waitForTimeout(2000)
@@ -174,7 +175,7 @@ test.describe("Project Dashboard", () => {
       error.url.includes("/project")
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -195,7 +196,7 @@ test.describe("Project Dashboard", () => {
 
     // Test should fail if project metrics section is not found
     expect(await metricsSection.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found dashboard metrics section")
+    
 
     // Check for API errors (log but don't fail test)
     await page.waitForTimeout(2000)
@@ -204,7 +205,7 @@ test.describe("Project Dashboard", () => {
       error.url.includes("/project")
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -223,7 +224,7 @@ test.describe("Project Dashboard", () => {
 
     // Test should fail if recent activity section is not found
     expect(await recentActivitySection.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found recent activity section")
+    
 
     // Check for API errors (log but don't fail test)
     await page.waitForTimeout(2000)
@@ -232,7 +233,7 @@ test.describe("Project Dashboard", () => {
       (error.url.includes("/session") || error.url.includes("/project"))
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -253,7 +254,7 @@ test.describe("Project Dashboard", () => {
 
     // Test should fail if main navigation is not found
     expect(await mainNavigation.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found main navigation elements")
+    
 
     // Ensure sidebar is open (mobile/offcanvas variants)
     const sidebarTrigger = page.locator('[data-slot="sidebar-trigger"]')
@@ -280,7 +281,7 @@ test.describe("Project Dashboard", () => {
       error.url.includes("/project")
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 })

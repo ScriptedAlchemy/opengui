@@ -53,7 +53,7 @@ test.describe("Crystal Project Flow", () => {
     await page.waitForTimeout(3000)
 
     // In SDK mode, no need to start instance
-    console.log("SDK mode - project ready (no start/stop needed)")
+    
     await page.waitForTimeout(2000)
 
     // Try to navigate to sessions page
@@ -91,10 +91,10 @@ test.describe("Crystal Project Flow", () => {
     // Wait for navigation to chat page
     try {
       await page.waitForURL(/\/sessions\/.*\/chat/, { timeout: 10000 })
-      console.log("✅ New chat session created")
+      
     } catch {
       // Session creation might have failed, just log it
-      console.log("Note: Session navigation did not complete")
+      
     }
 
     // Return to home and verify crystal project still exists
@@ -107,6 +107,6 @@ test.describe("Crystal Project Flow", () => {
     const finalCrystalProject = finalProjectItems.filter({ hasText: /crystal/i })
     expect(await finalCrystalProject.first().isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("✅ Crystal project verification completed")
+    
   })
 })
