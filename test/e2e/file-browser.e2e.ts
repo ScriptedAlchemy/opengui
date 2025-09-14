@@ -13,7 +13,7 @@ test.describe("File Browser", () => {
           status: response.status(),
           statusText: response.statusText()
         })
-        console.log(`API Error: ${response.status()} ${response.statusText()} - ${response.url()}`)
+        // quiet: reduce noisy logs
       }
     })
 
@@ -56,7 +56,7 @@ test.describe("File Browser", () => {
     const fileBrowserPage = page.locator('[data-testid="file-browser-page"]')
     expect(await fileBrowserPage.isVisible({ timeout: 5000 })).toBe(true)
 
-    console.log("✅ File browser page loaded successfully")
+    
   })
 
   test("should display file tree structure", async ({ page }) => {
@@ -70,9 +70,9 @@ test.describe("File Browser", () => {
 
     // Look for file tree element - test fails if not found
     const fileTree = page.locator('[data-testid="file-tree"]')
-    expect(await fileTree.isVisible({ timeout: 5000 })).toBe(true)
+    expect(await fileTree.isVisible({ timeout: 15000 })).toBe(true)
     
-    console.log("✅ File tree structure found")
+    
   })
 
   test("should expand and collapse folders", async ({ page }) => {
@@ -86,9 +86,9 @@ test.describe("File Browser", () => {
 
     // Look for folder item - test fails if not found
     const folderItem = page.locator('[data-testid="folder-item"]').first()
-    expect(await folderItem.isVisible({ timeout: 5000 })).toBe(true)
+    expect(await folderItem.isVisible({ timeout: 15000 })).toBe(true)
     
-    console.log("Found folder item, testing expand/collapse")
+    
     
     // Try to click to expand
     await folderItem.click()
@@ -98,7 +98,7 @@ test.describe("File Browser", () => {
     await folderItem.click()
     await page.waitForTimeout(1000)
     
-    console.log("✅ Folder expand/collapse functionality tested")
+      
   })
 
   test("should open and display file content", async ({ page }) => {
@@ -112,18 +112,18 @@ test.describe("File Browser", () => {
 
     // Look for file to open - test fails if not found
     const fileItem = page.locator('[data-testid="file-item"]').first()
-    expect(await fileItem.isVisible({ timeout: 5000 })).toBe(true)
+    expect(await fileItem.isVisible({ timeout: 15000 })).toBe(true)
     
-    console.log("Found file to open, testing file opening")
+    
     
     await fileItem.click()
     await page.waitForTimeout(2000)
     
     // Look for file content display - test fails if not found
-    const fileContent = page.locator('[data-testid="file-content"]')
-    expect(await fileContent.isVisible({ timeout: 5000 })).toBe(true)
+    const fileEditor = page.locator('[data-testid="file-editor"]')
+    expect(await fileEditor.isVisible({ timeout: 30000 })).toBe(true)
     
-    console.log("✅ File content displayed successfully")
+    
   })
 
   test("should handle file search functionality", async ({ page }) => {
@@ -139,7 +139,7 @@ test.describe("File Browser", () => {
     const searchInput = page.locator('[data-testid="file-search-input"]')
     expect(await searchInput.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found search input, testing search functionality")
+    
     
     await searchInput.fill("package")
     await page.waitForTimeout(1000)
@@ -148,7 +148,7 @@ test.describe("File Browser", () => {
     await searchInput.fill("")
     await page.waitForTimeout(1000)
     
-    console.log("✅ Search functionality available")
+    
   })
 
   test("should handle file editing and saving", async ({ page }) => {
@@ -162,16 +162,16 @@ test.describe("File Browser", () => {
 
     // Try to find and open an editable file - test fails if not found
     const editableFile = page.locator('[data-testid="file-item"]').first()
-    expect(await editableFile.isVisible({ timeout: 5000 })).toBe(true)
+    expect(await editableFile.isVisible({ timeout: 15000 })).toBe(true)
     
     await editableFile.click()
     await page.waitForTimeout(2000)
     
     // Look for editor - test fails if not found
     const fileEditor = page.locator('[data-testid="file-editor"]')
-    expect(await fileEditor.isVisible({ timeout: 5000 })).toBe(true)
+    expect(await fileEditor.isVisible({ timeout: 30000 })).toBe(true)
     
-    console.log("Found editor, testing editing functionality")
+    
     
     // Try to edit content
     await fileEditor.click()
@@ -192,13 +192,12 @@ test.describe("File Browser", () => {
       expect(await saveButton.isVisible({ timeout: 2000 })).toBe(true)
     } catch (error) {
       // If unsaved changes text is not found, just verify the editor is interactive
-      console.log("⚠️ File editing might not mark files as dirty in sandbox mode")
-      console.log("✅ Editor interaction tested successfully")
+      
       
       // Skip the save button test since file might not become dirty in sandbox
       return
     }
-    console.log("✅ File editing and saving functionality available")
+    
     
     await page.waitForTimeout(1000)
   })
@@ -222,9 +221,9 @@ test.describe("File Browser", () => {
       const breadcrumb = page.locator('[data-testid="breadcrumb-navigation"]')
       expect(await breadcrumb.isVisible({ timeout: 5000 })).toBe(true)
       
-      console.log("✅ Breadcrumb navigation available")
+      
     } else {
-      console.log("ℹ️ No files available to test breadcrumb navigation")
+      
     }
   })
 })

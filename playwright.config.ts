@@ -41,8 +41,8 @@ export default defineConfig({
   workers: process.env.CI ? 4 : 6,
   maxFailures: 5,
 
-  // Reporter - using list reporter instead of html to avoid serving reports
-  reporter: process.env.CI ? "github" : "list",
+  // Quieter reporter locally
+  reporter: process.env.CI ? "github" : "line",
 
   // Shared settings for all projects
   use: {
@@ -72,6 +72,6 @@ export default defineConfig({
     timeout: 60000,
     stdout: "pipe",
     stderr: "pipe",
-    env: { PORT: String(port), HOST: host, NODE_ENV: "production" },
+    env: { PORT: String(port), HOST: host, NODE_ENV: "production", LOG_LEVEL: "warn" },
   },
 })

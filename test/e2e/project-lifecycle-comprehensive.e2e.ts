@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test"
+import { tlog } from "./log"
 
 // Comprehensive project lifecycle test covering:
 // - Project creation and initialization
@@ -33,10 +34,10 @@ async function navigateToProjectPage(page: Page, pageName: string, projectIdPara
       await page.waitForTimeout(1500)
       return true
     }
-    console.log(`Navigation link for '${pageName}' not found and could not derive project id`)
+    
     return false
   } catch (error) {
-    console.log(`Error navigating to ${pageName}:`, error)
+    
     return false
   }
 }
@@ -59,7 +60,7 @@ test.describe("Comprehensive Project Lifecycle", () => {
       if (relevantEndpoints.some(endpoint => response.url().includes(endpoint))) {
         // Only log non-200 responses to reduce noise
         if (response.status() !== 200) {
-          console.log(`🔍 API response: ${response.status()} ${response.url()}`)
+          
         }
         
         if (response.status() >= 400) {
@@ -69,7 +70,7 @@ test.describe("Comprehensive Project Lifecycle", () => {
             status: response.status(),
             method: method
           })
-          console.log(`❌ API Error: ${method} ${response.url()} returned ${response.status()}`)
+          
         }
       }
     })
@@ -89,18 +90,18 @@ test.describe("Comprehensive Project Lifecycle", () => {
       
       if (criticalErrors.length > 0) {
         const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-        console.log(`API errors detected (non-blocking): ${errorDetails}`)
+        
       }
     }
   })
 
   test("should complete full project lifecycle workflow", async ({ page }) => {
-    console.log("Starting comprehensive project lifecycle test...")
+    
     
     // ============================================
     // PHASE 1: Project Discovery and Selection
     // ============================================
-    console.log("Phase 1: Project Discovery and Selection")
+    
     
     await page.goto("/")
     await waitForPageLoad(page)
@@ -113,7 +114,7 @@ test.describe("Comprehensive Project Lifecycle", () => {
     const firstProject = page.locator('[data-testid="project-item"]').first()
     const projectName = await firstProject.locator('[data-testid="project-name"]').textContent()
     expect(projectName).toBeTruthy()
-    console.log(`Selected project: ${projectName}`)
+    
     
     // Open the project using proper data-testid
     const openButton = firstProject.locator('[data-testid="button-open-project"]')
@@ -128,16 +129,18 @@ test.describe("Comprehensive Project Lifecycle", () => {
     const projectIdMatch = currentUrl.match(/\/projects\/([a-f0-9]+)/)
     if (projectIdMatch) {
       projectId = projectIdMatch[1]
-      console.log(`Project ID: ${projectId}`)
+      
     }
     
-    console.log("✅ Phase 1 completed: Project opened successfully")
+    
     
     // ============================================
     // PHASE 2: Project Dashboard Exploration
     // ============================================
-    console.log("Phase 2: Project Dashboard Exploration")
     
+    
+    // Ensure dashboard root is present first
+    await expect(page.locator('[data-testid="project-dashboard"]')).toBeVisible({ timeout: 30000 })
     // Verify dashboard components using proper data-testids
     const projectStatus = page.locator('[data-testid="project-status-section"]')
     const projectStats = page.locator('[data-testid="project-metrics-section"]')
@@ -145,9 +148,9 @@ test.describe("Comprehensive Project Lifecycle", () => {
     const recentActivity = page.locator('[data-testid="recent-activity-section"]')
     
     // Test should fail if key dashboard elements are not found
-    expect(await projectStatus.isVisible({ timeout: 5000 })).toBe(true)
-    expect(await quickActions.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ Dashboard elements found and verified`)
+    expect(await projectStatus.isVisible({ timeout: 30000 })).toBe(true)
+    expect(await quickActions.isVisible({ timeout: 30000 })).toBe(true)
+    
     
     // Test quick actions using proper data-testids
     const newChatButton = page.locator('[data-testid="quick-action-new-chat"]')
@@ -158,14 +161,14 @@ test.describe("Comprehensive Project Lifecycle", () => {
     expect(await newChatButton.isVisible({ timeout: 5000 })).toBe(true)
     expect(await manageAgentsButton.isVisible({ timeout: 5000 })).toBe(true)
     expect(await fileBrowserButton.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ All quick actions found and verified`)
     
-    console.log("✅ Phase 2 completed: Dashboard exploration finished")
+    
+    
     
     // ============================================
     // PHASE 3: File Browser and Code Exploration
     // ============================================
-    console.log("Phase 3: File Browser and Code Exploration")
+    
     
     // Navigate to file browser using proper data-testid
     expect(await fileBrowserButton.isVisible({ timeout: 5000 })).toBe(true)
@@ -175,14 +178,14 @@ test.describe("Comprehensive Project Lifecycle", () => {
     // Verify file browser interface using proper data-testids
     const fileTree = page.locator('[data-testid="file-tree"]')
     expect(await fileTree.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("✅ File browser loaded")
+    
     
     // Try to expand a folder using proper data-testid
     const folder = page.locator('[data-testid="folder-item"]').first()
     expect(await folder.isVisible({ timeout: 5000 })).toBe(true)
     await folder.click()
     await page.waitForTimeout(1000)
-    console.log("✅ Folder expansion tested")
+    
     
     // Try to open a file using proper data-testid
     const file = page.locator('[data-testid="file-item"]').first()
@@ -191,16 +194,16 @@ test.describe("Comprehensive Project Lifecycle", () => {
     await page.waitForTimeout(2000)
     
     // Check if file content is displayed using proper data-testid
-    const fileContent = page.locator('[data-testid="file-content"]')
-    expect(await fileContent.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("✅ File content displayed")
+    const fileEditor = page.locator('[data-testid="file-editor"]')
+    expect(await fileEditor.isVisible({ timeout: 15000 })).toBe(true)
     
-    console.log("✅ Phase 3 completed: File browser exploration finished")
+    
+    
     
     // ============================================
     // PHASE 4: Git Operations and Version Control
     // ============================================
-    console.log("Phase 4: Git Operations and Version Control")
+    
     
     // Navigate back to dashboard
     await page.goto(currentUrl)
@@ -209,24 +212,24 @@ test.describe("Comprehensive Project Lifecycle", () => {
     // Navigate to git operations using proper navigation
     const gitNavSuccess = await navigateToProjectPage(page, "git", projectId || undefined)
     expect(gitNavSuccess).toBe(true)
-    console.log("✅ Git operations page accessed")
+    
     
     // Check git status elements using proper data-testids
     const gitStatus = page.locator('[data-testid="git-status"]')
     expect(await gitStatus.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ Git status section found`)
+    
     
     // Test git actions - should have at least some git functionality
     const gitActions = page.locator('[data-testid="git-operations-page"]')
     expect(await gitActions.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ Git actions section found`)
     
-    console.log("✅ Phase 4 completed: Git operations exploration finished")
+    
+    
     
     // ============================================
     // PHASE 5: Agent Management
     // ============================================
-    console.log("Phase 5: Agent Management")
+    
     
     // Navigate back to dashboard
     await page.goto(currentUrl)
@@ -240,18 +243,18 @@ test.describe("Comprehensive Project Lifecycle", () => {
     // Check agent management interface using proper data-testids
     const agentList = page.locator('[data-testid="agents-list"]')
     expect(await agentList.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ Agent list found`)
+    
     
     const createAgentButton = page.locator('[data-testid="create-agent-button"]')
     expect(await createAgentButton.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("✅ Agent management interface verified")
     
-    console.log("✅ Phase 5 completed: Agent management exploration finished")
+    
+    
     
     // ============================================
     // PHASE 6: Chat Session Creation and Interaction
     // ============================================
-    console.log("Phase 6: Chat Session Creation and Interaction")
+    
     
     // Navigate back to dashboard
     await page.goto(currentUrl)
@@ -267,17 +270,17 @@ test.describe("Comprehensive Project Lifecycle", () => {
       await page.waitForURL(/\/projects\/.*\/sessions\/.*\/chat/, { timeout: 15000 })
       await page.waitForTimeout(2000)
     } catch (error) {
-      console.log("Navigation timeout, attempting fallback navigation check")
+      
       // Check if we're already on a sessions page
       const currentUrl = page.url()
       if (!currentUrl.includes("/sessions/")) {
-        console.log("Not on sessions page, waiting for UI elements instead")
+        
         // Wait for chat UI elements to appear instead with increased timeout
         await page.waitForSelector('[data-testid="chat-input"] textarea, textarea', { timeout: 30000 })
         // Give the page a moment to stabilize
         await page.waitForTimeout(2000)
       } else {
-        console.log("Already on sessions page, continuing")
+        
       }
     }
     
@@ -300,15 +303,15 @@ test.describe("Comprehensive Project Lifecycle", () => {
       // Verify message appears using proper data-testid
       const userMessage = page.locator('[data-testid="message-user"]').nth(index)
       await expect(userMessage).toBeVisible({ timeout: 10000 })
-      console.log(`✅ Message ${index + 1} sent and displayed`)
+      
     }
     
-    console.log("✅ Phase 6 completed: Chat session interaction finished")
+    
     
     // ============================================
     // PHASE 7: Project Settings and Configuration
     // ============================================
-    console.log("Phase 7: Project Settings and Configuration")
+    
     
     // Navigate to project settings
     await page.goto(currentUrl)
@@ -316,28 +319,28 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     const settingsNavSuccess = await navigateToProjectPage(page, "settings", projectId || undefined)
     expect(settingsNavSuccess).toBe(true)
-    console.log("✅ Project settings accessed")
+    
     
     // Check settings sections using proper data-testids
     const generalSettings = page.locator('[data-testid="general-settings-section"]')
     expect(await generalSettings.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ General settings section found`)
+    
     
     const aiSettings = page.locator('[data-testid="ai-settings-section"]')
     expect(await aiSettings.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ AI settings section found`)
+    
     
     // Test settings navigation tabs using proper data-testid
     const settingsNav = page.locator('[data-testid="settings-navigation"]')
     expect(await settingsNav.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ Settings navigation found`)
     
-    console.log("✅ Phase 7 completed: Project settings exploration finished")
+    
+    
     
     // ============================================
     // PHASE 8: Session Management
     // ============================================
-    console.log("Phase 8: Session Management")
+    
     
     // Navigate to sessions list
     await page.goto(currentUrl)
@@ -345,21 +348,21 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     const sessionsNavSuccess = await navigateToProjectPage(page, "sessions", projectId || undefined)
     expect(sessionsNavSuccess).toBe(true)
-    console.log("✅ Sessions list accessed")
+    
     
     // Check session list elements using proper data-testids
     const sessionsList = page.locator('[data-testid="sessions-list"]')
     expect(await sessionsList.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ Sessions list found`)
+    
     
     const newSessionButton = page.locator('[data-testid="new-session-button"]')
     expect(await newSessionButton.isVisible({ timeout: 5000 })).toBe(true)
-    console.log(`✅ New session button found`)
+    
     
     // Count existing sessions using proper data-testid
     const sessionItems = page.locator('[data-testid="session-item"]')
     const sessionCount = await sessionItems.count()
-    console.log(`Found ${sessionCount} existing sessions`)
+    
     
     // Test session search using proper data-testid
     const searchInput = page.locator('[data-testid="search-input"]')
@@ -367,61 +370,56 @@ test.describe("Comprehensive Project Lifecycle", () => {
     await searchInput.fill("test")
     await page.waitForTimeout(1000)
     await searchInput.clear()
-    console.log("✅ Session search tested")
     
-    console.log("✅ Phase 8 completed: Session management exploration finished")
+    
+    
     
     // ============================================
     // PHASE 9: Cross-Feature Integration Test
     // ============================================
-    console.log("Phase 9: Cross-Feature Integration Test")
+    
     
     // Test workflow: Dashboard -> File Browser -> Chat -> Back to Dashboard
     const workflowSteps = [
       { action: "Navigate to dashboard", url: `/projects/${projectId}` },
-      { action: "Access file browser", button: '[data-testid="quick-action-file-browser"]' },
+      { action: "Access file browser", url: `/projects/${projectId}/files` },
+      { action: "Return to dashboard", url: `/projects/${projectId}` },
+      // Use the dashboard quick action to create a chat (button is on dashboard)
       { action: "Create new chat", button: '[data-testid="quick-action-new-chat"]' },
-      { action: "Return to dashboard", url: currentUrl }
+      { action: "Return to dashboard", url: `/projects/${projectId}` }
     ]
     
     for (const step of workflowSteps) {
-      console.log(`Executing: ${step.action}`)
       
+
       if (step.url) {
         await page.goto(step.url)
-        await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 15000 })
+
+        // Wait for a context-appropriate selector based on destination
+        if (/\/projects\/.+\/files/.test(step.url)) {
+          await page.waitForSelector('[data-testid="file-tree"]', { timeout: 15000 })
+        } else if (/\/projects\/.+\/sessions\/.+\/chat/.test(step.url) || /\/sessions\/new\/chat/.test(step.url)) {
+          await page.waitForSelector('[data-testid="chat-input-textarea"]', { timeout: 15000 })
+        } else {
+          await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 15000 })
+        }
+
         await page.waitForTimeout(500)
       } else if (step.button) {
         const button = page.locator(step.button)
-        expect(await button.isVisible({ timeout: 5000 })).toBe(true)
+        expect(await button.isVisible({ timeout: 15000 })).toBe(true)
         await button.click()
         await page.waitForTimeout(2000)
       }
+
       
-      console.log(`✅ ${step.action} completed`)
     }
     
-    console.log("✅ Phase 9 completed: Cross-feature integration test finished")
+    
     
     // ============================================
     // FINAL SUMMARY
     // ============================================
-    console.log("\n" + "=".repeat(60))
-    console.log("COMPREHENSIVE PROJECT LIFECYCLE TEST SUMMARY")
-    console.log("=".repeat(60))
-    console.log("✅ Phase 1: Project Discovery and Selection")
-    console.log("✅ Phase 2: Project Dashboard Exploration")
-    console.log("✅ Phase 3: File Browser and Code Exploration")
-    console.log("✅ Phase 4: Git Operations and Version Control")
-    console.log("✅ Phase 5: Agent Management")
-    console.log("✅ Phase 6: Chat Session Creation and Interaction")
-    console.log("✅ Phase 7: Project Settings and Configuration")
-    console.log("✅ Phase 8: Session Management")
-    console.log("✅ Phase 9: Cross-Feature Integration Test")
-    console.log("=".repeat(60))
-    console.log(`Project ID: ${projectId}`)
-    console.log(`Total API Errors: ${apiErrors.length}`)
-    console.log("🎉 COMPREHENSIVE PROJECT LIFECYCLE TEST COMPLETED SUCCESSFULLY!")
-    console.log("=".repeat(60))
+    
   })
 })

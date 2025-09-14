@@ -49,6 +49,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { useProjectSDK } from "@/hooks/useProjectSDK"
+import { useProvidersSDK } from "@/hooks/useProvidersSDK"
 
 // Types for settings
 interface ProjectSettingsConfig {
@@ -191,6 +193,18 @@ export default function ProjectSettings() {
   const currentProject = useCurrentProject()
   const { updateProject, removeProject } = useProjectsActions()
   const effectiveProjectId = projectId || currentProject?.id
+  const projectPath = currentProject?.path
+
+  // Load providers/models dynamically from OpenCode SDK
+  const { instanceStatus } = useProjectSDK(effectiveProjectId, projectPath)
+  const {
+    providers,
+    selectedProvider,
+    selectedModel,
+    availableModels,
+    setSelectedProvider,
+    setSelectedModel,
+  } = useProvidersSDK(effectiveProjectId, projectPath, instanceStatus)
 
   const [settings, setSettings] = useState<ProjectSettingsConfig>({
     general: {
@@ -255,6 +269,18 @@ export default function ProjectSettings() {
   useEffect(() => {
     setHasUnsavedChanges(true)
   }, [settings])
+
+  // Keep local settings in sync with SDK-driven selection
+  useEffect(() => {
+    if (selectedProvider && settings.ai.provider !== selectedProvider) {
+      setSettings((prev) => ({ ...prev, ai: { ...prev.ai, provider: selectedProvider } }))
+    }
+  }, [selectedProvider])
+  useEffect(() => {
+    if (selectedModel && settings.ai.defaultModel !== selectedModel) {
+      setSettings((prev) => ({ ...prev, ai: { ...prev.ai, defaultModel: selectedModel } }))
+    }
+  }, [selectedModel])
 
   const handleSave = async () => {
     if (!effectiveProjectId || !currentProject) return
@@ -577,22 +603,21 @@ export default function ProjectSettings() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Provider</label>
                     <Select
-                      value={settings.ai.provider}
-                      onValueChange={(value) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          ai: { ...prev.ai, provider: value },
-                        }))
-                      }
+                      value={selectedProvider}
+                      onValueChange={(value) => {
+                        setSelectedProvider(value)
+                        setSettings((prev) => ({ ...prev, ai: { ...prev.ai, provider: value } }))
+                      }}
                     >
-                      <SelectTrigger>
-                        <SelectValue />
+                      <SelectTrigger id="provider-select">
+                        <SelectValue placeholder={providers.length ? "Select provider" : "Loading..."} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
-                        <SelectItem value="google">Google</SelectItem>
-                        <SelectItem value="local">Local</SelectItem>
+                        {providers.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -600,22 +625,21 @@ export default function ProjectSettings() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Default Model</label>
                     <Select
-                      value={settings.ai.defaultModel}
-                      onValueChange={(value) =>
-                        setSettings((prev) => ({
-                          ...prev,
-                          ai: { ...prev.ai, defaultModel: value },
-                        }))
-                      }
+                      value={selectedModel}
+                      onValueChange={(value) => {
+                        setSelectedModel(value)
+                        setSettings((prev) => ({ ...prev, ai: { ...prev.ai, defaultModel: value } }))
+                      }}
                     >
-                      <SelectTrigger>
-                        <SelectValue />
+                      <SelectTrigger id="model-select">
+                        <SelectValue placeholder={availableModels.length ? "Select model" : "Loading..."} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="gpt-4">GPT-4</SelectItem>
-                        <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                        <SelectItem value="claude-3-opus">Claude 3 Opus</SelectItem>
-                        <SelectItem value="claude-3-sonnet">Claude 3 Sonnet</SelectItem>
+                        {availableModels.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

@@ -12,7 +12,7 @@ export function useMessagesSDK(
   selectedModel: string,
   selectedProvider: string,
   sessionIdFromRoute?: string
-) {
+){
   const [messages, setMessages] = useState<MessageResponse[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
@@ -24,10 +24,17 @@ export function useMessagesSDK(
     if (!projectId || !client || !projectPath) return
 
     try {
-      const response = await client.session.messages({
+      let response = await client.session.messages({
         path: { id: sessionIdParam },
         query: { directory: projectPath },
       })
+
+      if (!response.data || (Array.isArray(response.data) && response.data.length === 0)) {
+        // Fallback: some backends may not require directory; try without it
+        try {
+          response = await client.session.messages({ path: { id: sessionIdParam } })
+        } catch {}
+      }
 
       if (!response.data) return
 
@@ -35,9 +42,24 @@ export function useMessagesSDK(
       // or an object with { info: Message, parts: Part[] }.
       type MessageListItem = (Message & { parts?: Part[] }) | { info: Message; parts: Part[] }
 
-      const raw = response.data as unknown as MessageListItem[]
+      let raw = response.data as unknown as MessageListItem[]
 
-      const messagesData: MessageResponse[] = raw.map((item) => {
+      // If empty immediately after creating a new session, retry briefly
+      if (Array.isArray(raw) && raw.length === 0) {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await new Promise((r) => setTimeout(r, 800))
+          const retry = await client.session.messages({
+            path: { id: sessionIdParam },
+            query: { directory: projectPath },
+          })
+          if (retry.data && Array.isArray(retry.data) && retry.data.length > 0) {
+            raw = retry.data as unknown as MessageListItem[]
+            break
+          }
+        }
+      }
+
+      const messagesData: MessageResponse[] = (raw || []).map((item) => {
         const info: Message = "info" in item ? item.info : item
         const parts: Part[] = ("parts" in item ? item.parts : []) as Part[]
         return {
@@ -57,7 +79,7 @@ export function useMessagesSDK(
     let mounted = true
     const sessionId = currentSession?.id || sessionIdFromRoute
 
-    // When session changes, clear messages; will be reloaded from server
+    // When session changes, clear messages; they will be loaded from API
     if (sessionId) setMessages([])
 
     // Only attempt network load when dependencies are ready
@@ -80,9 +102,7 @@ export function useMessagesSDK(
       (!inputValue.trim() && (!attachments || attachments.length === 0)) ||
       !currentSession ||
       !projectId ||
-      !projectPath ||
-      !selectedModel ||
-      !client
+      !selectedModel
     ) {
       if (!selectedModel) {
         toast.error("Please select an AI model")
@@ -141,7 +161,7 @@ export function useMessagesSDK(
       _isTemporary: true, // Flag to identify temporary messages
     } as MessageResponse & { _isTemporary?: boolean }
 
-    // Add temporary user message for immediate UI feedback
+    // Add temporary user message for immediate UI feedback and persist cache
     setMessages((prev) => [...prev, tempUserMessage])
 
     // No local persistence
@@ -150,6 +170,12 @@ export function useMessagesSDK(
     abortControllerRef.current = new AbortController()
 
     try {
+      if (!client) {
+        // SDK client not ready yet; we've already added the temporary user message
+        // End streaming state and return gracefully so UI reflects the sent message
+        setIsStreaming(false)
+        return
+      }
 
       // Create parts for the SDK call
       const sdkParts: Array<
@@ -176,7 +202,8 @@ export function useMessagesSDK(
 
       const response = await client.session.prompt({
         path: { id: currentSession.id },
-        query: { directory: projectPath },
+        // Allow prompt without directory until projectPath is resolved
+        ...(projectPath ? { query: { directory: projectPath } } : {}),
         body: {
           model: {
             providerID: selectedProvider,

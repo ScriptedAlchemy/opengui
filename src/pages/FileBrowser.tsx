@@ -332,9 +332,27 @@ export default function FileBrowser() {
   const [newFileName, setNewFileName] = useState("")
   const [targetNode, setTargetNode] = useState<FileTreeNode | null>(null)
 
+  // Resolve project path from store or API
+  const [resolvedPath, setResolvedPath] = useState<string | undefined>(currentProject?.path)
+  useEffect(() => {
+    if (currentProject?.path) setResolvedPath(currentProject.path)
+  }, [currentProject?.path])
+  useEffect(() => {
+    if (resolvedPath || !projectId) return
+    ;(async () => {
+      try {
+        const res = await fetch('/api/projects')
+        if (!res.ok) return
+        const list = await res.json()
+        const p = Array.isArray(list) ? list.find((x: any) => x.id === projectId) : null
+        if (p?.path) setResolvedPath(p.path)
+      } catch {}
+    })()
+  }, [projectId, resolvedPath])
+
   // Load initial file tree
   useEffect(() => {
-    if (!client) return
+    if (!client || !resolvedPath) return
 
     const loadFiles = async () => {
       try {
@@ -343,7 +361,7 @@ export default function FileBrowser() {
         const response = await client.file.list({
           query: {
             path: "",
-            directory: currentProject?.path,
+            directory: resolvedPath,
           },
         })
         const data = response.data as any
@@ -367,12 +385,12 @@ export default function FileBrowser() {
     }
 
     loadFiles()
-  }, [client, currentProject?.path])
+  }, [client, resolvedPath])
 
   // Load directory contents
   const loadDirectory = useCallback(
     async (node: FileTreeNode) => {
-      if (node.type !== "directory" || node.isLoading || !client) return
+      if (node.type !== "directory" || node.isLoading || !client || !resolvedPath) return
 
       try {
         setFileTree((prev) => updateNodeInTree(prev, node.path, { isLoading: true }))
@@ -380,7 +398,7 @@ export default function FileBrowser() {
         const response = await client.file.list({
           query: {
             path: node.path,
-            directory: currentProject?.path,
+            directory: resolvedPath,
           },
         })
         const data = response.data as any
@@ -407,7 +425,7 @@ export default function FileBrowser() {
         setFileTree((prev) => updateNodeInTree(prev, node.path, { isLoading: false }))
       }
     },
-    [client, currentProject?.path]
+    [client, resolvedPath]
   )
 
   // Update node in tree
@@ -455,7 +473,7 @@ export default function FileBrowser() {
           const response = await client.file.read({
             query: {
               path: node.path,
-              directory: currentProject?.path,
+              directory: resolvedPath,
             },
           })
           const content = response.data?.content || ""
@@ -474,7 +492,7 @@ export default function FileBrowser() {
         }
       }
     },
-    [loadDirectory, openFiles, client, currentProject?.path]
+    [loadDirectory, openFiles, client, resolvedPath]
   )
 
   // Handle directory toggle
@@ -648,7 +666,7 @@ export default function FileBrowser() {
 
   const handleDelete = useCallback(
     async (node: FileTreeNode) => {
-      if (!client || !confirm(`Are you sure you want to delete ${node.name}?`)) return
+      if (!client || !resolvedPath || !confirm(`Are you sure you want to delete ${node.name}?`)) return
 
       try {
         // Create a session and use prompt to delete the file
@@ -664,7 +682,7 @@ export default function FileBrowser() {
               },
             ],
           },
-          query: { directory: currentProject?.path },
+          query: { directory: resolvedPath },
         })
 
         // Close the file if it's open
@@ -679,7 +697,7 @@ export default function FileBrowser() {
         const response = await client.file.list({
           query: {
             path: parentPath || "",
-            directory: currentProject?.path,
+            directory: resolvedPath,
           },
         })
         const data = response.data as any
@@ -706,13 +724,13 @@ export default function FileBrowser() {
         setError(`Failed to delete file: ${err instanceof Error ? err.message : err}`)
       }
     },
-    [activeTab, openFiles, client, currentProject?.path]
+    [activeTab, openFiles, client, resolvedPath]
   )
 
   // Save all dirty files
   const handleSaveAll = useCallback(async () => {
     const dirtyFiles = openFiles.filter((f) => f.isDirty)
-    if (dirtyFiles.length === 0 || !client) return
+    if (dirtyFiles.length === 0 || !client || !resolvedPath) return
 
     try {
       // Create a session and save all files
@@ -730,7 +748,7 @@ export default function FileBrowser() {
                 },
               ],
             },
-            query: { directory: currentProject?.path },
+            query: { directory: resolvedPath },
           })
         )
       )
@@ -953,16 +971,18 @@ export default function FileBrowser() {
                 {openFiles.map((file) => (
                   <SandboxTabsContent key={file.path} value={file.path}>
                     <SandboxLayout>
-                      <div data-testid="file-content">
-                        <SandboxCodeEditor
-                          data-testid="file-editor"
+                      <div data-testid="file-editor">
+                        <div data-testid="file-content">
+                          <SandboxCodeEditor
+                          data-testid="file-editor-inner"
                           showTabs={false}
                           showLineNumbers
                           showInlineErrors
                           wrapContent
                           closableTabs
                           initMode="lazy"
-                        />
+                          />
+                        </div>
                       </div>
                     </SandboxLayout>
                   </SandboxTabsContent>

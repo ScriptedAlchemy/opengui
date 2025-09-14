@@ -86,7 +86,7 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
   const attemptedRef = useRef(false)
 
   useEffect(() => {
-    if (!projectId || !projectPath) {
+    if (!projectId) {
       setClient(null)
       attemptedRef.current = false
       return
@@ -101,7 +101,8 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
     setLoading(true)
     attemptedRef.current = true
     
-    getClient(projectId, projectPath)
+    // Create SDK client as soon as we have a projectId; projectPath is not required for client construction
+    getClient(projectId, projectPath || "")
       .then(setClient)
       .catch((err) => {
         console.error('Failed to get SDK client:', err)
