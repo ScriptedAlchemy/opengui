@@ -92,4 +92,3 @@ export async function goToChat(page: Page, projectId: string): Promise<void> {
   // Wait for chat interface to be ready
   await page.waitForSelector('[data-testid="chat-input-textarea"]', { timeout: 15000 })
 }
-

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+ 
 
 test.describe("Agent Management", () => {
   let projectId: string
@@ -35,13 +36,13 @@ test.describe("Agent Management", () => {
           // Log a concise, readable error with method, URL and body snippet
           const method = req.method()
           const statusText = response.statusText()
-          console.log(`API Error: ${method} ${status} ${statusText} - ${url}`)
+          
           if (body) {
-            console.log(`API Error Body: ${body}`)
+            
           }
         }
       } catch (e) {
-        console.log("Error while capturing response body:", e)
+        
       }
     })
 
@@ -93,7 +94,7 @@ test.describe("Agent Management", () => {
       (error.url.includes("/agent") || error.url.includes("/session"))
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -126,7 +127,7 @@ test.describe("Agent Management", () => {
       (error.url.includes("/agent") || error.url.includes("/template"))
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -188,7 +189,7 @@ test.describe("Agent Management", () => {
       (error.url.includes("/agent") || error.url.includes("/create"))
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -214,7 +215,7 @@ test.describe("Agent Management", () => {
       error.url.includes("/agent")
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 
@@ -265,7 +266,7 @@ test.describe("Agent Management", () => {
       error.url.includes("/agent")
     )
     if (criticalErrors.length > 0) {
-      console.log(`API errors detected (non-blocking): ${JSON.stringify(criticalErrors)}`)
+      
     }
   })
 })

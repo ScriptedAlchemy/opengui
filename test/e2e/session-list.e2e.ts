@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+ 
 
 test.describe("Session List", () => {
   let projectId: string
@@ -14,7 +15,7 @@ test.describe("Session List", () => {
           statusText: response.statusText(),
           method: response.request().method()
         })
-        console.log(`API Error: ${response.status()} ${response.statusText()} - ${response.url()}`)
+        
       }
     })
 
@@ -24,7 +25,7 @@ test.describe("Session List", () => {
       await page.waitForSelector("#root", { state: "visible", timeout: 10000 })
       await page.waitForTimeout(2000)
     } catch (error) {
-      console.log('Navigation error:', error)
+      
       // Try alternative navigation
       await page.goto("/")
       await page.waitForSelector("#root", { state: "visible", timeout: 10000 })
@@ -75,7 +76,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 
@@ -102,7 +103,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 
@@ -129,7 +130,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 
@@ -148,7 +149,7 @@ test.describe("Session List", () => {
     // Test should fail if new session button is not found
     expect(await newSessionButton.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Testing new session creation")
+    
     await newSessionButton.click()
     await page.waitForTimeout(3000)
     
@@ -157,7 +158,7 @@ test.describe("Session List", () => {
     
     // Test should fail if chat interface is not found
     expect(await chatInput.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Successfully navigated to chat interface")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -167,7 +168,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 
@@ -186,7 +187,7 @@ test.describe("Session List", () => {
     // Test should fail if search input is not found
     expect(await searchInput.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found search input, testing search functionality")
+    
     await searchInput.fill("test")
     await page.waitForTimeout(1000)
     
@@ -194,7 +195,7 @@ test.describe("Session List", () => {
     await searchInput.fill("")
     await page.waitForTimeout(1000)
     
-    console.log("Search functionality available")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -204,7 +205,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 
@@ -223,14 +224,14 @@ test.describe("Session List", () => {
     // Test should fail if sort button is not found
     expect(await sortButton.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found sorting option")
+    
     await sortButton.click()
     await page.waitForTimeout(1000)
     
     // Close dropdown if opened
     await page.keyboard.press('Escape')
     
-    console.log("Sorting functionality available")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -240,7 +241,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 
@@ -259,7 +260,7 @@ test.describe("Session List", () => {
     // Test should fail if session item is not found
     expect(await sessionItem.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found session item, testing interaction")
+    
     await sessionItem.click()
     await page.waitForTimeout(2000)
     
@@ -268,7 +269,7 @@ test.describe("Session List", () => {
     
     // Test should fail if chat interface is not found
     expect(await chatInput.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Successfully opened session")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -278,7 +279,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 
@@ -297,7 +298,7 @@ test.describe("Session List", () => {
     // Test should fail if session item is not found
     expect(await sessionItem.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found session item, testing context menu")
+    
     
     // Try right-click for context menu
     await sessionItem.click({ button: 'right' })
@@ -308,11 +309,11 @@ test.describe("Session List", () => {
     
     // Test should fail if context menu is not found
     expect(await contextMenu.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found context menu")
+    
     
     // Close context menu
     await page.keyboard.press('Escape')
-    console.log("Context menu functionality available")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -322,7 +323,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 
@@ -345,7 +346,7 @@ test.describe("Session List", () => {
     // Test should fail if delete button is not found
     expect(await deleteButton.isVisible({ timeout: 5000 })).toBe(true)
     
-    console.log("Found delete button, testing deletion workflow")
+    
     await deleteButton.click()
     await page.waitForTimeout(1000)
     
@@ -354,14 +355,14 @@ test.describe("Session List", () => {
     
     // Test should fail if confirmation dialog is not found
     expect(await confirmDialog.isVisible({ timeout: 5000 })).toBe(true)
-    console.log("Found deletion confirmation dialog")
+    
     
     // Cancel the deletion using proper data-testid
     const cancelButton = page.locator('[data-testid="cancel-delete-button"]')
     expect(await cancelButton.isVisible({ timeout: 3000 })).toBe(true)
     await cancelButton.click()
     
-    console.log("Session deletion workflow available")
+    
 
     // Check for API errors
     await page.waitForTimeout(2000)
@@ -371,7 +372,7 @@ test.describe("Session List", () => {
     )
     if (criticalErrors.length > 0) {
       const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-      console.log(`API errors detected (non-blocking): ${errorDetails}`)
+      
     }
   })
 })
