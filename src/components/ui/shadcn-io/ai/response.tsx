@@ -1,7 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { ComponentProps, HTMLAttributes } from "react"
+import type { HTMLAttributes } from "react"
 import { isValidElement, memo } from "react"
 import ReactMarkdown, { type Options } from "react-markdown"
 import rehypeKatex from "rehype-katex"
@@ -10,12 +10,20 @@ import remarkMath from "remark-math"
 import { CodeBlock, CodeBlockCopyButton } from "./code-block"
 import "katex/dist/katex.min.css"
 // Try to import harden-react-markdown, but make it optional
-let hardenReactMarkdown: any = null
+type HardenMarkdownFactory = (component: typeof ReactMarkdown) => typeof ReactMarkdown
+
+let hardenReactMarkdown: HardenMarkdownFactory | null = null
 try {
-  const hardenModule = require("harden-react-markdown")
-  hardenReactMarkdown = hardenModule.default || hardenModule
-} catch (_e) {
-  console.warn("harden-react-markdown not available, using regular ReactMarkdown")
+  const hardenModule = require("harden-react-markdown") as
+    | { default?: HardenMarkdownFactory }
+    | HardenMarkdownFactory
+  if (typeof hardenModule === "function") {
+    hardenReactMarkdown = hardenModule
+  } else if (typeof hardenModule.default === "function") {
+    hardenReactMarkdown = hardenModule.default
+  }
+} catch (error) {
+  console.warn("harden-react-markdown not available, using regular ReactMarkdown", error)
 }
 
 /**
@@ -159,18 +167,22 @@ function parseIncompleteMarkdown(text: string): string {
 }
 
 // Create a hardened version of ReactMarkdown
-const HardenedMarkdown = hardenReactMarkdown(ReactMarkdown)
+const HardenedMarkdown: typeof ReactMarkdown = hardenReactMarkdown
+  ? hardenReactMarkdown(ReactMarkdown)
+  : ReactMarkdown
+
+type HardenedOptions = Options & {
+  allowedImagePrefixes?: string[]
+  allowedLinkPrefixes?: string[]
+  defaultOrigin?: string
+}
 
 export type ResponseProps = HTMLAttributes<HTMLDivElement> & {
-  options?: Options
+  options?: HardenedOptions
   children: Options["children"]
-  allowedImagePrefixes?: ComponentProps<
-    ReturnType<typeof hardenReactMarkdown>
-  >["allowedImagePrefixes"]
-  allowedLinkPrefixes?: ComponentProps<
-    ReturnType<typeof hardenReactMarkdown>
-  >["allowedLinkPrefixes"]
-  defaultOrigin?: ComponentProps<ReturnType<typeof hardenReactMarkdown>>["defaultOrigin"]
+  allowedImagePrefixes?: string[]
+  allowedLinkPrefixes?: string[]
+  defaultOrigin?: string
   parseIncompleteMarkdown?: boolean
 }
 
@@ -342,20 +354,32 @@ export const Response = memo(
         ? parseIncompleteMarkdown(children)
         : children
 
+    const markdownOptions: HardenedOptions = {
+      ...(options ?? {}),
+      components,
+      remarkPlugins: [remarkGfm, remarkMath],
+      rehypePlugins: [rehypeKatex],
+    }
+
+    const resolvedAllowedImages = allowedImagePrefixes ?? options?.allowedImagePrefixes ?? ["*"]
+    markdownOptions.allowedImagePrefixes = resolvedAllowedImages
+
+    const resolvedAllowedLinks =
+      allowedLinkPrefixes ?? options?.allowedLinkPrefixes ?? ["http", "https", "mailto", "tel"]
+    markdownOptions.allowedLinkPrefixes = resolvedAllowedLinks
+
+    const resolvedOrigin =
+      defaultOrigin ?? options?.defaultOrigin ?? (typeof window !== "undefined" ? window.location.origin : "")
+    if (resolvedOrigin) {
+      markdownOptions.defaultOrigin = resolvedOrigin
+    }
+
     return (
       <div
         className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
         {...props}
       >
-        <HardenedMarkdown
-          allowedImagePrefixes={allowedImagePrefixes ?? ["*"]}
-          allowedLinkPrefixes={allowedLinkPrefixes ?? ["*"]}
-          components={components}
-          defaultOrigin={defaultOrigin}
-          rehypePlugins={[rehypeKatex]}
-          remarkPlugins={[remarkGfm, remarkMath]}
-          {...options}
-        >
+        <HardenedMarkdown {...(markdownOptions as HardenedOptions)}>
           {parsedChildren}
         </HardenedMarkdown>
       </div>

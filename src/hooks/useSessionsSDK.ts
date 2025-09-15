@@ -54,8 +54,16 @@ export function useSessionsSDK(
 
   // Load sessions
   useEffect(() => {
-    const debug = (() => { try { return localStorage.getItem('debugSessions') === '1' } catch { return false } })()
-    const log = (...args: any[]) => { if (debug) console.debug(...args) }
+    const debug = (() => {
+      try {
+        return localStorage.getItem("debugSessions") === "1"
+      } catch {
+        return false
+      }
+    })()
+    const log = (...args: unknown[]) => {
+      if (debug) console.debug(...args)
+    }
 
     log("useSessionsSDK: checking conditions", {
       projectId,
@@ -80,9 +88,7 @@ export function useSessionsSDK(
           title: "Chat Session",
           version: "1.0.0",
           time: { created: now, updated: now },
-          messages: [],
-          createdAt: now,
-        } as unknown as SessionInfo
+        }
         setSessions([fallback])
         setCurrentSession(fallback)
       }
@@ -111,13 +117,12 @@ export function useSessionsSDK(
         if (sessionId && sessionId !== "new") {
           const session = sessionsData.find((s: SessionInfo) => s.id === sessionId)
           log("useSessionsSDK: looking for session", { sessionId, found: !!session })
-        if (session) {
-          setCurrentSession(session)
-          // Note: Message loading is now handled by useMessagesSDK useEffect
-        } else {
-          // Keep current view; messages hook will handle absence gracefully
-          if (debug) console.warn("useSessionsSDK: session not found; keeping current state")
-        }
+          if (session) {
+            setCurrentSession(session)
+            // Message loading handled in useMessagesSDK
+          } else if (debug) {
+            console.warn("useSessionsSDK: session not found; keeping current state")
+          }
         } else if (sessionId === "new") {
           // Handle new session creation
           handleCreateSession()
@@ -132,7 +137,7 @@ export function useSessionsSDK(
     }
 
     loadSessions()
-  }, [projectId, projectPath, instanceStatus, client, handleCreateSession, sessionId])
+  }, [projectId, projectPath, instanceStatus, client, handleCreateSession, sessionId, sdkError])
 
   // Rename session
   const handleRenameSession = async (sessionIdParam: string, newName: string) => {

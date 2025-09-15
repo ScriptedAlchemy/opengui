@@ -12,6 +12,7 @@ import {
   Database,
   Cpu,
   Bot,
+  type LucideIcon,
 } from "lucide-react"
 import { Button } from "../ui/button"
 import { Input } from "../ui/input"
@@ -54,7 +55,7 @@ const defaultTools = {
   webfetch: false,
 }
 
-const toolIcons: Record<string, any> = {
+const toolIcons: Record<string, LucideIcon> = {
   bash: Terminal,
   edit: Edit,
   read: FileText,

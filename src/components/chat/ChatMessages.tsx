@@ -1,6 +1,5 @@
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { User, Bot, Loader2, Download } from "lucide-react"
 import { useEffect, useRef } from "react"
 import type { MessageResponse, SessionInfo } from "@/types/chat"
@@ -73,7 +72,7 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
                 </div>
 
                 {/* Message Content */}
-                <div className="flex-1 space-y-2">
+                <div className="min-w-0 max-w-[720px] space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">
                       {message.role === "user" ? "You" : "Assistant"}
@@ -85,12 +84,12 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
                     )}
                   </div>
 
-                  <Card className="p-3">
+                  <Card className="p-3 w-fit max-w-[720px]">
                     <div className="prose prose-sm dark:prose-invert max-w-none">
                       {message.parts.map((part, partIndex) => {
                         if (part.type === "text") {
                           return (
-                            <div key={partIndex} className="whitespace-pre-wrap">
+                            <div key={partIndex} className="whitespace-pre-wrap break-words break-anywhere">
                               {part.text}
                             </div>
                           )
@@ -196,14 +195,7 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
                 </div>
               </div>
               <div className="flex-1">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="text-sm font-medium">Assistant</span>
-                  <Badge variant="secondary" className="text-xs">
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    Thinking...
-                  </Badge>
-                </div>
-                <Card className="p-3">
+                <Card className="p-3 w-fit max-w-[720px]">
                   <div className="text-muted-foreground flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm">Generating response...</span>

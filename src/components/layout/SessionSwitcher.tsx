@@ -32,7 +32,6 @@ export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: 
 
   if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
     // Helpful debug in tests
-    // eslint-disable-next-line no-console
     console.debug("[SessionSwitcher] sessions count=", sessions.length, "projectId=", projectId)
   }
 

@@ -22,8 +22,17 @@ export interface ProjectInstance {
   sdk?: OpencodeClient
 }
 
+const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  )
+}
+
 export class ProjectManager {
-  private static instance: ProjectManager
+  private static instance: ProjectManager | null = null
   private projects = new Map<string, ProjectInstance>()
   private loaded = false
   private dirty = false
@@ -58,7 +67,7 @@ export class ProjectManager {
       }
       ProjectManager.instance.projects.clear()
     }
-    ProjectManager.instance = null as any
+    ProjectManager.instance = null
   }
 
   private async ensureConfigDirSync(): Promise<void> {
@@ -98,8 +107,8 @@ export class ProjectManager {
         }
 
         this.log.info(`Loaded ${this.projects.size} projects`)
-      } catch (error: any) {
-        if (error.code === "ENOENT") {
+      } catch (error: unknown) {
+        if (isNodeError(error) && error.code === "ENOENT") {
           this.log.info("No existing projects file found")
         } else {
           throw error

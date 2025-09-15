@@ -102,9 +102,7 @@ export const renderTaskTool = (message: ToolPart) => {
           <Tool>
             <ToolHeader type={message.tool} state={state} />
             <ToolContent>
-              {runningState.input ? (
-                <ToolInput input={runningState.input as unknown as React.ReactNode} />
-              ) : null}
+              {runningState.input ? <ToolInput input={runningState.input} /> : null}
               <ToolOutput
                 output={
                   <div className="space-y-3">

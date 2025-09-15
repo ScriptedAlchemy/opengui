@@ -30,13 +30,13 @@ export const renderDefaultTool = (message: ToolPart) => {
               </span>
             </div>
             {(state as ToolStateRunning).input ? (
-              <ToolInput input={(state as ToolStateRunning).input as unknown as React.ReactNode} />
+              <ToolInput input={(state as ToolStateRunning).input} />
             ) : null}
           </div>
         )}
         {state.status === "completed" && (
           <div className="space-y-3 p-4">
-            <ToolInput input={(state as ToolStateCompleted).input as unknown as React.ReactNode} />
+            <ToolInput input={(state as ToolStateCompleted).input} />
             <ToolOutput
               output={String((state as ToolStateCompleted).output || "")}
               errorText={null}
@@ -45,7 +45,7 @@ export const renderDefaultTool = (message: ToolPart) => {
         )}
         {state.status === "error" && (
           <div className="space-y-3 p-4">
-            <ToolInput input={(state as ToolStateError).input as unknown as React.ReactNode} />
+            <ToolInput input={(state as ToolStateError).input} />
             <div className="bg-destructive/10 rounded-md p-3">
               <p className="text-destructive text-sm">{(state as ToolStateError).error}</p>
             </div>

@@ -3,6 +3,15 @@ import { toast } from "sonner"
 import type { Provider } from "@/types/chat"
 import { useProjectSDK } from "@/contexts/OpencodeSDKContext"
 
+interface ProvidersResponsePayload {
+  providers?: Array<{
+    id: string
+    name?: string
+    models?: Record<string, { name?: string } | undefined>
+  }>
+  default?: Record<string, string | undefined>
+}
+
 export function useProvidersSDK(
   projectId: string | undefined,
   projectPath: string | undefined,
@@ -42,22 +51,20 @@ export function useProvidersSDK(
           console.error("No data in providers response")
           return
         }
-        const data = response.data
-        const providersArray = data.providers || []
-        const defaultModels = data.default || {}
+        const data = response.data as ProvidersResponsePayload
+        const providersArray = data.providers ?? []
+        const defaultModels = data.default ?? {}
 
-        const formattedProviders: Provider[] = providersArray.map((provider: any) => {
-          // Convert models object to array
-          const modelsArray = provider.models
-            ? Object.entries(provider.models).map(([modelId, model]: [string, any]) => ({
-                id: modelId,
-                name: model.name || modelId,
-              }))
-            : []
+        const formattedProviders: Provider[] = providersArray.map((provider) => {
+          const modelsRecord = provider.models ?? {}
+          const modelsArray = Object.entries(modelsRecord).map(([modelId, modelConfig]) => ({
+            id: modelId,
+            name: modelConfig?.name ?? modelId,
+          }))
 
           return {
             id: provider.id,
-            name: provider.name || provider.id,
+            name: provider.name ?? provider.id,
             models: modelsArray,
           }
         })
@@ -66,16 +73,19 @@ export function useProvidersSDK(
 
         // Validate persisted selection against freshly loaded providers/models
         const persistedProvider = selectedProvider
-        const providerValid = !!formattedProviders.find(p => p.id === persistedProvider)
+        const providerValid = formattedProviders.some((provider) => provider.id === persistedProvider)
         let nextProvider = persistedProvider
         if (!providerValid) {
           // Prefer anthropic if present, otherwise first provider
-          nextProvider = formattedProviders.find(p => p.id === "anthropic")?.id || formattedProviders[0]?.id || ""
+          nextProvider =
+            formattedProviders.find((provider) => provider.id === "anthropic")?.id ||
+            formattedProviders[0]?.id ||
+            ""
           setSelectedProvider(nextProvider)
         }
 
-        const modelsForNext = formattedProviders.find(p => p.id === nextProvider)?.models || []
-        const modelValid = !!modelsForNext.find(m => m.id === selectedModel)
+        const modelsForNext = formattedProviders.find((provider) => provider.id === nextProvider)?.models ?? []
+        const modelValid = modelsForNext.some((model) => model.id === selectedModel)
         if (!modelValid) {
           const defaultModelId = (data.default || {})[nextProvider]
           const firstModel = modelsForNext[0]?.id
@@ -111,7 +121,15 @@ export function useProvidersSDK(
     }
 
     loadProviders()
-  }, [projectId, projectPath, instanceStatus, client, sdkLoading])
+  }, [
+    projectId,
+    projectPath,
+    instanceStatus,
+    client,
+    sdkLoading,
+    selectedProvider,
+    selectedModel,
+  ])
 
   // Persist selection when it changes
   useEffect(() => {

@@ -17,6 +17,7 @@ import {
 import { AgentCreateDialog } from "../components/agent-management/AgentCreateDialog"
 import { AgentTestDialog } from "../components/agent-management/AgentTestDialog"
 import { agentTemplates } from "../components/agent-management/agentTemplates"
+import { getAgentModelValue } from "@/util/agents"
 
 interface AgentFormData {
   name: string
@@ -79,10 +80,6 @@ export default function AgentManagement() {
     model: undefined,
   })
 
-  useEffect(() => {
-    loadAgents()
-  }, [projectId])
-
   // Ensure search query reacts in test/dom environments even if synthetic onChange doesn't propagate
   useEffect(() => {
     if (typeof document === 'undefined') return
@@ -112,7 +109,7 @@ export default function AgentManagement() {
     return () => cleanup?.()
   }, [])
 
-  const loadAgents = async () => {
+  const loadAgents = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -134,8 +131,22 @@ export default function AgentManagement() {
       const agentList = await response.json()
 
       // Convert Agent[] to Record<string, AgentInfo> for compatibility
-      const agentMap = agentList.reduce(
-        (acc: Record<string, AgentInfo>, agent: any) => {
+      type ServerAgent = {
+        id: string
+        name: string
+        description?: string
+        temperature?: number
+        maxTokens?: number
+        systemPrompt?: string
+        tools: string[]
+        model?: string
+        enabled: boolean
+        isTemplate?: boolean
+        createdAt?: number
+      }
+
+      const agentMap = (agentList as ServerAgent[]).reduce(
+        (acc: Record<string, AgentInfo>, agent: ServerAgent) => {
           acc[agent.id] = {
             name: agent.name,
             description: agent.description,
@@ -149,7 +160,10 @@ export default function AgentManagement() {
               webfetch: "ask",
             },
             prompt: agent.systemPrompt,
-            tools: agent.tools,
+            tools: (agent.tools || []).reduce((acc: Record<string, boolean>, tool: string) => {
+              acc[tool] = true
+              return acc
+            }, {} as Record<string, boolean>),
             options: {},
             model: agent.model,
           }
@@ -220,7 +234,6 @@ export default function AgentManagement() {
             model: undefined,
           }
           return acc
-          return acc
         }, fallbackMap)
         if (Object.keys(fallbackMap).length > 0) {
           setAgents(fallbackMap)
@@ -231,7 +244,11 @@ export default function AgentManagement() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectId])
+
+  useEffect(() => {
+    void loadAgents()
+  }, [loadAgents])
 
   const domSearch = typeof document !== 'undefined'
     ? (document.querySelector('input[placeholder*="Search agents" i]') as HTMLInputElement | null)?.value ?? ''
@@ -267,8 +284,16 @@ export default function AgentManagement() {
     })
 
   // Debug: ensure filtering is applied in tests
-  // eslint-disable-next-line no-console
-  console.debug('[AgentManagement] searchQuery=', searchQuery, 'agents=', Object.keys(agents).length, 'filtered=', filteredAgents.length)
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+    console.debug(
+      "[AgentManagement] searchQuery=",
+      searchQuery,
+      "agents=",
+      Object.keys(agents).length,
+      "filtered=",
+      filteredAgents.length
+    )
+  }
 
   const resetForm = () => {
     setFormData({
@@ -486,6 +511,7 @@ export default function AgentManagement() {
 
   const openEditDialog = (agentId: string) => {
     const agent = agents[agentId]
+    const modelValue = getAgentModelValue(agent)
     setSelectedAgent(agentId)
     setFormData({
       name: (agent.name as string) || "",
@@ -501,7 +527,7 @@ export default function AgentManagement() {
         bash: Record<string, Permission>
         webfetch?: Permission
       }) || { edit: "ask" as Permission, bash: {} },
-      model: (agent as any).model,
+      model: typeof modelValue === "string" ? modelValue : undefined,
     })
     setShowEditDialog(true)
   }
@@ -586,7 +612,8 @@ ${
         if (importData.agents) {
           setAgents((prev) => ({ ...prev, ...importData.agents }))
         }
-      } catch (_err) {
+      } catch (error) {
+        console.error("Failed to parse imported agents:", error)
         setError("Failed to import agents: Invalid file format")
       }
     }
@@ -627,7 +654,7 @@ ${
         topP: agent.topP || 0.9,
         tools: agent.tools || {},
         permissions: agent.permission || { edit: "ask", bash: {} },
-        model: (agent as any).model,
+        model: getAgentModelValue(agent),
       }
       navigator.clipboard.writeText(JSON.stringify(config, null, 2))
     },
@@ -682,7 +709,8 @@ ${
 
         {/* Agent Grid */}
         <ScrollArea className="flex-1 p-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-list">
+          <div className="mx-auto w-full xl:max-w-6xl">
+          <div className={`grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 ${filteredAgents.length <= 1 ? 'justify-items-center' : ''}`} data-testid="agents-list">
             {filteredAgents.length === 0 ? (
               <div className="col-span-full py-12 text-center">
                 <Bot className="mx-auto mb-4 h-12 w-12 text-gray-600" />
@@ -694,25 +722,44 @@ ${
                     ? "Try adjusting your search terms"
                     : "Create your first AI agent to get started"}
                 </p>
-                {!searchQuery && (
-                  <div className="flex justify-center gap-2">
-                    <Button
-                      onClick={() => setShowTemplatesDialog(true)}
-                      variant="outline"
-                      className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
-                    >
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Browse Templates
-                    </Button>
-                    <Button
-                      onClick={() => setShowCreateDialog(true)}
-                      className="bg-[#3b82f6] hover:bg-[#2563eb]"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create Agent
-                    </Button>
-                  </div>
-                )}
+                <div className="flex justify-center gap-2">
+                  {searchQuery ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => setSearchQuery("")}
+                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                      >
+                        Clear Search
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setFilterCategory("all")}
+                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                      >
+                        Reset Filters
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={() => setShowTemplatesDialog(true)}
+                        variant="outline"
+                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Browse Templates
+                      </Button>
+                      <Button
+                        onClick={() => setShowCreateDialog(true)}
+                        className="bg-[#3b82f6] hover:bg-[#2563eb]"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create Agent
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             ) : (
               filteredAgents.map(([agentId, agent]) => (
@@ -731,6 +778,7 @@ ${
                 />
               ))
             )}
+          </div>
           </div>
         </ScrollArea>
 

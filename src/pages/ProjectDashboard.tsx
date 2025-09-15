@@ -34,6 +34,7 @@ import {
 } from "../stores/projects"
 import { useSessionsForProject, useRecentSessions, useSessionsStore } from "../stores/sessions"
 import { useOpencodeSDK } from "../contexts/OpencodeSDKContext"
+import type { Project } from "../lib/api/project-manager"
 
 interface GitStatus {
   branch: string
@@ -84,10 +85,10 @@ export default function ProjectDashboard() {
   const [resourceUsage, setResourceUsage] = useState<ResourceUsage | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const loadProjectDetails = async (projectId: string, projectPath: string) => {
+  const loadProjectDetails = useCallback(async (projectIdParam: string, projectPath: string) => {
     try {
       // Get SDK client for this project
-      const client = await getClient(projectId, projectPath)
+      const client = await getClient(projectIdParam, projectPath)
 
         // Sessions are already loaded via store; avoid redundant list calls here to reduce network load
 
@@ -152,7 +153,7 @@ export default function ProjectDashboard() {
 
         // Load resource usage from backend (not available in SDK yet)
         try {
-          const response = await fetch(`/api/projects/${projectId}/resources`)
+          const response = await fetch(`/api/projects/${projectIdParam}/resources`)
           if (response.ok) {
             const resourceData = await response.json()
             setResourceUsage(resourceData)
@@ -162,7 +163,7 @@ export default function ProjectDashboard() {
             const responseHeaders = Object.fromEntries(response.headers.entries())
             console.error('Failed to load resource usage:', {
               method: 'GET',
-              url: `/api/projects/${projectId}/resources`,
+              url: `/api/projects/${projectIdParam}/resources`,
               status: response.status,
               statusText: response.statusText,
               headers: responseHeaders,
@@ -180,7 +181,7 @@ export default function ProjectDashboard() {
 
         // Load activity feed from backend (not available in SDK yet)
         try {
-          const response = await fetch(`/api/projects/${projectId}/activity`)
+          const response = await fetch(`/api/projects/${projectIdParam}/activity`)
           if (response.ok) {
             const activityData = await response.json()
             setActivityFeed(activityData)
@@ -190,7 +191,7 @@ export default function ProjectDashboard() {
             const responseHeaders = Object.fromEntries(response.headers.entries())
             console.error('Failed to load activity feed:', {
               method: 'GET',
-              url: `/api/projects/${projectId}/activity`,
+              url: `/api/projects/${projectIdParam}/activity`,
               status: response.status,
               statusText: response.statusText,
               headers: responseHeaders,
@@ -204,38 +205,36 @@ export default function ProjectDashboard() {
     } catch (error) {
       console.error("Failed to load project details:", error)
     }
-  }
+  }, [getClient])
 
-  // Load project data on mount
-  useEffect(() => {
-    if (!projectId) return
-
-    const loadProjectData = async () => {
+  const loadProjectData = useCallback(
+    async (targetProjectId: string) => {
       setLoading(true)
       try {
-        // Select the project and wait for it to be loaded
-        await selectProject(projectId)
+        let state = useProjectsStore.getState()
+        let project: Project | null = state.currentProject ?? null
 
-        // Small delay to ensure store is updated
-        await new Promise((resolve) => setTimeout(resolve, 100))
-
-        // Get the updated project from the store
-        const state = useProjectsStore.getState()
-        const project = state.currentProject || state.projects.find((p) => p.id === projectId)
+        if (!project || project.id !== targetProjectId) {
+          await selectProject(targetProjectId)
+          state = useProjectsStore.getState()
+          project = state.currentProject ?? null
+          if (!project) {
+            const found = state.projects.find((p) => p.id === targetProjectId)
+            project = found ?? null
+          }
+        }
 
         if (project?.path) {
-          // Load sessions
-          await loadSessions(projectId, project.path)
+          await loadSessions(targetProjectId, project.path)
 
-          // Load additional data if project is running
           if (project.instance?.status === "running") {
-            await loadProjectDetails(projectId, project.path)
+            await loadProjectDetails(targetProjectId, project.path)
           }
         } else {
-          console.error("Project not found or missing path:", projectId)
-          // Fallback navigation: if we have any projects, navigate to the first one
-          if (state.projects.length > 0) {
-            navigate(`/projects/${state.projects[0].id}`)
+          console.error("Project not found or missing path:", targetProjectId)
+          const fallback = state.projects[0]
+          if (fallback) {
+            navigate(`/projects/${fallback.id}`)
           } else {
             navigate(`/`)
           }
@@ -245,10 +244,22 @@ export default function ProjectDashboard() {
       } finally {
         setLoading(false)
       }
-    }
+    },
+    [selectProject, loadSessions, loadProjectDetails, navigate]
+  )
 
-    loadProjectData()
-  }, [projectId, selectProject, loadSessions, getClient])
+  const [projectDetailsLoaded, setProjectDetailsLoaded] = useState(false)
+
+  useEffect(() => {
+    setProjectDetailsLoaded(false)
+  }, [projectId])
+
+  // Load project data on mount
+  useEffect(() => {
+    if (!projectId || projectDetailsLoaded) return
+    setProjectDetailsLoaded(true)
+    void loadProjectData(projectId)
+  }, [projectId, projectDetailsLoaded, loadProjectData])
 
   // Handlers for starting/stopping projects are not used in this view currently.
 

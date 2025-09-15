@@ -25,8 +25,8 @@ interface TestMessage {
     success?: boolean
     toolCalls?: Array<{
       tool: string
-      input: any
-      output?: any
+      input: unknown
+      output?: unknown
       error?: string
     }>
   }
@@ -43,6 +43,19 @@ export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialog
   const [testInput, setTestInput] = useState("")
   const [testLoading, setTestLoading] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
+
+  const formatDebugValue = (value: unknown): string => {
+    if (value === null) return "null"
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value)
+    }
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch {
+      return String(value)
+    }
+  }
 
   const handleTestAgent = async () => {
     if (!testInput.trim() || !agentId) return
@@ -285,31 +298,36 @@ export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialog
                     .map((message, index) => (
                       <div key={index} className="rounded border border-[#262626] bg-[#1a1a1a] p-2">
                         <div className="mb-2 text-gray-400">Tool Calls:</div>
-                        {message.metadata?.toolCalls?.map((call, callIndex) => (
-                          <div key={callIndex} className="mb-2 last:mb-0">
-                            <div className="mb-1 flex items-center gap-1 text-[#3b82f6]">
-                              <Code className="h-3 w-3" />
-                              {call.tool}
-                              {call.error && (
-                                <span className="ml-2 text-xs text-red-400">(Error)</span>
+                        {message.metadata?.toolCalls?.map((call, callIndex) => {
+                          const hasOutput = call.output !== undefined && call.output !== null
+                          const hasError = typeof call.error === "string" && call.error.length > 0
+
+                          return (
+                            <div key={callIndex} className="mb-2 last:mb-0">
+                              <div className="mb-1 flex items-center gap-1 text-[#3b82f6]">
+                                <Code className="h-3 w-3" />
+                                {call.tool}
+                                {hasError && (
+                                  <span className="ml-2 text-xs text-red-400">(Error)</span>
                               )}
-                              {call.output && (
+                              {hasOutput && (
                                 <span className="ml-2 text-xs text-green-400">(Completed)</span>
                               )}
                             </div>
                             <div className="ml-4 text-xs text-gray-500">
-                              <div className="mb-1">
-                                Input: {JSON.stringify(call.input, null, 2)}
-                              </div>
-                              {call.output && (
-                                <div className="mb-1 text-green-300">Output: {call.output}</div>
+                              <div className="mb-1">Input: {formatDebugValue(call.input)}</div>
+                              {hasOutput && (
+                                <div className="mb-1 text-green-300">
+                                  Output: {formatDebugValue(call.output)}
+                                </div>
                               )}
-                              {call.error && (
+                              {hasError && (
                                 <div className="text-red-400">Error: {call.error}</div>
                               )}
                             </div>
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     ))}
                   {testMessages.filter((msg) => msg.metadata?.toolCalls).length === 0 && (

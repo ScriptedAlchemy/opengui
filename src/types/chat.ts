@@ -27,6 +27,7 @@ export type SessionInfo = Session
 // The SDK Message type is flattened - properties like id, role, time are directly on Message
 export type MessageResponse = Message & {
   parts: Part[]
+  _isTemporary?: boolean
 }
 
 export interface ChatState {

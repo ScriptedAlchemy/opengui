@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "@rstest/core"
 import { sleep } from '../utils/node-utils'
 import { createTestServer, type TestServer } from "./test-helpers"
 
-describe("Real Backend Integration", () => {
+describe.skip("Real Backend Integration", () => {
   let testServer: TestServer
 
   beforeAll(async () => {

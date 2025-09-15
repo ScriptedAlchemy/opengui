@@ -1,5 +1,4 @@
 import { test, expect } from "@playwright/test"
-import { tlog } from "./log"
 
 test.describe("Project Settings", () => {
   let projectId: string
@@ -171,6 +170,14 @@ test.describe("Project Settings", () => {
 
     // AI settings section should exist - test should fail if not found
     expect(await aiSettingsSection.isVisible({ timeout: 5000 })).toBe(true)
+    // Attach a focused screenshot of the AI settings panel for visual review
+    try {
+      const shotPath = `test-results/ai-settings-section-${Date.now()}.png`
+      await aiSettingsSection.screenshot({ path: shotPath })
+      await test.info().attach('ai-settings-section', { path: shotPath, contentType: 'image/png' })
+    } catch {
+      // Screenshot failed, continue test
+    }
     
 
     // Check for API errors
@@ -304,7 +311,7 @@ test.describe("Project Settings", () => {
           
           interactionCount++
         } catch (error) {
-          
+          console.log(`Failed to interact with input: ${error}`)
         }
         
         if (interactionCount >= 3) break // Limit interactions

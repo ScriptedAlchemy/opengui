@@ -17,10 +17,18 @@ export function useSSESDK(
 
   useEffect(() => {
     const debug = (() => {
-      try { return localStorage.getItem('debugSSE') === '1' } catch { return false }
+      try {
+        return localStorage.getItem("debugSSE") === "1"
+      } catch {
+        return false
+      }
     })()
-    const log = (...args: any[]) => { if (debug) console.debug(...args) }
-    const warn = (...args: any[]) => { if (debug) console.warn(...args) }
+    const log = (...args: unknown[]) => {
+      if (debug) console.debug(...args)
+    }
+    const warn = (...args: unknown[]) => {
+      if (debug) console.warn(...args)
+    }
 
     log("[useSSESDK] Effect called with:", {
       hasClient: !!client,
@@ -50,6 +58,16 @@ export function useSSESDK(
     const abortController = new AbortController()
     abortControllerRef.current = abortController
 
+    const findLastTemporaryUserMessageIndex = (messagesList: MessageResponse[], sessionID: string) => {
+      for (let index = messagesList.length - 1; index >= 0; index -= 1) {
+        const message = messagesList[index]
+        if (message._isTemporary && message.role === "user" && message.sessionID === sessionID) {
+          return index
+        }
+      }
+      return -1
+    }
+
     async function subscribeToEvents() {
       if (!client || !projectPath || !currentSession) {
         log("[useSSESDK] subscribeToEvents: Missing requirements")
@@ -58,37 +76,24 @@ export function useSSESDK(
 
       try {
         log("[useSSESDK] Attempting to subscribe to events with client:", !!client)
-        log("[useSSESDK] Client.event available:", !!client.event)
-        log("[useSSESDK] Client.event.subscribe available:", !!client.event?.subscribe)
-        
+
         const result = await client.event.subscribe({
           signal: abortController.signal,
         })
 
-        log("[useSSESDK] Subscribe result:", { 
-          hasResult: !!result, 
-          hasStream: !!result?.stream,
-          resultKeys: result ? Object.keys(result) : []
-        })
-
-        if (!result.stream) {
-          warn("[useSSESDK] No stream available from SDK")
-          return
-        }
+        const stream = result.stream as AsyncGenerator<Event, void, unknown>
 
         log("[useSSESDK] Successfully connected to SSE stream, starting to process events")
 
-        // Process events from the async generator
-        log("[useSSESDK] Starting event processing loop")
-        for await (const event of result.stream) {
+        for await (const event of stream) {
           log("[useSSESDK] Received raw event from stream:", event)
-          
+
           if (abortController.signal.aborted) {
             log("[useSSESDK] SSE stream aborted")
             break
           }
 
-          handleEvent(event as Event)
+          handleEvent(event)
         }
         log("[useSSESDK] Event processing loop ended")
       } catch (error) {
@@ -98,69 +103,56 @@ export function useSSESDK(
       }
     }
 
-    function handleEvent(event: Event) {
+    const handleEvent = (event: Event) => {
       try {
         log("[useSSESDK] Received event:", event.type, event.properties)
         switch (event.type) {
           case "message.updated": {
-            const { info } = event.properties || {}
-            log("[useSSESDK] message.updated event:", { info, currentSessionId: currentSession?.id })
-            if (info?.sessionID === currentSession?.id && info?.id) {
-              setMessages((prev: MessageResponse[]) => {
-                const existingIndex = prev.findIndex((m) => m.id === info.id)
+            const { info } = event.properties
+            if (info.sessionID === currentSession?.id && info.id) {
+              setMessages((prev) => {
+                const existingIndex = prev.findIndex((message) => message.id === info.id)
                 if (existingIndex >= 0) {
-                  // Update existing message - spread info properties directly
                   const updated = [...prev]
                   updated[existingIndex] = {
                     ...updated[existingIndex],
                     ...info,
+                    _isTemporary: false,
                   }
                   return updated
-                } else {
-                  // Check if this is a real user message that should replace a temporary one
-                  if (info.role === "user") {
-                    // Find and replace the most recent temporary user message
-                    const tempIndex = prev.findIndex((m, i) => 
-                      (m as any)._isTemporary && 
-                      m.role === "user" && 
-                      m.sessionID === info.sessionID &&
-                      // Make sure it's the most recent temp message
-                      i === prev.length - 1 || prev.slice(i + 1).every(laterMsg => !(laterMsg as any)._isTemporary || laterMsg.role !== "user")
-                    )
-                    
-                      if (tempIndex >= 0) {
-                        log("[useSSESDK] Replacing temporary user message with real one, preserving parts until server parts arrive")
-                        const updated = [...prev]
-                        const temp = updated[tempIndex]
-                        updated[tempIndex] = {
-                          ...(info as any),
-                          // Preserve existing parts from temp message until real parts stream in
-                          parts: (temp?.parts && temp.parts.length > 0) ? temp.parts : [],
-                        } as MessageResponse
-                        return updated
-                      }
-                  }
-
-                  // Add new message - spread info properties directly
-                  log("[useSSESDK] Adding new message from SSE:", info.role, info.id)
-                  return [
-                    ...prev,
-                    {
-                      ...info,
-                      parts: [], // Parts will come via message.part.updated events
-                    } as MessageResponse,
-                  ]
                 }
+
+                if (info.role === "user") {
+                  const tempIndex = findLastTemporaryUserMessageIndex(prev, info.sessionID)
+                  if (tempIndex >= 0) {
+                    log("[useSSESDK] Replacing temporary user message with real one")
+                    const updated = [...prev]
+                    const existingMessage = updated[tempIndex]
+                    updated[tempIndex] = {
+                      ...info,
+                      parts: existingMessage.parts,
+                      _isTemporary: false,
+                    }
+                    return updated
+                  }
+                }
+
+                log("[useSSESDK] Adding new message from SSE:", info.role, info.id)
+                return [
+                  ...prev,
+                  {
+                    ...info,
+                    parts: [],
+                    _isTemporary: false,
+                  },
+                ]
               })
 
-              // Start streaming for assistant messages
               if (info.role === "assistant") {
-                const assistantInfo = info as any
-                if (!assistantInfo.time?.completed) {
+                if (!info.time.completed) {
                   setIsStreaming(true)
                 }
-                // Message complete when it has a completed time
-                if (assistantInfo.time?.completed) {
+                if (info.time.completed) {
                   setIsStreaming(false)
                 }
               }
@@ -169,37 +161,40 @@ export function useSSESDK(
           }
 
           case "message.part.updated": {
-            const { part } = event.properties || {}
-            console.log("[useSSESDK] message.part.updated event:", { part, currentSessionId: currentSession?.id })
-            if (part?.sessionID === currentSession?.id && part?.messageID) {
-              // Filter out step-start and step-finish parts at the event level
+            const { part } = event.properties
+            log("[useSSESDK] message.part.updated event:", {
+              part,
+              currentSessionId: currentSession?.id,
+            })
+            if (part.sessionID === currentSession?.id && part.messageID) {
               if (part.type === "step-start" || part.type === "step-finish") {
                 break
               }
 
-              setMessages((prev: MessageResponse[]) => {
-                return prev.map((msg) => {
-                  if (msg.id === part.messageID) {
-                    const existingPartIndex = msg.parts.findIndex((p) => p.id === part.id)
-                    if (existingPartIndex >= 0) {
-                      const updatedParts = [...msg.parts]
-                      updatedParts[existingPartIndex] = part as any
-                      return { ...msg, parts: updatedParts }
-                    } else {
-                      return { ...msg, parts: [...msg.parts, part as any] }
-                    }
+              setMessages((prev) =>
+                prev.map((message) => {
+                  if (message.id !== part.messageID) {
+                    return message
                   }
-                  return msg
+
+                  const existingPartIndex = message.parts.findIndex((existingPart) => existingPart.id === part.id)
+                  if (existingPartIndex >= 0) {
+                    const updatedParts = [...message.parts]
+                    updatedParts[existingPartIndex] = part
+                    return { ...message, parts: updatedParts }
+                  }
+
+                  return { ...message, parts: [...message.parts, part] }
                 })
-              })
+              )
             }
             break
           }
 
           case "session.error": {
-            const { sessionID, error } = event.properties || {}
+            const { sessionID, error: sessionError } = event.properties
             if (sessionID === currentSession?.id) {
-              console.error("Session error:", error)
+              console.error("Session error:", sessionError)
               setIsStreaming(false)
             }
             break
@@ -211,7 +206,6 @@ export function useSSESDK(
           }
 
           default: {
-            // Log unhandled events for debugging
             log("Unhandled SSE SDK event:", event.type, event)
           }
         }
@@ -220,7 +214,6 @@ export function useSSESDK(
       }
     }
 
-    // Start subscription
     subscribeToEvents()
 
     return () => {

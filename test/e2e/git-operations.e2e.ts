@@ -228,19 +228,15 @@ test.describe("Git Operations", () => {
     if (await pushButton.isEnabled({ timeout: 1000 })) {
       await pushButton.click()
       await page.waitForTimeout(1000)
-      
-      // Look for confirmation dialog - test fails if not found
+
       const confirmDialog = page.locator('[data-testid="push-confirm-dialog"]')
       if (await confirmDialog.isVisible({ timeout: 2000 })) {
-        
-        
-        // Close the dialog - test fails if cancel button not found
         const cancelButton = page.locator('[data-testid="push-cancel-button"]')
-        expect(await cancelButton.isVisible({ timeout: 5000 })).toBe(true)
+        await expect(cancelButton).toBeVisible({ timeout: 5000 })
         await cancelButton.click()
       }
     } else {
-      
+      await expect(pushButton).toBeDisabled()
     }
     
     

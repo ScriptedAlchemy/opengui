@@ -57,14 +57,12 @@ export class ProjectManagerClient {
 
       if (!response.ok) {
         // Get response body for detailed error logging
-        let responseBody: string
-        let errorData: any
-        
+        const responseClone = response.clone()
+        const responseBody = await responseClone.text().catch(() => "Unable to read response body")
+        let errorData: unknown
         try {
-          responseBody = await response.text()
           errorData = JSON.parse(responseBody)
         } catch {
-          responseBody = await response.text().catch(() => 'Unable to read response body')
           errorData = { message: response.statusText }
         }
 
@@ -80,7 +78,25 @@ export class ProjectManagerClient {
           requestBody: options?.body
         })
 
-        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`
+        const errorMessage = (() => {
+          if (
+            typeof errorData === "object" &&
+            errorData !== null &&
+            "message" in errorData &&
+            typeof (errorData as { message?: unknown }).message === "string"
+          ) {
+            return (errorData as { message: string }).message
+          }
+          if (
+            typeof errorData === "object" &&
+            errorData !== null &&
+            "error" in errorData &&
+            typeof (errorData as { error?: unknown }).error === "string"
+          ) {
+            return (errorData as { error: string }).error
+          }
+          return `HTTP ${response.status}: ${response.statusText}`
+        })()
         throw new Error(`${errorMessage} (${options?.method || 'GET'} ${url})`)
       }
 

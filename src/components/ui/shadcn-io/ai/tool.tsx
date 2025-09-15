@@ -77,7 +77,23 @@ export const ToolContent = ({ className, ...props }: ToolContentProps) => (
 )
 
 export type ToolInputProps = ComponentProps<"div"> & {
-  input: any
+  input: unknown
+}
+
+const formatJson = (value: unknown): string => {
+  if (value === undefined) {
+    return "undefined"
+  }
+
+  if (typeof value === "string") {
+    return value
+  }
+
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
+  }
 }
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
@@ -86,7 +102,7 @@ export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
       Parameters
     </h4>
     <div className="bg-muted/50 rounded-md">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+      <CodeBlock code={formatJson(input)} language="json" />
     </div>
   </div>
 )

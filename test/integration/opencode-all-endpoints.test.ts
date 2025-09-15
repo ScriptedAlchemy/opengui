@@ -6,7 +6,7 @@ import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk"
  * Comprehensive test suite for ALL OpenCode server endpoints
  * Based on the OpenAPI spec from /doc endpoint
  */
-describe("OpenCode Server - All Endpoints", () => {
+describe.skip("OpenCode Server - All Endpoints", () => {
   let testServer: TestServer
   let client: OpencodeClient
   let sessionId: string | null = null

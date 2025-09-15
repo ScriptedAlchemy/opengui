@@ -26,27 +26,27 @@ export namespace Log {
       this.service = options.service || "app"
     }
 
-    info(message: string, ...args: any[]) {
+    info(message: string, ...args: unknown[]) {
       if (process.env.NODE_ENV === 'test') return
       if (levelOrder[envLevel] >= levelOrder.info) {
         console.log(`[${this.service}] INFO:`, message, ...args)
       }
     }
 
-    error(message: string, ...args: any[]) {
+    error(message: string, ...args: unknown[]) {
       if (levelOrder[envLevel] >= levelOrder.error) {
         console.error(`[${this.service}] ERROR:`, message, ...args)
       }
     }
 
-    warn(message: string, ...args: any[]) {
+    warn(message: string, ...args: unknown[]) {
       if (process.env.NODE_ENV === 'test') return
       if (levelOrder[envLevel] >= levelOrder.warn) {
         console.warn(`[${this.service}] WARN:`, message, ...args)
       }
     }
 
-    debug(message: string, ...args: any[]) {
+    debug(message: string, ...args: unknown[]) {
       if (levelOrder[envLevel] >= levelOrder.debug || process.env.DEBUG) {
         console.debug(`[${this.service}] DEBUG:`, message, ...args)
       }

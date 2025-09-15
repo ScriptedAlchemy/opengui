@@ -16,6 +16,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { useSessionsStore } from "@/stores/sessions"
+import type { Session } from "@opencode-ai/sdk/client"
 import { useCurrentProject, useProjectsActions, useProjectsStore } from "@/stores/projects"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
@@ -288,7 +289,12 @@ export default function SessionList() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [projectLoading, setProjectLoading] = useState(false)
 
-  const projectSessions = sessions.get(effectiveProjectId || "") || []
+  const projectSessions = useMemo(() => {
+    if (!effectiveProjectId) {
+      return []
+    }
+    return sessions.get(effectiveProjectId) || []
+  }, [sessions, effectiveProjectId])
 
   // Ensure project is loaded and then load sessions
   useEffect(() => {
@@ -423,7 +429,7 @@ export default function SessionList() {
     await deleteSession(effectiveProjectId, currentProject.path, sessionId)
   }
 
-  const handleShareSession = (session: any) => {
+  const handleShareSession = (session: Session) => {
     if (session.share?.url) {
       navigator.clipboard.writeText(session.share.url)
       // You might want to show a toast notification here
@@ -502,8 +508,8 @@ export default function SessionList() {
               <DropdownMenuItem
                 onClick={() => setSortBy("recent")}
                 className={cn(
-                  "text-foreground hover:bg-[#262626]",
-                  sortBy === "recent" && "bg-[#262626]"
+                  "text-foreground hover:bg-accent",
+                  sortBy === "recent" && "bg-accent"
                 )}
               >
                 Recent Activity
@@ -511,8 +517,8 @@ export default function SessionList() {
               <DropdownMenuItem
                 onClick={() => setSortBy("created")}
                 className={cn(
-                  "text-foreground hover:bg-[#262626]",
-                  sortBy === "created" && "bg-[#262626]"
+                  "text-foreground hover:bg-accent",
+                  sortBy === "created" && "bg-accent"
                 )}
               >
                 Date Created
@@ -520,14 +526,14 @@ export default function SessionList() {
               <DropdownMenuItem
                 onClick={() => setSortBy("alphabetical")}
                 className={cn(
-                  "text-foreground hover:bg-[#262626]",
-                  sortBy === "alphabetical" && "bg-[#262626]"
+                  "text-foreground hover:bg-accent",
+                  sortBy === "alphabetical" && "bg-accent"
                 )}
               >
                 Alphabetical
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-[#262626]" />
-              <DropdownMenuItem onClick={toggleSortOrder} className="text-foreground hover:bg-[#262626]">
+              <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem onClick={toggleSortOrder} className="text-foreground hover:bg-accent">
                 {sortOrder === "asc" ? (
                   <>
                     <SortDesc className="mr-2 h-4 w-4" />

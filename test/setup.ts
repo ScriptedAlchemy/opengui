@@ -528,7 +528,7 @@ afterAll(async () => {
       ;(globalThis as any).__OPENCODE_URL__ = null
     }
   } catch {
-    // Ignore server cleanup errors
+    // Ignore errors when stopping OpenCode test server
   }
 })
 

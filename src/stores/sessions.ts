@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { immer } from "zustand/middleware/immer"
 import { enableMapSet } from "immer"
 import type { Session } from "@opencode-ai/sdk/client"
+import type { OpencodeSDKService } from "../services/opencode-sdk-service"
 
 // Enable MapSet plugin for Immer to handle Map data structures
 enableMapSet()
@@ -10,8 +11,8 @@ enableMapSet()
 export type { Session }
 
 // Lazily import the SDK service so test mocks can hook before first load
-let __sdkService: any | null = null
-const getSDKService = async () => {
+let __sdkService: OpencodeSDKService | null = null
+const getSDKService = async (): Promise<OpencodeSDKService> => {
   if (__sdkService) return __sdkService
   const mod = await import("../services/opencode-sdk-service")
   __sdkService = mod.opencodeSDKService

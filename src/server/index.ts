@@ -11,6 +11,7 @@
  */
 
 import { Hono } from "hono"
+import type { Context } from "hono"
 import { cors } from "hono/cors"
 import { serveStatic } from "@hono/node-server/serve-static"
 import { serve } from "@hono/node-server"
@@ -85,7 +86,7 @@ export function createServer(config: ServerConfig = {}) {
   apiApp.get("/api/health", async (c) => {
     try {
       await projectManager.monitorHealth()
-    } catch (e) {
+    } catch {
       // In tests or when backend isn't started, health should still return 200
     }
     return c.json({
@@ -105,7 +106,7 @@ export function createServer(config: ServerConfig = {}) {
 
   // Proxy OpenCode API requests to the backend under a single prefix
   // Clients should use baseUrl "/opencode" to avoid CORS
-  const proxyOpencode = async (c: any) => {
+  const proxyOpencode = async (c: Context) => {
     const backendUrl = process.env["OPENCODE_API_URL"]
     if (!backendUrl) {
       return c.json({ error: "OpenCode backend not available" }, 503)
@@ -168,7 +169,7 @@ export function createServer(config: ServerConfig = {}) {
         },
       })
     } catch (error) {
-      // For tests without index.html, return a simple 404
+      console.error("Failed to serve index.html:", error)
       return c.notFound()
     }
   })

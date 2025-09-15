@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/card"
 import { useProjectsActions, useCurrentProject as useCurrentProjectFromStore } from "@/stores/projects"
 // xterm runtime import; CSS is provided by the package at runtime
 import type { Terminal as XTerm } from "xterm"
+import type { SearchAddon } from "xterm-addon-search"
 import "xterm/css/xterm.css"
 
 type Entry = {
@@ -62,7 +63,7 @@ export default function Terminal() {
   const sseAbortRef = useRef<AbortController | null>(null)
   const termInputRef = useRef<string>("")
   const promptRef = useRef<string>("")
-  const searchAddonRef = useRef<any>(null)
+  const searchAddonRef = useRef<SearchAddon | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
 
@@ -74,7 +75,7 @@ export default function Terminal() {
   useEffect(() => {
     let disposed = false
     let resizeObserver: ResizeObserver | null = null
-    let onResize: ((this: Window, ev: UIEvent) => any) | null = null
+    let onResize: ((this: Window, ev: UIEvent) => void) | null = null
     async function initTerm() {
       if (termRef.current || !termElRef.current) return
       // Dynamic import to avoid SSR/tooling issues
@@ -121,8 +122,8 @@ export default function Terminal() {
         }
         onResize = () => fitAddon.fit()
         window.addEventListener("resize", onResize)
-      } catch (_e) {
-        // Fit addon not available; skip
+      } catch (error) {
+        console.warn("Fit or link addons unavailable:", error)
       }
       // Optional WebGL addon
       try {
@@ -150,7 +151,7 @@ export default function Terminal() {
       termRef.current?.dispose()
       termRef.current = null
     }
-  }, [])
+  }, [cwd, project?.name, project?.path])
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
     if (!client || !project?.path) return null
@@ -180,10 +181,10 @@ export default function Terminal() {
           if (ev.type !== "message.part.updated") return
           const part = ev.properties.part as Part
           if (part.type !== "tool") return
-          if ((part as any).tool !== "bash") return
+          if (part.tool !== "bash") return
           if (part.sessionID !== sessId) return
 
-          const toolPart = part as Extract<Part, { type: "tool" }>
+          const toolPart = part
           const state = toolPart.state
           const term = termRef.current
           if (!term) return
@@ -221,7 +222,7 @@ export default function Terminal() {
         },
       })
     } catch (e) {
-      if ((e as any)?.name === "AbortError") return
+      if (e instanceof Error && e.name === "AbortError") return
       console.error("Terminal SSE error:", e)
     }
   }, [client])

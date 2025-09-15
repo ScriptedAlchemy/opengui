@@ -45,6 +45,14 @@ import {
 } from "../stores/projects"
 import type { Project } from "../lib/api/project-manager"
 
+type DirectoryPickerResult = {
+  name: string
+}
+
+type DirectoryPickerWindow = Window & {
+  showDirectoryPicker?: () => Promise<DirectoryPickerResult>
+}
+
 interface AddProjectDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -73,8 +81,9 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
   const handleBrowseFolder = async () => {
     try {
       // Use the File System Access API if available
-      if ("showDirectoryPicker" in window) {
-        const dirHandle = await (window as any).showDirectoryPicker()
+      const directoryPicker = (window as DirectoryPickerWindow).showDirectoryPicker
+      if (directoryPicker) {
+        const dirHandle = await directoryPicker()
         setProjectPath(dirHandle.name)
       } else {
         // Fallback for browsers without File System Access API
@@ -90,8 +99,8 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
         }
         input.click()
       }
-    } catch (_error) {
-      // User cancelled or error occurred
+    } catch (error) {
+      console.warn("Directory selection cancelled or failed:", error)
     }
   }
 

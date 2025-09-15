@@ -36,3 +36,4 @@ test/e2e/screenshots/*.png
 
 *.backup.ts
 *-fix.ts
+e2e-report.json

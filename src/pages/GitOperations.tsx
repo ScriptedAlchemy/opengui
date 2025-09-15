@@ -50,7 +50,27 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/shadc
 import { useProjectSDK } from "../contexts/OpencodeSDKContext"
 import { useCurrentProject } from "@/stores/projects"
 import { cn, formatRelativeTime, formatDateTime } from "../lib/utils"
-import type { Part } from "@opencode-ai/sdk/client"
+
+const extractTextFromMessage = (message: unknown): string | undefined => {
+  if (!message || typeof message !== "object") {
+    return undefined
+  }
+
+  const parts = (message as { parts?: unknown }).parts
+  if (!Array.isArray(parts)) {
+    return undefined
+  }
+
+  const textPart = parts.find(
+    (part): part is { type: "text"; text: string } =>
+      part !== null &&
+      typeof part === "object" &&
+      (part as { type?: unknown }).type === "text" &&
+      typeof (part as { text?: unknown }).text === "string"
+  )
+
+  return textPart?.text
+}
 
 interface GitStatus {
   branch: string
@@ -147,10 +167,8 @@ export default function GitOperations() {
         query: { directory: currentProject?.path },
       })
 
-      const textPart = (response.data as any)?.parts?.find((part: Part) => part.type === "text") as
-        | { type: "text"; text: string }
-        | undefined
-      const lines = textPart?.text?.split("\n") || []
+      const textOutput = extractTextFromMessage(response.data)
+      const lines = textOutput ? textOutput.split("\n") : []
       const branchLine = lines.find((line: string) => line.startsWith("##"))
       const fileLinesRaw = lines.filter((line: string) => !line.startsWith("##") && line.trim())
 
@@ -204,10 +222,8 @@ export default function GitOperations() {
         query: { directory: currentProject?.path },
       })
 
-      const remoteTextPart = (remoteResponse.data as any)?.parts?.find(
-        (part: Part) => part.type === "text"
-      ) as { type: "text"; text: string } | undefined
-      const remoteUrl = remoteTextPart?.text?.trim()
+      const remoteText = extractTextFromMessage(remoteResponse.data)
+      const remoteUrl = remoteText?.trim()
 
       setStatus({
         branch,
@@ -237,10 +253,8 @@ export default function GitOperations() {
         query: { directory: currentProject?.path },
       })
 
-      const textPart = (response.data as any)?.parts?.find((part: Part) => part.type === "text") as
-        | { type: "text"; text: string }
-        | undefined
-      const lines = textPart?.text?.split("\n") || []
+      const textOutput = extractTextFromMessage(response.data)
+      const lines = textOutput ? textOutput.split("\n") : []
       const branchList: GitBranchInfo[] = []
 
       lines.forEach((line: string) => {
@@ -279,10 +293,8 @@ export default function GitOperations() {
         query: { directory: currentProject?.path },
       })
 
-      const textPart = (response.data as any)?.parts?.find((part: Part) => part.type === "text") as
-        | { type: "text"; text: string }
-        | undefined
-      const lines = textPart?.text?.split("\n") || []
+      const textOutput = extractTextFromMessage(response.data)
+      const lines = textOutput ? textOutput.split("\n") : []
       const commitList: GitCommitInfo[] = []
 
       lines.forEach((line: string) => {
@@ -323,10 +335,7 @@ export default function GitOperations() {
           query: { directory: currentProject?.path },
         })
 
-        const textPart = (response.data as any)?.parts?.find(
-          (part: Part) => part.type === "text"
-        ) as { type: "text"; text: string } | undefined
-        const content = textPart?.text || ""
+        const content = extractTextFromMessage(response.data) || ""
         const additions = (content.match(/^\+/gm) || []).length
         const deletions = (content.match(/^-/gm) || []).length
 
@@ -558,10 +567,8 @@ export default function GitOperations() {
         query: { directory: currentProject?.path },
       })
 
-      const textPart = (response.data as any)?.parts?.find((part: Part) => part.type === "text") as
-        | { type: "text"; text: string }
-        | undefined
-      const lines = textPart?.text?.split("\n") || []
+      const textOutput = extractTextFromMessage(response.data)
+      const lines = textOutput ? textOutput.split("\n") : []
       const stashList: GitStash[] = []
 
       lines.forEach((line: string, index: number) => {

@@ -96,17 +96,18 @@ function ChatInterfaceV2Inner() {
     if (currentSession?.id) {
       loadMessages(currentSession.id)
     }
-  }, [currentSession?.id])
+  }, [currentSession?.id, loadMessages])
 
   // Defensive: if messages are still empty shortly after mount with a valid session, refetch once
   React.useEffect(() => {
-    if (!currentSession?.id) return
+    const sessionIdValue = currentSession?.id
+    if (!sessionIdValue) return
     if (messages.length > 0) return
-    const t = setTimeout(() => {
-      loadMessages(currentSession.id!)
+    const timeout = setTimeout(() => {
+      void loadMessages(sessionIdValue)
     }, 2000)
-    return () => clearTimeout(t)
-  }, [currentSession?.id, messages.length])
+    return () => clearTimeout(timeout)
+  }, [currentSession?.id, messages.length, loadMessages])
 
   // SSE hook for real-time updates
   useSSESDK(client, projectPath, currentSession, instanceStatus, setMessages, setIsStreaming)

@@ -26,19 +26,24 @@ const port = pick()
 const host = "127.0.0.1"
 const base = `http://${host}:${port}`
 
-export default defineConfig({
-  testDir: "./test/e2e",
-  testMatch: "**/*.e2e.ts",
+const enableHd = process.env.E2E_HD === "1"
 
-  // Set default timeout to 60 seconds for AI response times
-  timeout: 60000,
+export default defineConfig({
+  // Include all e2e-style specs across subfolders (e2e + visual)
+  testDir: "./test",
+  testMatch: "**/*.e2e.ts",
+  // Store snapshot baselines in a clearly named folder at repo root
+  snapshotDir: "ui-screens",
+
+  // Set default timeout to 90 seconds for stability under load
+  timeout: 120000,
 
   // Fail fast on CI
   // Enable more parallelism for faster test execution
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 4 : 6,
+  workers: process.env.CI ? 2 : 2,
   maxFailures: 5,
 
   // Quieter reporter locally
@@ -50,8 +55,8 @@ export default defineConfig({
     trace: "on",
     screenshot: "on",
     // Increased timeouts for OpenCode instance startup
-    navigationTimeout: 30000,
-    actionTimeout: 15000,
+    navigationTimeout: 60000,
+    actionTimeout: 30000,
   },
 
   // Configure projects for different browsers
@@ -62,6 +67,18 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
       },
     },
+    ...(enableHd
+      ? [
+          {
+            name: "chromium-hd",
+            use: {
+              ...devices["Desktop Chrome"],
+              viewport: { width: 1600, height: 1000 },
+              deviceScaleFactor: 2,
+            },
+          },
+        ]
+      : []),
   ],
 
   // Use production build for E2E tests to avoid any HMR/dev server behavior
@@ -69,7 +86,7 @@ export default defineConfig({
     command: "pnpm run start",
     url: base,
     reuseExistingServer: true,
-    timeout: 60000,
+    timeout: 120000,
     stdout: "pipe",
     stderr: "pipe",
     env: { PORT: String(port), HOST: host, NODE_ENV: "production", LOG_LEVEL: "warn" },

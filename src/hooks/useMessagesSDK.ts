@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { toast } from "sonner"
 import type { MessageResponse, SessionInfo } from "@/types/chat"
 import type { Message, Part } from "@opencode-ai/sdk/client"
@@ -20,7 +20,7 @@ export function useMessagesSDK(
   const { client } = useProjectSDK(projectId, projectPath)
 
   // Load messages for a session
-  const loadMessages = async (sessionIdParam: string) => {
+  const loadMessages = useCallback(async (sessionIdParam: string) => {
     if (!projectId || !client || !projectPath) return
 
     try {
@@ -33,7 +33,9 @@ export function useMessagesSDK(
         // Fallback: some backends may not require directory; try without it
         try {
           response = await client.session.messages({ path: { id: sessionIdParam } })
-        } catch {}
+        } catch (fallbackError) {
+          console.warn("Failed fallback message load without directory:", fallbackError)
+        }
       }
 
       if (!response.data) return
@@ -72,7 +74,7 @@ export function useMessagesSDK(
     } catch (error) {
       console.error("Failed to load messages:", error)
     }
-  }
+  }, [projectId, projectPath, client])
 
   // Automatically load messages when the current session changes
   useEffect(() => {
@@ -94,7 +96,7 @@ export function useMessagesSDK(
     return () => {
       mounted = false
     }
-  }, [projectId, projectPath, client, currentSession?.id, sessionIdFromRoute])
+  }, [projectId, projectPath, client, currentSession?.id, sessionIdFromRoute, loadMessages])
 
   // Send message
   const handleSendMessage = async (attachments?: FileAttachment[]) => {
@@ -149,17 +151,16 @@ export function useMessagesSDK(
 
     // Create a temporary user message for immediate UI feedback
     // The real user message will come through SSE events, but this provides instant feedback
-    const tempUserMessage = {
+    const tempUserMessage: MessageResponse = {
       id: `temp-${Date.now()}`,
       role: "user" as const,
       time: {
         created: Math.floor(Date.now() / 1000), // Unix timestamp in seconds
-        completed: Math.floor(Date.now() / 1000),
       },
       sessionID: currentSession.id,
       parts: messageParts,
       _isTemporary: true, // Flag to identify temporary messages
-    } as MessageResponse & { _isTemporary?: boolean }
+    }
 
     // Add temporary user message for immediate UI feedback and persist cache
     setMessages((prev) => [...prev, tempUserMessage])

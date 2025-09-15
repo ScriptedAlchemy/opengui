@@ -271,16 +271,20 @@ export default function ProjectSettings() {
   }, [settings])
 
   // Keep local settings in sync with SDK-driven selection
+  const providerSetting = settings.ai.provider
+  const modelSetting = settings.ai.defaultModel
+
   useEffect(() => {
-    if (selectedProvider && settings.ai.provider !== selectedProvider) {
+    if (selectedProvider && providerSetting !== selectedProvider) {
       setSettings((prev) => ({ ...prev, ai: { ...prev.ai, provider: selectedProvider } }))
     }
-  }, [selectedProvider])
+  }, [selectedProvider, providerSetting])
+
   useEffect(() => {
-    if (selectedModel && settings.ai.defaultModel !== selectedModel) {
+    if (selectedModel && modelSetting !== selectedModel) {
       setSettings((prev) => ({ ...prev, ai: { ...prev.ai, defaultModel: selectedModel } }))
     }
-  }, [selectedModel])
+  }, [selectedModel, modelSetting])
 
   const handleSave = async () => {
     if (!effectiveProjectId || !currentProject) return
@@ -609,8 +613,8 @@ export default function ProjectSettings() {
                         setSettings((prev) => ({ ...prev, ai: { ...prev.ai, provider: value } }))
                       }}
                     >
-                      <SelectTrigger id="provider-select">
-                        <SelectValue placeholder={providers.length ? "Select provider" : "Loading..."} />
+                      <SelectTrigger id="provider-select" disabled={providers.length === 0}>
+                        <SelectValue placeholder={"Select provider"} />
                       </SelectTrigger>
                       <SelectContent>
                         {providers.map((p) => (
@@ -631,8 +635,8 @@ export default function ProjectSettings() {
                         setSettings((prev) => ({ ...prev, ai: { ...prev.ai, defaultModel: value } }))
                       }}
                     >
-                      <SelectTrigger id="model-select">
-                        <SelectValue placeholder={availableModels.length ? "Select model" : "Loading..."} />
+                      <SelectTrigger id="model-select" disabled={availableModels.length === 0}>
+                        <SelectValue placeholder={"Select model"} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableModels.map((m) => (
