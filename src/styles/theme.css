@@ -193,6 +193,9 @@ body {
 .bg-card {
   background-color: hsl(var(--card));
 }
+.bg-popover {
+  background-color: hsl(var(--popover));
+}
 .bg-primary {
   background-color: hsl(var(--primary));
 }
@@ -208,6 +211,9 @@ body {
 
 .text-foreground {
   color: hsl(var(--foreground));
+}
+.text-popover-foreground {
+  color: hsl(var(--popover-foreground));
 }
 .text-primary {
   color: hsl(var(--primary));
