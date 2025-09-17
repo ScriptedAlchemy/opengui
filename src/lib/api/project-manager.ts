@@ -11,6 +11,7 @@ export interface Project {
   addedAt: string
   lastOpened: string | null
   instance?: ProjectInstance
+  worktrees?: Worktree[]
 }
 
 export interface ProjectInfo {
@@ -38,6 +39,28 @@ export interface CreateProjectParams {
 
 export interface UpdateProjectParams {
   name?: string
+}
+
+export interface Worktree {
+  id: string
+  title: string
+  path: string
+  relativePath: string
+  branch?: string
+  head?: string
+  isPrimary: boolean
+  isDetached: boolean
+  isLocked: boolean
+  lockReason?: string
+}
+
+export interface CreateWorktreeParams {
+  path: string
+  title: string
+  branch?: string
+  baseRef?: string
+  createBranch?: boolean
+  force?: boolean
 }
 
 export class ProjectManagerClient {
@@ -290,6 +313,46 @@ export class ProjectManagerClient {
       console.error('Health check error:', error)
       return false
     }
+  }
+
+  /**
+   * List worktrees for a project
+   */
+  async getWorktrees(projectId: string): Promise<Worktree[]> {
+    return this.request<Worktree[]>(`/projects/${projectId}/worktrees`)
+  }
+
+  /**
+   * Create a git worktree
+   */
+  async createWorktree(projectId: string, params: CreateWorktreeParams): Promise<Worktree> {
+    return this.request<Worktree>(`/projects/${projectId}/worktrees`, {
+      method: "POST",
+      body: JSON.stringify(params),
+    })
+  }
+
+  /**
+   * Update worktree metadata
+   */
+  async updateWorktree(projectId: string, worktreeId: string, updates: { title: string }): Promise<Worktree> {
+    return this.request<Worktree>(`/projects/${projectId}/worktrees/${worktreeId}`, {
+      method: "PATCH",
+      body: JSON.stringify(updates),
+    })
+  }
+
+  /**
+   * Remove a worktree
+   */
+  async removeWorktree(projectId: string, worktreeId: string, options?: { force?: boolean }) {
+    const query = options?.force ? `?force=${options.force}` : ""
+    return this.request<{ success: boolean }>(
+      `/projects/${projectId}/worktrees/${worktreeId}${query}`,
+      {
+        method: "DELETE",
+      }
+    )
   }
 }
 

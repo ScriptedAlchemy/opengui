@@ -10,8 +10,15 @@ export namespace Log {
     debug: 4,
   }
 
+  const getEnv = (key: string): string | undefined => {
+    const proc = Reflect.get(globalThis, "process") as
+      | { env?: Record<string, string | undefined> }
+      | undefined
+    return proc?.env?.[key]
+  }
+
   const envLevel = (() => {
-    const v = (process.env.LOG_LEVEL || process.env.OPENCODE_LOG_LEVEL || '').toLowerCase()
+    const v = (getEnv("LOG_LEVEL") || getEnv("OPENCODE_LOG_LEVEL") || '').toLowerCase()
     if (v === 'silent' || v === 'error' || v === 'warn' || v === 'info' || v === 'debug') return v as Level
     return 'info' as Level
   })()
@@ -27,7 +34,7 @@ export namespace Log {
     }
 
     info(message: string, ...args: unknown[]) {
-      if (process.env.NODE_ENV === 'test') return
+      if (getEnv("NODE_ENV") === 'test') return
       if (levelOrder[envLevel] >= levelOrder.info) {
         console.log(`[${this.service}] INFO:`, message, ...args)
       }
@@ -40,14 +47,14 @@ export namespace Log {
     }
 
     warn(message: string, ...args: unknown[]) {
-      if (process.env.NODE_ENV === 'test') return
+      if (getEnv("NODE_ENV") === 'test') return
       if (levelOrder[envLevel] >= levelOrder.warn) {
         console.warn(`[${this.service}] WARN:`, message, ...args)
       }
     }
 
     debug(message: string, ...args: unknown[]) {
-      if (levelOrder[envLevel] >= levelOrder.debug || process.env.DEBUG) {
+      if (levelOrder[envLevel] >= levelOrder.debug || getEnv("DEBUG")) {
         console.debug(`[${this.service}] DEBUG:`, message, ...args)
       }
     }

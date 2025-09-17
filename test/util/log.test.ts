@@ -1,6 +1,25 @@
 import { describe, test, expect, beforeEach, afterAll } from "@rstest/core"
 import { Log } from "../../src/util/log"
 
+const getEnv = (key: string): string | undefined => {
+  const proc = Reflect.get(globalThis, "process") as
+    | { env?: Record<string, string | undefined> }
+    | undefined
+  return proc?.env?.[key]
+}
+
+const setEnv = (key: string, value: string | undefined) => {
+  const proc = Reflect.get(globalThis, "process") as
+    | { env?: Record<string, string | undefined> }
+    | undefined
+  if (!proc?.env) return
+  if (value === undefined) {
+    delete proc.env[key]
+  } else {
+    proc.env[key] = value
+  }
+}
+
 describe("Log", () => {
   const origLog = console.log
   const origWarn = console.warn
@@ -13,8 +32,8 @@ describe("Log", () => {
     console.warn = (...a: any[]) => { calls.warn.push(a) }
     console.error = (...a: any[]) => { calls.err.push(a) }
     console.debug = (...a: any[]) => { calls.dbg.push(a) }
-    process.env.NODE_ENV = "test"
-    delete process.env.DEBUG
+    setEnv("NODE_ENV", "test")
+    setEnv("DEBUG", undefined)
   })
 
   test("suppresses info/warn in test, still logs error", () => {
@@ -28,7 +47,7 @@ describe("Log", () => {
   })
 
   test("debug logs when DEBUG is set", () => {
-    process.env.DEBUG = "1"
+    setEnv("DEBUG", "1")
     const l = Log.create({ service: "svc" })
     l.debug("d")
     expect(calls.dbg.length).toBe(1)

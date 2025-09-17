@@ -11,9 +11,20 @@ import { describeRoute } from "hono-openapi"
 import { resolver, validator as zValidator } from "hono-openapi/zod"
 import { z } from "zod"
 import { projectManager } from "./project-manager"
-import { ProjectInfoSchema, ProjectCreateSchema, ProjectUpdateSchema } from "./project-schemas"
+import {
+  ProjectInfoSchema,
+  ProjectCreateSchema,
+  ProjectUpdateSchema,
+  DirectoryListingSchema,
+  HomeDirectorySchema,
+} from "./project-schemas"
 import { ERRORS } from "./shared-schemas"
 import { Log } from "../util/log"
+import { execFile } from "node:child_process"
+import { promisify } from "node:util"
+import nodePath from "node:path"
+import * as nodeFs from "node:fs/promises"
+import nodeOs from "node:os"
 
 const log = Log.create({ service: "integrated-project-routes" })
 
@@ -35,9 +46,161 @@ type AgentRecord = {
 }
 
 const agentsStore = new Map<string, Map<string, AgentRecord>>()
+const execFileAsync = promisify(execFile)
 
-function getProjectAgents(projectId: string) {
-  if (!agentsStore.has(projectId)) {
+const normalizePath = (value: string) =>
+  nodePath.resolve(value).replace(/\\/g, "/").replace(/\/+$/, "")
+
+const HOME_DIRECTORY = normalizePath(process.env["HOME"] || nodeOs.homedir())
+const DIRECTORY_ENTRY_LIMIT = 200
+
+const isWithinHomeDirectory = (target: string) => {
+  const normalizedTarget = normalizePath(target)
+  return (
+    normalizedTarget === HOME_DIRECTORY ||
+    normalizedTarget.startsWith(`${HOME_DIRECTORY}/`)
+  )
+}
+
+const getAgentStoreKey = (projectId: string, worktreePath?: string) => {
+  if (!worktreePath) return `${projectId}::default`
+  return `${projectId}::${normalizePath(worktreePath)}`
+}
+
+type ParsedWorktree = {
+  path: string
+  branch?: string
+  head?: string
+  isPrimary: boolean
+  isDetached: boolean
+  isLocked: boolean
+  lockReason?: string
+  relativePath: string
+}
+
+const parseWorktreeOutput = (output: string, projectPath: string): ParsedWorktree[] => {
+  if (!output.trim()) return []
+  const normalizedProject = normalizePath(projectPath)
+  const result: ParsedWorktree[] = []
+  let current: Partial<ParsedWorktree> & { path?: string } = {}
+
+  for (const rawLine of output.split(/\r?\n/)) {
+    const line = rawLine.trim()
+    if (!line) continue
+    if (line.startsWith("worktree ")) {
+      if (current.path) {
+        result.push(current as ParsedWorktree)
+      }
+      current = { path: normalizePath(line.substring("worktree ".length).trim()) }
+      continue
+    }
+    if (!current.path) continue
+    if (line.startsWith("branch ")) {
+      current.branch = line.substring("branch ".length).replace(/^refs\/heads\//, "")
+      continue
+    }
+    if (line.startsWith("HEAD ")) {
+      current.head = line.substring("HEAD ".length)
+      continue
+    }
+    if (line === "detached") {
+      current.isDetached = true
+      continue
+    }
+    if (line.startsWith("locked")) {
+      current.isLocked = true
+      const reason = line.substring("locked".length).trim()
+      if (reason) current.lockReason = reason
+      continue
+    }
+  }
+
+  if (current.path) {
+    result.push(current as ParsedWorktree)
+  }
+
+  return result.map((item) => {
+    const relative = normalizePath(item.path!) === normalizedProject
+      ? ""
+      : nodePath.relative(normalizedProject, item.path!)
+    return {
+      path: item.path!,
+      branch: item.branch,
+      head: item.head,
+      isPrimary: item.path === normalizedProject,
+      isDetached: item.isDetached ?? false,
+      isLocked: item.isLocked ?? false,
+      lockReason: item.lockReason,
+      relativePath: relative,
+    }
+  })
+}
+
+const resolveWorktreePath = (projectPath: string, worktreePath: string) => {
+  if (nodePath.isAbsolute(worktreePath)) return normalizePath(worktreePath)
+  return normalizePath(nodePath.join(projectPath, worktreePath))
+}
+
+type WorktreeResponse = {
+  id: string
+  title: string
+  path: string
+  relativePath: string
+  branch?: string
+  head?: string
+  isPrimary: boolean
+  isDetached: boolean
+  isLocked: boolean
+  lockReason?: string
+}
+
+const buildWorktreeResponses = async (projectId: string): Promise<WorktreeResponse[]> => {
+  const project = projectManager.getProject(projectId)
+  if (!project) {
+    throw new Error(`Project ${projectId} not found`)
+  }
+
+  const { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], {
+    cwd: project.path,
+  })
+
+  const parsed = parseWorktreeOutput(stdout, project.path)
+  const metadataList = projectManager.getWorktrees(projectId)
+
+  const responses = parsed.map((entry) => {
+    const metadata =
+      metadataList.find((candidate) => normalizePath(candidate.path) === entry.path) ||
+      projectManager.ensureWorktreeMetadata(
+        projectId,
+        entry.path,
+        entry.branch || entry.relativePath || entry.path
+      )
+
+    if (!metadata) {
+      throw new Error(`Unable to resolve metadata for worktree ${entry.path}`)
+    }
+
+    return {
+      id: metadata.id,
+      title: metadata.title,
+      path: metadata.path,
+      relativePath: entry.relativePath,
+      branch: entry.branch,
+      head: entry.head,
+      isPrimary: entry.isPrimary,
+      isDetached: entry.isDetached,
+      isLocked: entry.isLocked,
+      lockReason: entry.lockReason,
+    }
+  })
+
+  await projectManager.saveProjects()
+  return responses
+}
+
+function getProjectAgents(projectId: string, worktreePath?: string) {
+  const key = getAgentStoreKey(projectId, worktreePath)
+  if (!agentsStore.has(key)) {
     const initial = new Map<string, AgentRecord>()
     // Seed with a built-in example agent for UX/tests
     initial.set("claude", {
@@ -53,9 +216,9 @@ function getProjectAgents(projectId: string) {
       isTemplate: true,
       createdAt: Date.now(),
     })
-    agentsStore.set(projectId, initial)
+    agentsStore.set(key, initial)
   }
-  return agentsStore.get(projectId)!
+  return agentsStore.get(key)!
 }
 
 /**
@@ -105,6 +268,93 @@ export function addIntegratedProjectRoutes(app: Hono) {
       )
 
       // GET /api/projects - list all projects
+      .get(
+        "/api/system/home",
+        describeRoute({
+          description: "Get the current user's home directory",
+          operationId: "system.home",
+          responses: {
+            200: {
+              description: "Home directory path",
+              content: {
+                "application/json": {
+                  schema: resolver(HomeDirectorySchema),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        async (c) => {
+          return c.json({ path: HOME_DIRECTORY })
+        }
+      )
+
+      .get(
+        "/api/system/list-directory",
+        describeRoute({
+          description: "List directories within the user's home directory",
+          operationId: "system.listDirectory",
+          responses: {
+            200: {
+              description: "Directory listing",
+              content: {
+                "application/json": {
+                  schema: resolver(DirectoryListingSchema),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator(
+          "query",
+          z.object({
+            path: z.string().optional(),
+          })
+        ),
+        async (c) => {
+          const { path } = c.req.valid("query")
+          const target = path && path.trim() ? normalizePath(path) : HOME_DIRECTORY
+
+          if (!isWithinHomeDirectory(target)) {
+            return c.json({ error: "Path must be within the home directory" }, 400)
+          }
+
+          try {
+            const stats = await nodeFs.stat(target)
+            if (!stats.isDirectory()) {
+              return c.json({ error: "Path is not a directory" }, 400)
+            }
+
+            const entries = await nodeFs.readdir(target, { withFileTypes: true })
+            const directories = entries
+              .filter((entry) => entry.isDirectory())
+              .map((entry) => {
+                const entryPath = normalizePath(nodePath.join(target, entry.name))
+                return {
+                  name: entry.name,
+                  path: entryPath,
+                  isDirectory: true as const,
+                }
+              })
+              .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
+              .slice(0, DIRECTORY_ENTRY_LIMIT)
+
+            const parent = target === HOME_DIRECTORY ? null : normalizePath(nodePath.dirname(target))
+
+            return c.json({
+              path: target,
+              parent,
+              entries: directories,
+            })
+          } catch (error) {
+            log.error("Failed to list directory", { target, error })
+            return c.json({ error: "Unable to list directory contents" }, 400)
+          }
+        }
+      )
+
       .get(
         "/api/projects",
         describeRoute({
@@ -525,6 +775,263 @@ export function addIntegratedProjectRoutes(app: Hono) {
         }
       )
 
+      // GET /api/projects/:id/worktrees - list git worktrees
+      .get(
+        "/api/projects/:id/worktrees",
+        describeRoute({
+          description: "List git worktrees for a project",
+          operationId: "projects.worktrees.list",
+          responses: {
+            200: {
+              description: "Worktree list",
+              content: {
+                "application/json": {
+                  schema: resolver(
+                    z.array(
+                      z.object({
+                        id: z.string(),
+                        title: z.string(),
+                        path: z.string(),
+                        relativePath: z.string(),
+                        branch: z.string().optional(),
+                        head: z.string().optional(),
+                        isPrimary: z.boolean(),
+                        isDetached: z.boolean(),
+                        isLocked: z.boolean(),
+                        lockReason: z.string().optional(),
+                      })
+                    )
+                  ),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator("param", z.object({ id: z.string() })),
+        async (c) => {
+          const { id } = c.req.valid("param")
+          try {
+            const worktrees = await buildWorktreeResponses(id)
+            return c.json(worktrees)
+          } catch (error) {
+            log.error("Failed to list worktrees:", error)
+            return c.json(
+              { error: error instanceof Error ? error.message : "Failed to list worktrees" },
+              400
+            )
+          }
+        }
+      )
+
+      // POST /api/projects/:id/worktrees - create a new git worktree
+      .post(
+        "/api/projects/:id/worktrees",
+        describeRoute({
+          description: "Create a git worktree",
+          operationId: "projects.worktrees.create",
+          responses: {
+            201: {
+              description: "Created worktree",
+              content: {
+                "application/json": {
+                  schema: resolver(
+                    z.object({
+                      id: z.string(),
+                      title: z.string(),
+                      path: z.string(),
+                      relativePath: z.string(),
+                      branch: z.string().optional(),
+                      head: z.string().optional(),
+                      isPrimary: z.boolean(),
+                      isDetached: z.boolean(),
+                      isLocked: z.boolean(),
+                      lockReason: z.string().optional(),
+                    })
+                  ),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator("param", z.object({ id: z.string() })),
+        zValidator(
+          "json",
+          z.object({
+            path: z.string().min(1),
+            title: z.string().min(1),
+            branch: z.string().optional(),
+            baseRef: z.string().optional(),
+            createBranch: z.boolean().optional(),
+            force: z.boolean().optional(),
+          })
+        ),
+        async (c) => {
+          const { id } = c.req.valid("param")
+          const body = c.req.valid("json")
+          const project = projectManager.getProject(id)
+          if (!project) {
+            return c.json({ error: "Project not found" }, 404)
+          }
+
+          try {
+            const resolvedPath = resolveWorktreePath(project.path, body.path)
+            const args = ["worktree", "add"] as string[]
+            if (body.force) {
+              args.push("--force")
+            }
+            if (body.createBranch) {
+              if (!body.branch) {
+                return c.json({ error: "Branch name required when creating a new branch" }, 400)
+              }
+              args.push("-b", body.branch)
+            }
+            args.push(resolvedPath)
+            if (body.createBranch) {
+              args.push(body.baseRef || "HEAD")
+            } else if (body.branch) {
+              args.push(body.branch)
+            }
+
+            await execFileAsync("git", args, { cwd: project.path })
+
+            const metadata = projectManager.ensureWorktreeMetadata(id, resolvedPath, body.title)
+            if (!metadata) {
+              throw new Error("Failed to persist worktree metadata")
+            }
+            metadata.title = body.title
+            await projectManager.saveProjects()
+
+            const worktrees = await buildWorktreeResponses(id)
+            const created = worktrees.find((worktree) => worktree.id === metadata.id)
+            if (!created) {
+              throw new Error("Unable to locate created worktree")
+            }
+            return c.json(created, 201)
+          } catch (error) {
+            log.error("Failed to create worktree:", error)
+            return c.json(
+              { error: error instanceof Error ? error.message : "Failed to create worktree" },
+              400
+            )
+          }
+        }
+      )
+
+      // PATCH /api/projects/:id/worktrees/:worktreeId - update metadata
+      .patch(
+        "/api/projects/:id/worktrees/:worktreeId",
+        describeRoute({
+          description: "Update worktree metadata",
+          operationId: "projects.worktrees.update",
+          responses: {
+            200: {
+              description: "Updated worktree",
+              content: {
+                "application/json": {
+                  schema: resolver(
+                    z.object({
+                      id: z.string(),
+                      title: z.string(),
+                      path: z.string(),
+                      relativePath: z.string(),
+                      branch: z.string().optional(),
+                      head: z.string().optional(),
+                      isPrimary: z.boolean(),
+                      isDetached: z.boolean(),
+                      isLocked: z.boolean(),
+                      lockReason: z.string().optional(),
+                    })
+                  ),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator("param", z.object({ id: z.string(), worktreeId: z.string() })),
+        zValidator("json", z.object({ title: z.string().min(1) })),
+        async (c) => {
+          const { id, worktreeId } = c.req.valid("param")
+          const { title } = c.req.valid("json")
+          try {
+            const updated = projectManager.updateWorktreeTitle(id, worktreeId, title)
+            await projectManager.saveProjects()
+            const worktrees = await buildWorktreeResponses(id)
+            const response = worktrees.find((worktree) => worktree.id === updated.id)
+            if (!response) {
+              throw new Error("Updated worktree not found")
+            }
+            return c.json(response)
+          } catch (error) {
+            log.error("Failed to update worktree metadata:", error)
+            return c.json(
+              { error: error instanceof Error ? error.message : "Failed to update worktree" },
+              400
+            )
+          }
+        }
+      )
+
+      // DELETE /api/projects/:id/worktrees/:worktreeId - remove worktree
+      .delete(
+        "/api/projects/:id/worktrees/:worktreeId",
+        describeRoute({
+          description: "Remove a git worktree",
+          operationId: "projects.worktrees.delete",
+          responses: {
+            200: {
+              description: "Removal result",
+              content: {
+                "application/json": {
+                  schema: resolver(z.object({ success: z.boolean() })),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator("param", z.object({ id: z.string(), worktreeId: z.string() })),
+        zValidator("query", z.object({ force: z.coerce.boolean().optional() })),
+        async (c) => {
+          const { id, worktreeId } = c.req.valid("param")
+          const { force } = c.req.valid("query")
+          const project = projectManager.getProject(id)
+          if (!project) {
+            return c.json({ error: "Project not found" }, 404)
+          }
+
+          try {
+            const metadata = projectManager.findWorktreeById(id, worktreeId)
+            if (!metadata) {
+              return c.json({ error: "Worktree not found" }, 404)
+            }
+            if (metadata.id === "default") {
+              return c.json({ error: "Cannot remove default worktree" }, 400)
+            }
+
+            const args = ["worktree", "remove"] as string[]
+            if (force) {
+              args.push("--force")
+            }
+            args.push(metadata.path)
+
+            await execFileAsync("git", args, { cwd: project.path })
+            projectManager.removeWorktreeMetadata(id, metadata.id)
+            await projectManager.saveProjects()
+            await buildWorktreeResponses(id)
+            return c.json({ success: true })
+          } catch (error) {
+            log.error("Failed to remove worktree:", error)
+            return c.json(
+              { error: error instanceof Error ? error.message : "Failed to remove worktree" },
+              400
+            )
+          }
+        }
+      )
+
       // GET /api/projects/:id/resources - get minimal resource info (SDK handles actual resources)
       .get(
         "/api/projects/:id/resources",
@@ -556,13 +1063,24 @@ export function addIntegratedProjectRoutes(app: Hono) {
             id: z.string(),
           })
         ),
+        zValidator(
+          "query",
+          z.object({
+            worktree: z.string().optional(),
+          })
+        ),
         async (c) => {
           const { id } = c.req.valid("param")
+          const { worktree } = c.req.valid("query")
           // Use the imported projectManager directly
           const project = projectManager.getProject(id)
 
           if (!project) {
             return c.json({ error: "Project not found" }, 404)
+          }
+
+          if (worktree) {
+            projectManager.ensureWorktreeMetadata(id, worktree)
           }
 
           // Return minimal resource data - SDK handles actual resource monitoring
@@ -610,13 +1128,24 @@ export function addIntegratedProjectRoutes(app: Hono) {
             id: z.string(),
           })
         ),
+        zValidator(
+          "query",
+          z.object({
+            worktree: z.string().optional(),
+          })
+        ),
         async (c) => {
           const { id } = c.req.valid("param")
+          const { worktree } = c.req.valid("query")
           // Use the imported projectManager directly
           const project = projectManager.getProject(id)
 
           if (!project) {
             return c.json({ error: "Project not found" }, 404)
+          }
+
+          if (worktree) {
+            projectManager.ensureWorktreeMetadata(id, worktree)
           }
 
           // Return basic activity data
@@ -678,8 +1207,15 @@ export function addIntegratedProjectRoutes(app: Hono) {
             id: z.string(),
           })
         ),
+        zValidator(
+          "query",
+          z.object({
+            worktree: z.string().optional(),
+          })
+        ),
         async (c) => {
           const { id } = c.req.valid("param")
+          const { worktree } = c.req.valid("query")
           // Use the imported projectManager directly
           const project = projectManager.getProject(id)
 
@@ -687,7 +1223,11 @@ export function addIntegratedProjectRoutes(app: Hono) {
             return c.json({ error: "Project not found" }, 404)
           }
 
-          const list = Array.from(getProjectAgents(id).values())
+          const metadata = worktree
+            ? projectManager.ensureWorktreeMetadata(id, worktree)
+            : projectManager.findWorktreeById(id, "default")
+          const agents = getProjectAgents(id, metadata?.path)
+          const list = Array.from(agents.values())
           return c.json(list)
         }
       )
@@ -731,6 +1271,12 @@ export function addIntegratedProjectRoutes(app: Hono) {
           })
         ),
         zValidator(
+          "query",
+          z.object({
+            worktree: z.string().optional(),
+          })
+        ),
+        zValidator(
           "json",
           z.object({
             name: z.string().min(1),
@@ -745,6 +1291,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
         ),
         async (c) => {
           const { id } = c.req.valid("param")
+          const { worktree } = c.req.valid("query")
           const body = c.req.valid("json")
           // Use the imported projectManager directly
           const project = projectManager.getProject(id)
@@ -752,7 +1299,11 @@ export function addIntegratedProjectRoutes(app: Hono) {
             return c.json({ error: "Project not found" }, 404)
           }
 
-          const agents = getProjectAgents(id)
+          const metadata = worktree
+            ? projectManager.ensureWorktreeMetadata(id, worktree)
+            : projectManager.findWorktreeById(id, "default")
+
+          const agents = getProjectAgents(id, metadata?.path)
           const agentId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`)
           const record: AgentRecord = {
             id: agentId,
@@ -808,12 +1359,20 @@ export function addIntegratedProjectRoutes(app: Hono) {
           "param",
           z.object({ id: z.string(), agentId: z.string() })
         ),
+        zValidator(
+          "query",
+          z.object({ worktree: z.string().optional() })
+        ),
         async (c) => {
           const { id, agentId } = c.req.valid("param")
+          const { worktree } = c.req.valid("query")
           // Use the imported projectManager directly
           const project = projectManager.getProject(id)
           if (!project) return c.json({ error: "Project not found" }, 404)
-          const agent = getProjectAgents(id).get(agentId)
+          const metadata = worktree
+            ? projectManager.ensureWorktreeMetadata(id, worktree)
+            : projectManager.findWorktreeById(id, "default")
+          const agent = getProjectAgents(id, metadata?.path).get(agentId)
           if (!agent) return c.json({ error: "Agent not found" }, 404)
           return c.json(agent)
         }
@@ -856,6 +1415,10 @@ export function addIntegratedProjectRoutes(app: Hono) {
           z.object({ id: z.string(), agentId: z.string() })
         ),
         zValidator(
+          "query",
+          z.object({ worktree: z.string().optional() })
+        ),
+        zValidator(
           "json",
           z.object({
             name: z.string().optional(),
@@ -870,11 +1433,15 @@ export function addIntegratedProjectRoutes(app: Hono) {
         ),
         async (c) => {
           const { id, agentId } = c.req.valid("param")
+          const { worktree } = c.req.valid("query")
           const updates = c.req.valid("json")
           // Use the imported projectManager directly
           const project = projectManager.getProject(id)
           if (!project) return c.json({ error: "Project not found" }, 404)
-          const agents = getProjectAgents(id)
+          const metadata = worktree
+            ? projectManager.ensureWorktreeMetadata(id, worktree)
+            : projectManager.findWorktreeById(id, "default")
+          const agents = getProjectAgents(id, metadata?.path)
           const existing = agents.get(agentId)
           if (!existing) return c.json({ error: "Agent not found" }, 404)
 
@@ -909,12 +1476,20 @@ export function addIntegratedProjectRoutes(app: Hono) {
           "param",
           z.object({ id: z.string(), agentId: z.string() })
         ),
+        zValidator(
+          "query",
+          z.object({ worktree: z.string().optional() })
+        ),
         async (c) => {
           const { id, agentId } = c.req.valid("param")
+          const { worktree } = c.req.valid("query")
           // Use the imported projectManager directly
           const project = projectManager.getProject(id)
           if (!project) return c.json({ error: "Project not found" }, 404)
-          const agents = getProjectAgents(id)
+          const metadata = worktree
+            ? projectManager.ensureWorktreeMetadata(id, worktree)
+            : projectManager.findWorktreeById(id, "default")
+          const agents = getProjectAgents(id, metadata?.path)
           const ok = agents.delete(agentId)
           if (!ok) return c.json({ error: "Agent not found" }, 404)
           return c.json(true)
@@ -946,14 +1521,19 @@ export function addIntegratedProjectRoutes(app: Hono) {
           },
         }),
         zValidator("param", z.object({ id: z.string(), agentId: z.string() })),
+        zValidator("query", z.object({ worktree: z.string().optional() })),
         zValidator("json", z.object({ prompt: z.string() })),
         async (c) => {
           const { id, agentId } = c.req.valid("param")
+          const { worktree } = c.req.valid("query")
           const { prompt } = c.req.valid("json")
           // Use the imported projectManager directly
           const project = projectManager.getProject(id)
           if (!project) return c.json({ success: false, error: "Project not found" }, 404)
-          const agent = getProjectAgents(id).get(agentId)
+          const metadata = worktree
+            ? projectManager.ensureWorktreeMetadata(id, worktree)
+            : projectManager.findWorktreeById(id, "default")
+          const agent = getProjectAgents(id, metadata?.path).get(agentId)
           if (!agent) return c.json({ success: false, error: "Agent not found" }, 404)
 
           // Minimal stubbed behavior

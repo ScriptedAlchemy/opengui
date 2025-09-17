@@ -100,6 +100,19 @@
       "tools": {
         "*": true
       }
+    },
+    "codex-driver": {
+      "description": "Read/list focused driver scoped to Codex MCP tools",
+      "mode": "primary",
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "temperature": 0.2,
+      "prompt": "You are a Codex driver agent with read-only access. Use read and list tools to inspect files and surface insights from the Codex MCP server. Do not modify files or run shell commands.",
+      "tools": {
+        "*": false,
+        "read": true,
+        "list": true,
+        "codex_*": true
+      }
     }
   },
   "mcp": {
@@ -110,6 +123,10 @@
     "assistant-ui-docs": {
       "type": "local",
       "command": ["pnpm", "dlx", "@assistant-ui/mcp-docs-server"]
+    },
+    "codex": {
+      "type": "local",
+      "command": ["codex", "mcp"]
     },
     "shadcn": {
       "type": "remote",

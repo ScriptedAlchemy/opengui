@@ -1,6 +1,8 @@
 import { test, expect, type Page } from "@playwright/test"
 import { openFirstProjectAndGetId } from "./helpers"
 
+const DEFAULT_WORKTREE = "default"
+
 type ApiIssue = {
   url: string
   status: number
@@ -47,7 +49,7 @@ test.describe("Agent Management", () => {
   test("navigates to agent list", async ({ page }) => {
     const issues = watchAgentApi(page)
 
-    await page.goto(`/projects/${projectId}/agents`)
+    await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}/agents`)
     await expect(page.locator('[data-testid="agents-page-title"]')).toBeVisible({ timeout: 15_000 })
 
     expect(issues).toEqual([])
@@ -56,7 +58,7 @@ test.describe("Agent Management", () => {
   test("opens templates dialog", async ({ page }) => {
     const issues = watchAgentApi(page)
 
-    await page.goto(`/projects/${projectId}/agents`)
+    await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}/agents`)
     const templatesButton = page.locator('[data-testid="templates-button"]')
     await expect(templatesButton).toBeVisible()
     await templatesButton.click()
@@ -68,7 +70,7 @@ test.describe("Agent Management", () => {
   test("creates a new agent", async ({ page }) => {
     const issues = watchAgentApi(page)
 
-    await page.goto(`/projects/${projectId}/agents`)
+    await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}/agents`)
     await page.locator('[data-testid="create-agent-button"]').click()
 
     await page.locator('[data-testid="agent-name-input"]').fill("Test Agent E2E")
@@ -87,7 +89,7 @@ test.describe("Agent Management", () => {
   })
 
   test("supports search and filter controls", async ({ page }) => {
-    await page.goto(`/projects/${projectId}/agents`)
+    await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}/agents`)
 
     const searchInput = page.locator('[data-testid="agents-search-input"]')
     await expect(searchInput).toBeVisible()

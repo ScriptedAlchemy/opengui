@@ -17,7 +17,7 @@ export interface ProjectInstance {
 export class OpencodeSDKService {
   private instances = new Map<string, ProjectInstance>()
   private backendUrl: string | null = null
-  private isRetryingConnection = false
+  private backendUrlPromise: Promise<string> | null = null
 
   /**
    * Get the backend URL (proxied) from the server
@@ -28,12 +28,29 @@ export class OpencodeSDKService {
       return this.backendUrl
     }
 
-    // Prevent multiple concurrent requests
-    if (this.isRetryingConnection) {
-      throw new Error('Already attempting to connect to backend')
+    // If there's an ongoing request, wait for it
+    if (this.backendUrlPromise !== null) {
+      return this.backendUrlPromise
     }
 
-    this.isRetryingConnection = true
+    // Create a new promise and store it
+    this.backendUrlPromise = this.fetchBackendUrl()
+    
+    try {
+      const url = await this.backendUrlPromise
+      this.backendUrl = url
+      return url
+    } catch (error) {
+      // Clear the promise on error so it can be retried
+      this.backendUrlPromise = null
+      throw error
+    }
+  }
+
+  /**
+   * Actually fetch the backend URL from the server
+   */
+  private async fetchBackendUrl(): Promise<string> {
     try {
       // Fetch backend URL (the server returns a proxied path like "/opencode")
       const response = await fetch('/api/backend-url')
@@ -45,14 +62,11 @@ export class OpencodeSDKService {
       if (!data.url || typeof data.url !== 'string') {
         throw new Error('Invalid backend URL received from server')
       }
-      this.backendUrl = data.url
-      console.log(`Fetched OpenCode backend URL (proxied): ${this.backendUrl}`)
-      return this.backendUrl!
+      console.log(`Fetched OpenCode backend URL (proxied): ${data.url}`)
+      return data.url
     } catch (error) {
       console.error('Failed to fetch backend URL:', error)
       throw new Error('Unable to connect to OpenCode backend. Please ensure the server is running.')
-    } finally {
-      this.isRetryingConnection = false
     }
   }
 
@@ -138,7 +152,7 @@ export class OpencodeSDKService {
   async stopAll(): Promise<void> {
     this.instances.clear()
     this.backendUrl = null
-    this.isRetryingConnection = false
+    this.backendUrlPromise = null
   }
 
   /**

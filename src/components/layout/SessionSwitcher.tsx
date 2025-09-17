@@ -1,6 +1,6 @@
 /* @jsxImportSource react */
 /* @jsxRuntime automatic */
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { ChevronDown, MessageSquare, Plus, Search } from "lucide-react"
 import { Button } from "../ui/button"
 import {
@@ -13,10 +13,14 @@ import {
 } from "../ui/dropdown-menu"
 import { Input } from "../ui/input"
 import { useSessionsForProject, useCurrentSession, useSessionsStore } from "@/stores/sessions"
+import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
+import { useCurrentProject } from "@/stores/projects"
 import { useParams, useNavigate } from "react-router-dom"
 
 export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: { projectId?: string; navigateOverride?: (path: string) => void } = {}) {
-  const { projectId } = useParams()
+  const params = useParams<{ projectId: string; worktreeId: string }>()
+  const projectIdParam = params.projectId ?? ""
+  const activeWorktreeId = params.worktreeId ?? "default"
   let navigate: (path: string) => void
   try {
     const hook = useNavigate()
@@ -24,26 +28,47 @@ export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: 
   } catch {
     navigate = navigateOverride ?? (() => {})
   }
-  const pid = projectIdProp ?? projectId ?? ""
-  const sessions = useSessionsForProject(pid)
+  const pid = projectIdProp ?? projectIdParam ?? ""
+  const currentProject = useCurrentProject()
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const worktrees = useWorktreesForProject(pid)
+
+  useEffect(() => {
+    if (pid) {
+      void loadWorktrees(pid)
+    }
+  }, [pid, loadWorktrees])
+
+  const activeWorktreePath = useMemo(() => {
+    if (activeWorktreeId === "default") {
+      return currentProject?.path
+    }
+    return worktrees.find((worktree) => worktree.id === activeWorktreeId)?.path || currentProject?.path
+  }, [activeWorktreeId, worktrees, currentProject?.path])
+
+  const sessions = useSessionsForProject(pid, activeWorktreePath)
   const currentSession = useCurrentSession()
   const { createSession, selectSession } = useSessionsStore()
   const [searchQuery, setSearchQuery] = useState("")
 
   if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
     // Helpful debug in tests
-    console.debug("[SessionSwitcher] sessions count=", sessions.length, "projectId=", projectId)
+    console.debug("[SessionSwitcher] sessions count=", sessions.length, "projectId=", pid, "worktree=", activeWorktreeId)
   }
 
   const filteredSessions = sessions.filter((session) =>
     session.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const basePath = pid ? `/projects/${pid}/${activeWorktreeId}` : undefined
+
   const handleNewSession = async () => {
-    if (!pid) return
+    if (!pid || !activeWorktreePath) return
     try {
-      const session = await createSession(pid, "New Chat Session")
-      navigate(`/projects/${pid}/sessions/${session.id}/chat`)
+      const session = await createSession(pid, activeWorktreePath, "New Chat Session")
+      if (session?.id && basePath) {
+        navigate(`${basePath}/sessions/${session.id}/chat`)
+      }
     } catch (error) {
       console.error("Failed to create session:", error)
     }
@@ -53,7 +78,9 @@ export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: 
     const session = sessions.find((s) => s.id === sessionId)
     if (session) {
       selectSession(session)
-      navigate(`/projects/${pid}/sessions/${sessionId}/chat`)
+      if (basePath) {
+        navigate(`${basePath}/sessions/${sessionId}/chat`)
+      }
     }
   }
 

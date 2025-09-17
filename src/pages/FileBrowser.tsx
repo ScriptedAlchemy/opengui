@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import {
   ChevronRight,
   File,
@@ -23,6 +23,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useProjectSDK } from "@/contexts/OpencodeSDKContext"
 import { useCurrentProject } from "@/stores/projects"
+import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { MonacoEditor } from "@/components/code/MonacoEditor"
 import { Button } from "@/components/ui/button"
@@ -302,9 +303,12 @@ const Breadcrumb: React.FC<{
 )
 
 export default function FileBrowser() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, worktreeId } = useParams<{ projectId: string; worktreeId: string }>()
+  const navigate = useNavigate()
   const currentProject = useCurrentProject()
-  const { client } = useProjectSDK(projectId, currentProject?.path)
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const worktrees = useWorktreesForProject(projectId || "")
+  const activeWorktreeId = worktreeId || "default"
 
   // File tree state
   const [fileTree, setFileTree] = useState<FileTreeNode[]>([])
@@ -333,33 +337,39 @@ export default function FileBrowser() {
 
   // Resolve project path from store or API
   const [resolvedPath, setResolvedPath] = useState<string | undefined>(currentProject?.path)
+
   useEffect(() => {
-    if (currentProject?.path) setResolvedPath(currentProject.path)
-  }, [currentProject?.path])
+    if (projectId) {
+      void loadWorktrees(projectId)
+    }
+  }, [projectId, loadWorktrees])
+
   useEffect(() => {
-    if (resolvedPath || !projectId) return
-    ;(async () => {
-      try {
-        const res = await fetch("/api/projects")
-        if (!res.ok) return
-        const list = (await res.json()) as unknown
-        if (!Array.isArray(list)) return
-        const projectMatch = list.find(
-          (item): item is { id: string; path?: unknown } =>
-            typeof item === "object" &&
-            item !== null &&
-            "id" in item &&
-            typeof (item as { id?: unknown }).id === "string" &&
-            (item as { id: string }).id === projectId
-        )
-        if (projectMatch && typeof projectMatch.path === "string") {
-          setResolvedPath(projectMatch.path)
-        }
-      } catch (error) {
-        console.error("Failed to resolve project path:", error)
+    if (currentProject?.path && activeWorktreeId === "default") {
+      setResolvedPath(currentProject.path)
+    }
+  }, [currentProject?.path, activeWorktreeId])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (activeWorktreeId === "default") {
+      if (currentProject?.path) {
+        setResolvedPath(currentProject.path)
       }
-    })()
-  }, [projectId, resolvedPath])
+      return
+    }
+
+    const target = worktrees.find((worktree) => worktree.id === activeWorktreeId)
+    if (target?.path) {
+      setResolvedPath(target.path)
+    } else if (worktrees.length > 0 && activeWorktreeId !== "default") {
+      // Invalid worktree, redirect to default file view
+      setResolvedPath(currentProject?.path)
+      navigate(`/projects/${projectId}/default/files`, { replace: true })
+    }
+  }, [projectId, activeWorktreeId, worktrees, currentProject?.path, navigate])
+
+  const { client } = useProjectSDK(projectId, resolvedPath)
 
   // Load initial file tree
   useEffect(() => {
@@ -920,6 +930,7 @@ export default function FileBrowser() {
                 <TabsContent key={file.path} value={file.path} className="flex-1">
                   <div data-testid="file-editor" className="h-full min-h-0">
                     <div data-testid="file-editor-inner" className="h-full">
+                      <div data-testid="editor-container" className="h-full">
                       <MonacoEditor
                         filePath={file.path}
                         content={file.content}
@@ -940,6 +951,7 @@ export default function FileBrowser() {
                         }}
                         className="h-full"
                       />
+                      </div>
                     </div>
                   </div>
                 </TabsContent>

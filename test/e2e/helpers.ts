@@ -2,6 +2,8 @@ import { expect, Page } from "@playwright/test"
 
 // Opens the app, clicks the first project's Open button, ensures dashboard,
 // and returns the resolved projectId from the URL.
+const DEFAULT_WORKTREE = "default"
+
 export async function openFirstProjectAndGetId(page: Page): Promise<string> {
   await page.goto("/")
   await page.waitForSelector("#root", { state: "visible" })
@@ -16,14 +18,19 @@ export async function openFirstProjectAndGetId(page: Page): Promise<string> {
   // Ensure we land on a project URL and dashboard is available (best effort)
   let projectId = ""
   try {
-    await page.waitForURL(/\/projects\/[a-f0-9]+/, { timeout: 20000 })
-    projectId = page.url().match(/\/projects\/([^/]+)/)?.[1] || ""
+    await page.waitForURL(/\/projects\/[^/]+\/[^/]+/, { timeout: 20000 })
+    const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
+    projectId = match?.[1] || ""
+    const worktree = match?.[2] || DEFAULT_WORKTREE
+    if (projectId) {
+      await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
+    }
     await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 15000 })
   } catch {
     // Best-effort fallback: try to load dashboard directly if we captured id
     projectId = page.url().match(/\/projects\/([^/]+)/)?.[1] || projectId
     if (projectId) {
-      await page.goto(`/projects/${projectId}`)
+      await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
       await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 15000 }).catch(() => {})
     }
   }
@@ -31,7 +38,7 @@ export async function openFirstProjectAndGetId(page: Page): Promise<string> {
   if (!projectId) {
     // Try to derive projectId from any project card link if URL parsing failed
     const url = page.url()
-    const match = url.match(/\/projects\/([^/]+)/)
+    const match = url.match(/\/projects\/([^/]+)\/([^/]+)/)
     if (match) projectId = match[1]
   }
 
@@ -41,8 +48,9 @@ export async function openFirstProjectAndGetId(page: Page): Promise<string> {
 
 // Navigates to the chat page for a given project and waits for the chat input to be visible.
 export async function goToChat(page: Page, projectId: string): Promise<void> {
+  const basePath = `/projects/${projectId}/${DEFAULT_WORKTREE}`
   // Try project dashboard quick action first
-  await page.goto(`/projects/${projectId}`)
+  await page.goto(basePath)
   await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 15000 }).catch(() => {})
 
   const newChatButton = page.locator('[data-testid="button-new-chat"]').first()
@@ -66,11 +74,11 @@ export async function goToChat(page: Page, projectId: string): Promise<void> {
   } else {
     // If dashboard button not available, try sessions list flow
     // First ensure project context is established
-    await page.goto(`/projects/${projectId}`)
+    await page.goto(basePath)
     await page.waitForTimeout(2000)
     
     // Now go to sessions page
-    await page.goto(`/projects/${projectId}/sessions`)
+    await page.goto(`${basePath}/sessions`)
     await page.waitForTimeout(2000)
     
     // Check for error state and retry if needed

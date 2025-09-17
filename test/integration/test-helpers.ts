@@ -1,9 +1,11 @@
-import type { Subprocess } from "bun"
 import { createOpencodeServer } from "@opencode-ai/sdk"
-import { spawnProcess, spawnAdvanced, sleep, file, serve } from '../utils/node-utils'
+import { spawnProcess, spawnAdvanced, sleep, file, serve } from "../utils/node-utils"
+import type { Readable } from "stream"
+
+type SpawnedProcess = ReturnType<typeof spawnAdvanced>
 
 export interface TestServer {
-  serverProcess: Subprocess | null
+  serverProcess: SpawnedProcess | null
   baseUrl: string
   tempDir: string
   cleanup: () => Promise<void>
@@ -181,7 +183,7 @@ export async function createTestServer(): Promise<TestServer> {
   }
 
   // Wait for server to be ready with timeout
-  const timeoutPromise = Bun.sleep(15000).then(() => ({
+  const timeoutPromise = sleep(15000).then(() => ({
     ready: false,
     error: "Server startup timeout after 15 seconds",
   }))
@@ -208,7 +210,7 @@ export async function createTestServer(): Promise<TestServer> {
 
 // Enhanced output monitoring that detects server readiness from logs
 function monitorServerOutput(
-  stream: ReadableStream<Uint8Array> | undefined,
+  stream: Readable | null | undefined,
   expectedPort: number,
   readyResolver: (value: ServerReadySignal) => void,
   readyRejecter: (error: Error) => void,
@@ -216,72 +218,81 @@ function monitorServerOutput(
 ): { cancel: () => void } | undefined {
   if (!stream) return undefined
 
-  const reader = stream.getReader()
   let cancelled = false
+  let settled = false
+  let buffer = ""
+  const decoder = new TextDecoder()
 
-  const monitor = async () => {
-    const decoder = new TextDecoder()
-    let buffer = ""
+  const cleanup = () => {
+    if (settled) return
+    settled = true
+    stream.removeListener("data", onData)
+    stream.removeListener("error", onError)
+    stream.removeListener("close", onClose)
+    stream.removeListener("end", onClose)
+  }
 
-    try {
-      while (!cancelled) {
-        const { done, value } = await reader.read()
-        if (done) break
+  const settle = (callback: () => void) => {
+    if (settled) return
+    callback()
+    cleanup()
+  }
 
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop() || "" // Keep incomplete line in buffer
+  const onData = (chunk: Buffer) => {
+    if (cancelled || settled) return
+    buffer += decoder.decode(chunk)
 
-        for (const line of lines) {
-          const trimmedLine = line.trim()
-          if (!trimmedLine) continue
+    let newlineIndex = buffer.indexOf("\n")
+    while (newlineIndex !== -1) {
+      const line = buffer.slice(0, newlineIndex).trim()
+      buffer = buffer.slice(newlineIndex + 1)
+      if (line) {
+        if (isStderr) {
+          console.error("OpenCode stderr:", line)
+        } else {
+          console.log("OpenCode stdout:", line)
+        }
 
-          // Log output for debugging
-          if (isStderr) {
-            console.error("OpenCode stderr:", trimmedLine)
-          } else {
-            console.log("OpenCode stdout:", trimmedLine)
-          }
+        if (line.includes("opencode server listening on") && line.includes(`:${expectedPort}`)) {
+          settle(() => readyResolver({ ready: true, port: expectedPort }))
+          return
+        }
 
-          // Check for server ready signal
-          if (trimmedLine.includes(`opencode server listening on`) && trimmedLine.includes(`:${expectedPort}`)) {
-            readyResolver({ ready: true, port: expectedPort })
-            return
-          }
-
-          // Check for startup errors
-          if (
-            isStderr &&
-            (trimmedLine.includes("Error:") ||
-              trimmedLine.includes("EADDRINUSE") ||
-              trimmedLine.includes("Permission denied") ||
-              trimmedLine.includes("fatal"))
-          ) {
-            readyRejecter(new Error(`Server startup error: ${trimmedLine}`))
-            return
-          }
+        if (
+          isStderr &&
+          (line.includes("Error:") ||
+            line.includes("EADDRINUSE") ||
+            line.includes("Permission denied") ||
+            line.includes("fatal"))
+        ) {
+          settle(() => readyRejecter(new Error(`Server startup error: ${line}`)))
+          return
         }
       }
-    } catch (error) {
-      if (!cancelled) {
-        readyRejecter(new Error(`Output monitoring error: ${error}`))
-      }
-    } finally {
-      try {
-        reader.releaseLock()
-      } catch (e) {
-        // Reader might already be released
-      }
+
+      newlineIndex = buffer.indexOf("\n")
     }
   }
 
-  monitor()
+  const onError = (error: Error) => {
+    if (cancelled || settled) return
+    settle(() => readyRejecter(new Error(`Output monitoring error: ${error.message}`)))
+  }
+
+  const onClose = () => {
+    cleanup()
+  }
+
+  stream.on("data", onData)
+  stream.on("error", onError)
+  stream.on("close", onClose)
+  stream.on("end", onClose)
 
   return {
     cancel: () => {
+      if (cancelled) return
       cancelled = true
-      // Reader will be released in the finally block of monitor()
-      // No need to cancel it here as it might already be released
+      cleanup()
     },
   }
 }
@@ -295,7 +306,7 @@ export async function waitForCondition(
   const start = Date.now()
   while (Date.now() - start < timeout) {
     if (await condition()) return true
-    await Bun.sleep(interval)
+    await sleep(interval)
   }
   return false
 }
@@ -304,8 +315,8 @@ export async function waitForCondition(
 export async function createTestProject(_baseUrl: string, tempDir: string, name: string): Promise<any> {
   const projectPath = `${tempDir}/${name.toLowerCase().replace(/\s+/g, "-")}`
 
-  // Create the project directory using Bun.spawn
-  await Bun.spawn(["mkdir", "-p", projectPath]).exited
+  // Create the project directory using Node.js spawn helper
+  await spawnProcess(["mkdir", "-p", projectPath])
 
   // Since OpenCode server doesn't have a projects API, we'll simulate a project structure
   return {
@@ -343,7 +354,7 @@ export async function waitForServerHealth(baseUrl: string, timeout = 10000): Pro
       // Continue trying
     }
 
-    await Bun.sleep(interval)
+    await sleep(interval)
   }
 
   return false
@@ -365,7 +376,7 @@ export async function waitForServerShutdown(baseUrl: string, timeout = 5000): Pr
 
       clearTimeout(timeoutId)
       // If we get here, server is still running
-      await Bun.sleep(interval)
+      await sleep(interval)
     } catch (e) {
       // Server is down (expected)
       return true

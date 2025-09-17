@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test"
 
+const DEFAULT_WORKTREE = "default"
+
 // Updated for SDK-only architecture:
 // - No project start/stop needed
 // - Projects are always ready in SDK mode
@@ -60,15 +62,13 @@ test.describe("Crystal Project Flow", () => {
     const currentUrl = page.url()
     let projectId: string | null = null
 
-    if (currentUrl.includes("/projects/")) {
-      const urlParts = currentUrl.split("/projects/")[1]
-      if (urlParts) {
-        projectId = urlParts.split("/")[0]
-      }
+    const match = currentUrl.match(/\/projects\/([^/]+)\/([^/]+)/)
+    if (match) {
+      projectId = match[1]
     }
 
     if (projectId) {
-      await page.goto(`/projects/${projectId}/sessions`)
+      await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}/sessions`)
     } else {
       // Try to find sessions link in navigation - test fails if not found
       const sessionsLink = page.locator('[data-testid="dashboard-nav"]')

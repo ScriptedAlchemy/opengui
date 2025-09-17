@@ -9,7 +9,8 @@ export function useSessionsSDK(
   projectPath: string | undefined,
   sessionId: string | undefined,
   instanceStatus: "running" | "stopped" | "starting",
-  loadMessages: (sessionId: string) => Promise<void>
+  loadMessages: (sessionId: string) => Promise<void>,
+  worktreeId?: string
 ) {
   // Mark loadMessages as intentionally unused here; message loading is handled by useMessagesSDK
   void loadMessages
@@ -22,6 +23,8 @@ export function useSessionsSDK(
   const [renameValue, setRenameValue] = useState("")
 
   // Create new session (stable reference)
+  const resolvedWorktreeId = worktreeId || "default"
+
   const handleCreateSession = useCallback(async () => {
     if (!projectId || !projectPath || !client) return
 
@@ -43,14 +46,14 @@ export function useSessionsSDK(
 
       setSessions((prev) => [...prev, newSession])
       setCurrentSession(newSession)
-      navigate(`/projects/${projectId}/sessions/${newSession.id}/chat`)
+      navigate(`/projects/${projectId}/${resolvedWorktreeId}/sessions/${newSession.id}/chat`)
     } catch (error) {
       console.error("Failed to create session:", error)
       toast.error("Failed to create session")
     } finally {
       setIsLoading(false)
     }
-  }, [projectId, projectPath, client, navigate])
+  }, [projectId, projectPath, client, navigate, resolvedWorktreeId])
 
   // Load sessions
   useEffect(() => {
@@ -186,7 +189,7 @@ export function useSessionsSDK(
 
       if (currentSession?.id === sessionIdParam) {
         setCurrentSession(null)
-        navigate(`/projects/${projectId}/sessions`)
+        navigate(`/projects/${projectId}/${resolvedWorktreeId}/sessions`)
       }
 
       toast.success("Session deleted")

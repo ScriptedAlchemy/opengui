@@ -13,7 +13,7 @@ describe("ProjectManagerClient", () => {
   })
 
   test("getProjects and getProject", async () => {
-    const rows = [{ id: "p1", name: "A", path: "/a", type: "git", addedAt: new Date().toISOString(), lastOpened: null }]
+    const rows = [{ id: "p1", name: "A", path: "/a", type: "git", addedAt: new Date().toISOString(), lastOpened: null, worktrees: [{ id: "default", path: "/a", title: "A (default)" }] }]
     const fn = rstest.fn((i: RequestInfo | URL) => {
       const u = String(i)
       if (u.endsWith("/projects")) return ok(rows)
@@ -29,7 +29,7 @@ describe("ProjectManagerClient", () => {
   })
 
   test("create/update/remove project", async () => {
-    const proj = { id: "p1", name: "X", path: "/x", type: "git", addedAt: new Date().toISOString(), lastOpened: null }
+    const proj = { id: "p1", name: "X", path: "/x", type: "git", addedAt: new Date().toISOString(), lastOpened: null, worktrees: [{ id: "default", path: "/x", title: "X (default)" }] }
     const fn = rstest.fn((i: RequestInfo | URL, init?: RequestInit) => {
       const u = String(i)
       if (u.endsWith("/projects") && init?.method === "POST") return ok({ ...proj, name: "New" }, 201)
@@ -77,6 +77,7 @@ describe("ProjectManagerClient", () => {
         type: "git",
         addedAt: new Date().toISOString(),
         lastOpened: new Date(now - 1000).toISOString(),
+        worktrees: [{ id: "default", path: "/a", title: "Alpha (default)" }],
       },
       {
         id: "b",
@@ -85,8 +86,9 @@ describe("ProjectManagerClient", () => {
         type: "git",
         addedAt: new Date().toISOString(),
         lastOpened: new Date(now).toISOString(),
+        worktrees: [{ id: "default", path: "/b", title: "Beta (default)" }],
       },
-      { id: "c", name: "Gamma", path: "/c", type: "git", addedAt: new Date().toISOString(), lastOpened: null },
+      { id: "c", name: "Gamma", path: "/c", type: "git", addedAt: new Date().toISOString(), lastOpened: null, worktrees: [{ id: "default", path: "/c", title: "Gamma (default)" }] },
     ]
     const fn = rstest.fn(() => ok(rows))
     // @ts-ignore

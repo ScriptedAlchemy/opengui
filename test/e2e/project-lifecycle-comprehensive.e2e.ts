@@ -1,5 +1,7 @@
 import { test, expect, Page } from "@playwright/test"
 
+const DEFAULT_WORKTREE = "default"
+
 // Comprehensive project lifecycle test covering:
 // - Project creation and initialization
 // - Project configuration and settings
@@ -26,9 +28,11 @@ async function navigateToProjectPage(page: Page, pageName: string, projectIdPara
     // Fallback: navigate directly using current project ID
     const url = page.url()
     const m = url.match(/\/projects\/([^/]+)/)
+    const worktreeMatch = url.match(/\/projects\/[^/]+\/([^/]+)/)
+    const worktreeId = worktreeMatch?.[1] || DEFAULT_WORKTREE
     if (m || projectIdParam) {
       const id = projectIdParam || m![1]
-      const dest = `/projects/${id}/${pageName}`
+      const dest = `/projects/${id}/${worktreeId}/${pageName}`
       await page.goto(dest)
       await page.waitForTimeout(1500)
       return true
@@ -391,12 +395,12 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     // Test workflow: Dashboard -> File Browser -> Chat -> Back to Dashboard
     const workflowSteps = [
-      { action: "Navigate to dashboard", url: `/projects/${projectId}` },
-      { action: "Access file browser", url: `/projects/${projectId}/files` },
-      { action: "Return to dashboard", url: `/projects/${projectId}` },
+      { action: "Navigate to dashboard", url: `/projects/${projectId}/${DEFAULT_WORKTREE}` },
+      { action: "Access file browser", url: `/projects/${projectId}/${DEFAULT_WORKTREE}/files` },
+      { action: "Return to dashboard", url: `/projects/${projectId}/${DEFAULT_WORKTREE}` },
       // Use the dashboard quick action to create a chat (button is on dashboard)
       { action: "Create new chat", button: '[data-testid="quick-action-new-chat"]' },
-      { action: "Return to dashboard", url: `/projects/${projectId}` }
+      { action: "Return to dashboard", url: `/projects/${projectId}/${DEFAULT_WORKTREE}` }
     ]
     
     for (const step of workflowSteps) {

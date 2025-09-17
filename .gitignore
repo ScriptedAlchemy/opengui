@@ -11,7 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
-
+ign
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -37,3 +37,4 @@ test/e2e/screenshots/*.png
 *.backup.ts
 *-fix.ts
 e2e-report.json
+repomix-output.xml

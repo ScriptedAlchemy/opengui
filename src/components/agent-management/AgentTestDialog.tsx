@@ -36,9 +36,11 @@ interface AgentTestDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   agentId: string | null
+  projectId: string
+  worktreePath?: string
 }
 
-export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialogProps) {
+export function AgentTestDialog({ open, onOpenChange, agentId, projectId, worktreePath }: AgentTestDialogProps) {
   const [testMessages, setTestMessages] = useState<TestMessage[]>([])
   const [testInput, setTestInput] = useState("")
   const [testLoading, setTestLoading] = useState(false)
@@ -73,8 +75,12 @@ export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialog
 
     try {
       // Call the actual test API
-      const projectId = window.location.pathname.split("/")[2] // Extract projectId from URL
-      const response = await fetch(`/api/projects/${projectId}/agents/${agentId}/test`, {
+      const url = (() => {
+        const base = `/api/projects/${projectId}/agents/${agentId}/test`
+        if (!worktreePath) return base
+        return `${base}?worktree=${encodeURIComponent(worktreePath)}`
+      })()
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -88,7 +94,7 @@ export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialog
         const responseHeaders = Object.fromEntries(response.headers.entries())
         console.error('Agent test failed:', {
           method: 'POST',
-          url: `/api/projects/${projectId}/agents/${agentId}/test`,
+          url,
           status: response.status,
           statusText: response.statusText,
           headers: responseHeaders,

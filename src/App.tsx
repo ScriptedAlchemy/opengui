@@ -55,17 +55,19 @@ function DashboardLayout() {
                 <Route index element={<ProjectList />} />
 
                 {/* Project-specific routes */}
-                <Route path="projects/:projectId" element={<ProjectDashboard />} />
-                <Route path="projects/:projectId/sessions" element={<SessionList />} />
-                <Route
-                  path="projects/:projectId/sessions/:sessionId/chat"
-                  element={<ChatInterface />}
-                />
-                <Route path="projects/:projectId/git" element={<GitOperations />} />
-                <Route path="projects/:projectId/agents" element={<AgentManagement />} />
-                <Route path="projects/:projectId/files/*" element={<FileBrowser />} />
-                <Route path="projects/:projectId/terminal" element={<Terminal />} />
-                <Route path="projects/:projectId/settings" element={<ProjectSettings />} />
+                <Route path="projects/:projectId">
+                  <Route index element={<Navigate to="default" replace />} />
+                  <Route path=":worktreeId">
+                    <Route index element={<ProjectDashboard />} />
+                    <Route path="sessions" element={<SessionList />} />
+                    <Route path="sessions/:sessionId/chat" element={<ChatInterface />} />
+                    <Route path="git" element={<GitOperations />} />
+                    <Route path="agents" element={<AgentManagement />} />
+                    <Route path="files/*" element={<FileBrowser />} />
+                    <Route path="terminal" element={<Terminal />} />
+                    <Route path="settings" element={<ProjectSettings />} />
+                  </Route>
+                </Route>
 
                 {/* Catch-all route */}
                 <Route path="*" element={<Navigate to="/" replace />} />

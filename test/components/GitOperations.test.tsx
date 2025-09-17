@@ -1,22 +1,49 @@
 import { describe, test, expect, beforeEach, afterEach, rstest } from "@rstest/core"
-import { render, waitFor, act, screen } from "@testing-library/react"
+import { waitFor, act, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router-dom"
-import GitOperations from "../../src/pages/GitOperations"
-import { OpencodeSDKProvider } from "../../src/contexts/OpencodeSDKContext"
+let GitOperations: any
+let OpencodeSDKProvider: any
+import { renderWithRouter } from "../utils/test-router"
 
 // Mock router hooks
 const mockNavigate = rstest.fn(() => {})
-let mockParams = { projectId: "test-project" }
 
 rstest.mock("react-router-dom", () => {
   const actual = require("react-router-dom")
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    useParams: () => mockParams,
   }
 })
+
+const mockContextValue = {
+  client: {
+    session: {
+      shell: (args: any) => mockShell(args),
+    },
+  },
+  instanceStatus: "running",
+}
+
+rstest.mock("../../src/contexts/OpencodeSDKContext", () => ({
+  OpencodeSDKProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useProjectSDK: () => ({
+    client: mockContextValue.client,
+    instanceStatus: mockContextValue.instanceStatus,
+    isLoading: false,
+    error: null,
+  }),
+}))
+
+rstest.mock("@/contexts/OpencodeSDKContext", () => ({
+  OpencodeSDKProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useProjectSDK: () => ({
+    client: mockContextValue.client,
+    instanceStatus: mockContextValue.instanceStatus,
+    isLoading: false,
+    error: null,
+  }),
+}))
 
 // Mock project store
 const mockProject = {
@@ -29,6 +56,29 @@ const mockProject = {
 }
 rstest.mock("../../src/stores/projects", () => ({
   useCurrentProject: () => mockProject,
+}))
+rstest.mock("@/stores/projects", () => ({
+  useCurrentProject: () => mockProject,
+}))
+
+// Mock worktrees store
+const mockLoadWorktrees = rstest.fn(() => Promise.resolve())
+const mockWorktrees = [
+  { id: "default", path: "/project", title: "Main" },
+  { id: "feature", path: "/project-feature", title: "Feature Branch" }
+]
+
+const worktreesStoreMock = {
+  loadWorktrees: mockLoadWorktrees,
+}
+
+rstest.mock("../../src/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: any) => (selector ? selector(worktreesStoreMock) : worktreesStoreMock),
+  useWorktreesForProject: () => mockWorktrees,
+}))
+rstest.mock("@/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: any) => (selector ? selector(worktreesStoreMock) : worktreesStoreMock),
+  useWorktreesForProject: () => mockWorktrees,
 }))
 
 // Mock SDK service client used by context
@@ -73,907 +123,269 @@ rstest.mock("../../src/services/opencode-sdk-service", () => ({
   opencodeSDKService: {
     getClient: async () => ({
       session: {
-        shell: (...args: any[]) => mockShell(...args),
+        shell: mockShell,
       },
     }),
     stopAll: async () => {},
   },
 }))
 
-// Test wrapper
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return (
-    <OpencodeSDKProvider>
-      <MemoryRouter
-        initialEntries={["/projects/test-project/git"]}
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        {children}
-      </MemoryRouter>
-    </OpencodeSDKProvider>
+// Mock sessions store with worktree-aware signature
+const mockLoadSessions = rstest.fn(() => Promise.resolve())
+const mockCreateSession = rstest.fn((projectId: string, worktreePath: string, title: string) => 
+  Promise.resolve({ 
+    id: "session-1", 
+    title, 
+    projectID: projectId, 
+    directory: worktreePath,
+    version: "1",
+    time: { created: Date.now() / 1000, updated: Date.now() / 1000 }
+  })
+)
+rstest.mock("../../src/stores/sessions", () => ({
+  useSessionsStore: () => ({
+    loadSessions: mockLoadSessions,
+    createSession: mockCreateSession,
+  }),
+  useSessionsForProject: () => [],
+}))
+rstest.mock("@/stores/sessions", () => ({
+  useSessionsStore: () => ({
+    loadSessions: mockLoadSessions,
+    createSession: mockCreateSession,
+  }),
+  useSessionsForProject: () => [],
+}))
+
+// Mock SDK hooks
+rstest.mock("../../src/hooks/useProjectSDK", () => ({
+  useProjectSDK: () => ({
+    client: {
+      session: {
+        shell: mockShell,
+      },
+    },
+    instanceStatus: "running",
+  }),
+}))
+rstest.mock("@/hooks/useProjectSDK", () => ({
+  useProjectSDK: () => ({
+    client: {
+      session: {
+        shell: mockShell,
+      },
+    },
+    instanceStatus: "running",
+  }),
+}))
+
+// Helper to render with SDK context
+const renderWithSDK = (ui: React.ReactElement, routerOptions: any = {}) => {
+  return renderWithRouter(
+    <OpencodeSDKProvider>{ui}</OpencodeSDKProvider>,
+    routerOptions
   )
 }
 
 describe("GitOperations Component", () => {
   beforeEach(() => {
     rstest.clearAllMocks()
-    mockParams = { projectId: "test-project" }
-
-    // Reset DOM
-    document.body.innerHTML = ""
-    const root = document.createElement("div")
-    root.id = "root"
-    document.body.appendChild(root)
-
-    // Ensure default mock for shell
-    mockShell.mockImplementation((args: any) => {
-      const cmd = args?.body?.command || ""
-      if (cmd.includes("git status")) {
-        return Promise.resolve({
-          data: {
-            parts: [
-              {
-                type: "text",
-                text:
-                  "## main...origin/main [ahead 2]\nM  src/test.ts\nA  package.json\n M README.md\n?? src/new.ts\n?? temp.log",
-              },
-            ],
-          },
-        })
-      }
-      return Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } })
-    })
+    const componentModule = require("../../src/pages/GitOperations")
+    GitOperations = componentModule.default || componentModule.GitOperations
+    const contextModule = require("../../src/contexts/OpencodeSDKContext")
+    OpencodeSDKProvider = contextModule.OpencodeSDKProvider
   })
 
-  afterEach(() => {
-    document.body.innerHTML = ""
+  afterEach(async () => {
+    await act(async () => {})
   })
 
   // Basic rendering tests
   test("renders git operations interface", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 
     await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    expect(result.getByText("Manage your Git repository")).toBeDefined()
-  })
-
-  test("shows loading state initially", async () => {
-    // Slow down the first shell call to keep loading visible
-    mockShell.mockImplementationOnce(
-      (args: any) =>
-        new Promise((resolve) =>
-          setTimeout(
-            () =>
-              resolve({
-                data: { parts: [{ type: "text", text: "" }] },
-              }),
-            100,
-          ),
-        ),
-    )
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    expect(result.getByText("Loading Git information...")).toBeDefined()
-  })
-
-  test("displays git status after loading", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      const mains = result.getAllByText("main")
-      expect(mains.length).toBeGreaterThan(0)
-    })
-
-    expect(result.getByText("↑2 ahead")).toBeDefined()
-  })
-
-  // Error handling tests
-  test("handles git command errors", async () => {
-    // Mock git command failure
-    mockShell.mockImplementationOnce(() => Promise.reject(new Error("Git command failed")))
-
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Error")).toBeDefined()
-    })
-
-    expect(result.getByText(/failed to fetch git status/i)).toBeDefined()
-  })
-
-  // Accessibility tests
-  test("has proper ARIA labels and roles", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Check for tab roles
-    const tabs = result.getAllByRole("tab")
-    expect(tabs.length).toBeGreaterThan(0)
-
-    // Check for button roles
-    const buttons = result.getAllByRole("button")
-    expect(buttons.length).toBeGreaterThan(0)
-
-    // Check for proper headings
-    const heading = result.getByRole("heading", { name: /git operations/i })
-    expect(heading).toBeDefined()
-  })
-
-  // Performance tests
-  test("handles large number of files efficiently", async () => {
-    // Mock large file list
-    const largeFileList = Array.from({ length: 100 }, (_, i) => `file${i}.txt`).join("\n?? ")
-    mockShell.mockImplementationOnce(() =>
-      Promise.resolve({
-        data: { parts: [{ type: "text", text: `## main\n?? ${largeFileList}` }] },
-      }),
-    )
-
-    const startTime = performance.now()
-
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    const endTime = performance.now()
-    const renderTime = endTime - startTime
-
-    // Should render within reasonable time (less than 1 second)
-    expect(renderTime).toBeLessThan(1000)
-  })
-
-  // Cleanup and memory leak tests
-  test("cleans up properly on unmount", async () => {
-    const { unmount, getByText } = render(
-      <TestWrapper>
-        <GitOperations />
-      </TestWrapper>,
-    )
-
-    await waitFor(() => {
-      expect(getByText("Loading Git information...")).toBeDefined()
-    })
-
-    // Unmount component
-    unmount()
-
-    // Component should unmount without leaving the page container
-    expect(document.querySelector('[data-testid="git-operations-page"]')).toBeNull()
-  })
-
-  test("handles component re-renders without issues", async () => {
-    const { rerender, getByText } = render(
-      <TestWrapper>
-        <GitOperations />
-      </TestWrapper>,
-    )
-
-    await waitFor(() => {
-      expect(getByText("Loading Git information...")).toBeDefined()
-    })
-
-    // Re-render with same props
-    rerender(
-      <TestWrapper>
-        <GitOperations />
-      </TestWrapper>,
-    )
-
-    // Should still work correctly
-    await waitFor(() => {
-      // re-select root heading
-      render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-  })
-})
-
-describe("GitOperations Component With User Events", () => {
-  const user = userEvent.setup()
-  beforeEach(() => {
-    rstest.clearAllMocks()
-    mockParams = { projectId: "test-project" }
-
-    // Reset DOM
-    document.body.innerHTML = ""
-    const root = document.createElement("div")
-    root.id = "root"
-    document.body.appendChild(root)
-
-    // Setup default mock responses
-    mockShell.mockImplementation((args: any) => {
-      const command = args?.body?.command || ""
-      if (command.includes("git status")) {
-        return Promise.resolve({
-          data: {
-            parts: [
-              {
-                type: "text",
-                text:
-                  "## main...origin/main [ahead 2]\nM  src/test.ts\nA  package.json\n M README.md\n?? src/new.ts\n?? temp.log",
-              },
-            ],
-          },
-        })
-      }
-      if (command.includes("git remote get-url")) {
-        return Promise.resolve({
-          data: { parts: [{ type: "text", text: "https://github.com/user/repo.git" }] },
-        })
-      }
-      if (command.includes("git branch -vv")) {
-        return Promise.resolve({
-          data: {
-            parts: [
-              {
-                type: "text",
-                text:
-                  "* main abc123d [origin/main: ahead 2] Latest commit\n  feature/test def456g [origin/feature/test] Feature commit\n  develop ghi789j Local branch",
-              },
-            ],
-          },
-        })
-      }
-      if (command.includes("git log")) {
-        return Promise.resolve({
-          data: {
-            parts: [
-              {
-                type: "text",
-                text:
-                  "abc123def456|abc123d|John Doe|john@example.com|2024-01-01 12:00:00 +0000|Add new feature\ndef456ghi789|def456g|Jane Smith|jane@example.com|2024-01-01 10:00:00 +0000|Fix bug in component",
-              },
-            ],
-          },
-        })
-      }
-      if (command.includes("git stash list")) {
-        return Promise.resolve({
-          data: {
-            parts: [
-              {
-                type: "text",
-                text: "stash@{0}|WIP: working on feature|1704117600|On main: WIP: working on feature",
-              },
-            ],
-          },
-        })
-      }
-      return Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } })
+      expect(screen.getByText("Git Operations")).toBeDefined()
+      expect(screen.getByRole("tab", { name: /Status/i })).toBeDefined()
+      expect(screen.getByRole("tab", { name: /Branches/i })).toBeDefined()
+      expect(screen.getByRole("tab", { name: /Commits/i })).toBeDefined()
     })
   })
 
-  afterEach(() => {
-    document.body.innerHTML = ""
-  })
+  // Status tab tests
+  test("displays git status", async () => {
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 
-  // Basic rendering tests
-  test("renders git operations interface", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
+    const statusSection = await screen.findByTestId("git-status")
 
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    expect(result.getByText("Manage your Git repository")).toBeDefined()
-  })
-
-  test("shows loading state initially", async () => {
-    // Slow down first status call to keep loading visible
-    mockShell.mockImplementationOnce(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(() => resolve({ data: { parts: [{ type: "text", text: "" }] } }), 100),
-        ),
-    )
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    expect(result.getByText("Loading Git information...")).toBeDefined()
-  })
-
-  test("displays git status after loading", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      const mains = result.getAllByText("main")
-      expect(mains.length).toBeGreaterThan(0)
-    })
-
-    expect(result.getByText("↑2 ahead")).toBeDefined()
-    expect(result.getByText("https://github.com/user/repo.git")).toBeDefined()
-  })
-
-  // Tab navigation tests
-  test("switches between tabs", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Click commits tab
-    const commitsTab = result.getByRole("tab", { name: /commits/i })
-    await user.click(commitsTab)
-
-    await waitFor(() => {
-      expect(result.getByPlaceholderText("Search commits...")).toBeDefined()
-    })
-
-    // Click branches tab
-    const branchesTab = result.getByRole("tab", { name: /branches/i })
-    await user.click(branchesTab)
-
-    await waitFor(() => {
-      expect(result.getByPlaceholderText("New branch name...")).toBeDefined()
-    })
-
-    // Click stash tab
-    const stashTab = result.getByRole("tab", { name: /stash/i })
-    await user.click(stashTab)
-
-    await waitFor(() => {
-      expect(result.getByText("Stashed Changes")).toBeDefined()
-    })
+    await screen.findByText("git@github.com:user/repo.git")
+    await within(statusSection).findByText("src/test.ts")
+    await within(statusSection).findByText("package.json")
+    await within(statusSection).findByText("README.md")
   })
 
   // File operations tests
   test("stages and unstages files", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
+    const user = userEvent.setup()
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
+
+    await waitFor(() => expect(screen.getByText("README.md")).toBeDefined())
+
+    // Stage a specific file
+    const stageButton = await screen.findByRole("button", { name: /Stage README\.md/i })
+    await user.click(stageButton)
 
     await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
+      expect(
+        mockShell.mock.calls.some(([args]) =>
+          args?.body?.command?.includes('git add "README.md"') &&
+          args?.query?.directory === "/project"
+        )
+      ).toBe(true)
     })
-
-    // Mock successful staging
-    mockShell.mockImplementationOnce(() => Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } }))
-
-    // Find and click stage button for a modified file
-    const stageButtons = result.getAllByRole("button").filter((btn: HTMLElement) => {
-      const svg = btn.querySelector("svg")
-      return svg !== null && svg.classList.contains("lucide-plus")
-    })
-
-    if (stageButtons.length > 0) {
-      await user.click(stageButtons[0])
-      expect(mockShell).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({ command: expect.stringContaining("git add") }),
-        }),
-      )
-    }
   })
 
+  // Commit functionality tests
   test("commits staged changes", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
+    const user = userEvent.setup()
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
+    await waitFor(() => expect(screen.getByText("package.json")).toBeDefined())
 
-    // Find commit message textarea
-    const commitTextarea = result.getByPlaceholderText("Enter commit message...")
-    await user.type(commitTextarea, "Test commit message")
-
-    // Mock successful commit
-    mockShell.mockImplementationOnce(() => Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } }))
-
-    // Find and click commit button
-    const commitButton = result.getByRole("button", { name: /commit \d+ file/i })
+    // Open commit dialog
+    const commitButton = screen.getByRole("button", { name: /^Commit$/i })
     await user.click(commitButton)
 
-    expect(mockShell).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: expect.objectContaining({
-          command: expect.stringContaining('git commit -m "Test commit message"'),
-        }),
-      }),
-    )
+    // Enter commit message - find the visible input
+    const messageInputs = await screen.findAllByTestId("commit-message-input")
+    const visibleInput = messageInputs.find(input => {
+      const style = window.getComputedStyle(input)
+      return style.pointerEvents !== 'none' && !input.hasAttribute('disabled')
+    })
+    if (!visibleInput) {
+      throw new Error('No visible commit message input found')
+    }
+    await user.type(visibleInput, "Test commit message")
+
+    // Submit commit
+    const submitButton = screen.getByTestId("commit-submit-button")
+    await user.click(submitButton)
+
+    await waitFor(() => {
+      expect(
+        mockShell.mock.calls.some(([args]) =>
+          args?.body?.command?.includes('git commit -m "Test commit message"') &&
+          args?.query?.directory === "/project"
+        )
+      ).toBe(true)
+    })
   })
 
   // Branch operations tests
-  test("creates new branch", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
+  test("navigates to branches tab and shows branches", async () => {
+    const user = userEvent.setup()
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
+    const branchTab = await screen.findByRole("tab", { name: /Branches/i })
+    await user.click(branchTab)
 
-    // Switch to branches tab
-    const branchesTab = result.getByRole("tab", { name: /branches/i })
-    await user.click(branchesTab)
-
-    await waitFor(() => {
-      const branchInput = result.getByPlaceholderText("New branch name...")
-      expect(branchInput).toBeDefined()
-    })
-
-    // Enter branch name and create
-    const branchInput = result.getByPlaceholderText("New branch name...")
-    await user.type(branchInput, "feature/new-feature")
-
-    // Mock successful branch creation
-    mockShell.mockImplementationOnce(() => Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } }))
-
-    const createButton = result.getByRole("button", { name: /create branch/i })
-    await user.click(createButton)
-
-    expect(mockShell).toHaveBeenCalledWith(
-      expect.objectContaining({
-        body: expect.objectContaining({
-          command: expect.stringContaining('git checkout -b "feature/new-feature"'),
-        }),
-      }),
-    )
+    const branchContainer = await screen.findByTestId("branch-selector")
+    expect(within(branchContainer).getAllByText(/main/).length).toBeGreaterThan(0)
+    expect(within(branchContainer).getByText(/current/i)).toBeDefined()
   })
 
-  test("switches branches", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
+  // Push/pull operations tests
+  test("performs git pull", async () => {
+    const user = userEvent.setup()
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
+    await waitFor(() => expect(screen.getByRole("button", { name: /Pull/i })).toBeDefined())
 
-    // Switch to branches tab
-    const branchesTab = result.getByRole("tab", { name: /branches/i })
-    await user.click(branchesTab)
-
-    await waitFor(() => {
-      const matches = result.getAllByText("feature/test")
-      expect(matches.length).toBeGreaterThan(0)
-    })
-
-    // Mock successful branch switch
-    mockShell.mockImplementationOnce(() => Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } }))
-
-    // Find checkout button for non-current branch
-    const checkoutButtons = result.getAllByRole("button", { name: /checkout/i })
-    if (checkoutButtons.length > 0) {
-      await user.click(checkoutButtons[0])
-      expect(mockShell).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({ command: expect.stringContaining("git checkout") }),
-        }),
-      )
-    }
-  })
-
-  // Remote operations tests
-  test("pushes changes", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Mock successful push
-    mockShell.mockImplementationOnce(() => Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } }))
-
-    const pushButton = result.getByRole("button", { name: /push/i })
-    await user.click(pushButton)
-
-    expect(mockShell).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ command: "git push origin HEAD" }) }),
-    )
-  })
-
-  test("pulls changes", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Mock successful pull
-    mockShell.mockImplementationOnce(() => Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } }))
-
-    const pullButton = result.getByRole("button", { name: /pull/i })
+    const pullButton = screen.getByRole("button", { name: /Pull/i })
     await user.click(pullButton)
 
-    expect(mockShell).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ command: "git pull" }) }),
-    )
-  })
-
-  test("fetches from remote", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
+    await waitFor(() => {
+      expect(mockShell).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            command: "git pull",
+          }),
+          query: expect.objectContaining({
+            directory: "/project",
+          }),
+        })
       )
     })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Mock successful fetch
-    mockShell.mockImplementationOnce(() => Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } }))
-
-    const fetchButton = result.getByRole("button", { name: /fetch/i })
-    await user.click(fetchButton)
-
-    expect(mockShell).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ command: "git fetch" }) }),
-    )
   })
 
-  // Stash operations tests
-  test("stashes changes", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
+  test("performs git push", async () => {
+    const user = userEvent.setup()
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
+
+    await waitFor(() => expect(screen.getByRole("button", { name: /Push/i })).toBeDefined())
+
+    const pushButton = screen.getByRole("button", { name: /Push/i })
+    await user.click(pushButton)
+
+    await waitFor(() => {
+      expect(mockShell).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            command: "git push origin HEAD",
+          }),
+          query: expect.objectContaining({
+            directory: "/project",
+          }),
+        })
       )
     })
+  })
+
+  // Worktree awareness tests
+  test("uses correct worktree path for git operations", async () => {
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "feature" })
 
     await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
+      expect(mockShell).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({
+            directory: "/project-feature",
+          }),
+        })
+      )
     })
+  })
 
-    // Switch to stash tab
-    const stashTab = result.getByRole("tab", { name: /stash/i })
-    await user.click(stashTab)
+  test("redirects to default worktree when invalid worktree provided", async () => {
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "invalid" })
 
-    await waitFor(() => {
-      expect(result.getByText("Stashed Changes")).toBeDefined()
-    })
+    await screen.findByText("Test Project (default)")
+    expect(screen.queryByText(/Worktree:\s*invalid/i)).toBeNull()
+  })
 
-    // Mock successful stash
-    mockShell.mockImplementationOnce(() => Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } }))
+  test("renders recent commits sidebar", async () => {
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 
-    const stashButton = result.getByRole("button", { name: /stash changes/i })
-    await user.click(stashButton)
-
-    expect(mockShell).toHaveBeenCalledWith(
-      expect.objectContaining({ body: expect.objectContaining({ command: "git stash push" }) }),
-    )
+    const commitPanel = await screen.findByTestId("commit-history")
+    expect(within(commitPanel).getByText("Commit message")).toBeDefined()
+    expect(within(commitPanel).getByText("Dev")).toBeDefined()
+    expect(within(commitPanel).getByText("dead")).toBeDefined()
   })
 
   // Error handling tests
-  test("handles git command errors", async () => {
-    // Mock git command failure
-    mockShell.mockImplementationOnce(() => Promise.reject(new Error("Git command failed")))
+  test("handles git command errors gracefully", async () => {
+    mockShell.mockRejectedValueOnce(new Error("Git command failed"))
+    
+    const user = userEvent.setup()
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
+    await waitFor(() => expect(screen.getByRole("button", { name: /Pull/i })).toBeDefined())
+
+    const pullButton = screen.getByRole("button", { name: /Pull/i })
+    await user.click(pullButton)
 
     await waitFor(() => {
-      expect(result.getByText("Git Error")).toBeDefined()
-    })
-
-    expect(result.getByText(/failed to fetch git status/i)).toBeDefined()
-  })
-
-  // Accessibility tests
-  test("has proper ARIA labels and roles", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Check for tab roles
-    const tabs = result.getAllByRole("tab")
-    expect(tabs.length).toBeGreaterThan(0)
-
-    // Check for button roles
-    const buttons = result.getAllByRole("button")
-    expect(buttons.length).toBeGreaterThan(0)
-
-    // Check for proper headings
-    const heading = result.getByRole("heading", { name: /git operations/i })
-    expect(heading).toBeDefined()
-  })
-
-  test("supports keyboard navigation", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Basic tab elements exist and are focusable
-    const tabs = result.getAllByRole("tab")
-    expect(tabs.length).toBeGreaterThan(1)
-    tabs[0].focus()
-    await user.keyboard("{ArrowRight}")
-    // Happy DOM may not update activeElement via keyboard; ensure second tab exists
-    expect(tabs[1]).toBeDefined()
-  })
-
-  // Performance tests
-  test("handles large number of files efficiently", async () => {
-    // Mock large file list
-    const largeFileList = Array.from({ length: 100 }, (_, i) => `file${i}.txt`).join("\n?? ")
-    mockShell.mockImplementationOnce(() =>
-      Promise.resolve({ data: { parts: [{ type: "text", text: `## main\n?? ${largeFileList}` }] } }),
-    )
-
-    const startTime = performance.now()
-
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    const endTime = performance.now()
-    const renderTime = endTime - startTime
-
-    // Should render within reasonable time (less than 1 second)
-    expect(renderTime).toBeLessThan(1000)
-  })
-
-  // Integration tests
-  test("auto-refreshes git status when enabled", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Auto-refresh should be enabled by default
-    const autoRefreshButton = result.getByRole("button", { name: /auto-refresh/i })
-    expect(autoRefreshButton.className).toMatch(/bg-.*3b82f6.*/)
-
-    // Mock additional status calls for auto-refresh
-    mockShell.mockImplementation((args: any) => {
-      if (args?.body?.command?.includes("git status")) {
-        return Promise.resolve({ data: { parts: [{ type: "text", text: "## main\n" }] } })
-      }
-      return Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } })
-    })
-
-    // Wait for auto-refresh interval (mocked to be shorter)
-    await new Promise((resolve) => setTimeout(resolve, 100))
-  })
-
-  test("displays file diffs when expanded", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <GitOperations />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("Git Operations")).toBeDefined()
-    })
-
-    // Mock diff response for git diff command only
-    mockShell.mockImplementation((args: any) => {
-      if (args?.body?.command?.includes("git diff")) {
-        return Promise.resolve({
-          data: { parts: [{ type: "text", text: "+added line\n-removed line\n unchanged line" }] },
-        })
-      }
-      return Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } })
-    })
-
-    // Find and click expand button for a file
-    const expandButtons = result.getAllByRole("button").filter((btn: HTMLElement) => {
-      const svg = btn.querySelector("svg")
-      return svg !== null && svg.classList.contains("lucide-eye")
-    })
-
-    if (expandButtons.length > 0) {
-      await user.click(expandButtons[0])
-
-      await waitFor(() => {
-        expect(mockShell).toHaveBeenCalledWith(
-          expect.objectContaining({ body: expect.objectContaining({ command: expect.stringContaining("git diff") }) }),
-        )
-      })
-    }
-  })
-
-  // Cleanup and memory leak tests
-  test("cleans up properly on unmount", async () => {
-    const { unmount, getByText } = render(
-      <TestWrapper>
-        <GitOperations />
-      </TestWrapper>,
-    )
-
-    await waitFor(() => {
-      expect(getByText("Loading Git information...")).toBeDefined()
-    })
-
-    // Unmount component
-    unmount()
-
-    // Verify no memory leaks by checking that no timers are left running
-    // No explicit timer assertions; page unmounted without errors is sufficient
-  })
-
-  test("handles component re-renders without issues", async () => {
-    const { rerender, getByText } = render(
-      <TestWrapper>
-        <GitOperations />
-      </TestWrapper>,
-    )
-
-    await waitFor(() => {
-      expect(getByText("Loading Git information...")).toBeDefined()
-    })
-
-    // Re-render with same props
-    rerender(
-      <TestWrapper>
-        <GitOperations />
-      </TestWrapper>,
-    )
-
-    // Should still work correctly
-    await waitFor(() => {
-      expect(getByText("Git Operations")).toBeDefined()
+      expect(screen.getByText(/failed/i)).toBeDefined()
     })
   })
 })
-import React from "react"

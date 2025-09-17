@@ -44,6 +44,10 @@ export function createServer(config: ServerConfig = {}) {
   const resolvedStaticDir = path.isAbsolute(staticDir)
     ? staticDir
     : path.resolve(__dirname, staticDir)
+  
+  // Check if static directory exists
+  const fs = require("fs")
+  const staticDirExists = fs.existsSync(resolvedStaticDir)
 
   const app = new Hono()
 
@@ -142,37 +146,42 @@ export function createServer(config: ServerConfig = {}) {
   app.all("/opencode/*", proxyOpencode)
 
   // Serve static assets with Node.js static file serving
-  app.use(
-    "/*",
-    serveStatic({
-      root: resolvedStaticDir,
-      rewriteRequestPath: (path) => {
-        // Handle root path to serve index.html
-        if (path === "/") return "/index.html"
-        return path
-      },
-    })
-  )
-
-  // Fallback to index.html for client-side routing using Node.js fs
-  app.get("*", async (c) => {
-    const indexPath = path.join(resolvedStaticDir, "index.html")
-    
-    try {
-      const fs = require("fs/promises")
-      const content = await fs.readFile(indexPath, "utf-8")
-      
-      return new Response(content, {
-        headers: {
-          "Content-Type": "text/html; charset=utf-8",
-          "Cache-Control": "public, max-age=300",
+  // Only if the directory exists (to avoid warnings in tests)
+  if (staticDirExists) {
+    app.use(
+      "/*",
+      serveStatic({
+        root: resolvedStaticDir,
+        rewriteRequestPath: (path) => {
+          // Handle root path to serve index.html
+          if (path === "/") return "/index.html"
+          return path
         },
       })
-    } catch (error) {
-      console.error("Failed to serve index.html:", error)
-      return c.notFound()
-    }
-  })
+    )
+  }
+
+  // Fallback to index.html for client-side routing using Node.js fs
+  if (staticDirExists) {
+    app.get("*", async (c) => {
+      const indexPath = path.join(resolvedStaticDir, "index.html")
+      
+      try {
+        const fsPromises = require("fs/promises")
+        const content = await fsPromises.readFile(indexPath, "utf-8")
+        
+        return new Response(content, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=300",
+          },
+        })
+      } catch (error) {
+        console.error("Failed to serve index.html:", error)
+        return c.notFound()
+      }
+    })
+  }
 
   return app
 }

@@ -9,6 +9,36 @@ if (typeof document === "undefined" || !document.body) {
   throw new Error("DOM environment is required for component tests")
 }
 
+const mockHomePath = "/Users/test"
+const mockDirectoryListing = {
+  path: mockHomePath,
+  parent: null,
+  entries: [
+    { name: "projects", path: `${mockHomePath}/projects`, isDirectory: true },
+    { name: "playground", path: `${mockHomePath}/playground`, isDirectory: true },
+  ],
+}
+
+const mockFetch = rstest.fn(async (input: RequestInfo | URL) => {
+  const url = typeof input === "string" ? input : input.url
+  if (url.includes("/api/system/home")) {
+    return new Response(JSON.stringify({ path: mockHomePath }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+  if (url.includes("/api/system/list-directory")) {
+    return new Response(JSON.stringify(mockDirectoryListing), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+  return new Response("{}", {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  })
+})
+
 // Mock the projects store
 const mockProjects = [
   TestDataFactory.createProject({
@@ -102,6 +132,8 @@ describe("ProjectList Component", () => {
     mockSelectProject.mockClear()
     mockClearError.mockClear()
     mockNavigate.mockClear()
+    mockFetch.mockClear()
+    ;(global as unknown as { fetch: typeof fetch }).fetch = mockFetch as unknown as typeof fetch
 
     const mod = require("@/pages/ProjectList")
     ProjectList = mod.default || mod.ProjectList
@@ -154,7 +186,7 @@ describe("ProjectList Component", () => {
       const dialog = container.querySelector('[role="dialog"]')
       if (dialog) {
         const withinDialog = within(dialog as HTMLElement)
-        expect(withinDialog.queryByText("Add New Project")).toBeDefined()
+        expect(withinDialog.queryByText("Add Project")).toBeDefined()
       }
     })
   })
@@ -177,10 +209,11 @@ describe("ProjectList Component", () => {
 
         // Fill form
         const pathInput = withinDialog.getByPlaceholderText("/path/to/your/project")
+        await userEvent.clear(pathInput)
         await userEvent.type(pathInput, "/test/project/path")
 
         // Submit
-        const createButton = withinDialog.getByRole("button", { name: /create/i })
+        const createButton = withinDialog.getByRole("button", { name: /add project/i })
         await userEvent.click(createButton)
 
         expect(mockCreateProject).toHaveBeenCalled()

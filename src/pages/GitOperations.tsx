@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react"
-import { useParams } from "react-router-dom"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { useParams, useNavigate } from "react-router-dom"
 import {
   GitBranch,
   GitCommit,
@@ -49,28 +49,9 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/shadcn-io/tabs"
 import { useProjectSDK } from "../contexts/OpencodeSDKContext"
 import { useCurrentProject } from "@/stores/projects"
+import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
 import { cn, formatRelativeTime, formatDateTime } from "../lib/utils"
-
-const extractTextFromMessage = (message: unknown): string | undefined => {
-  if (!message || typeof message !== "object") {
-    return undefined
-  }
-
-  const parts = (message as { parts?: unknown }).parts
-  if (!Array.isArray(parts)) {
-    return undefined
-  }
-
-  const textPart = parts.find(
-    (part): part is { type: "text"; text: string } =>
-      part !== null &&
-      typeof part === "object" &&
-      (part as { type?: unknown }).type === "text" &&
-      typeof (part as { text?: unknown }).text === "string"
-  )
-
-  return textPart?.text
-}
+import { extractTextFromMessage } from "../lib/git"
 
 interface GitStatus {
   branch: string
@@ -130,9 +111,76 @@ interface GitStash {
 }
 
 export default function GitOperations() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, worktreeId } = useParams<{ projectId: string; worktreeId: string }>()
+  const navigate = useNavigate()
   const currentProject = useCurrentProject()
-  const { client } = useProjectSDK(projectId, currentProject?.path)
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const worktrees = useWorktreesForProject(projectId || "")
+  const activeWorktreeId = worktreeId || "default"
+
+  const [workingPath, setWorkingPath] = useState<string | undefined>(currentProject?.path)
+
+  useEffect(() => {
+    if (projectId) {
+      void loadWorktrees(projectId)
+    }
+  }, [projectId, loadWorktrees])
+
+  useEffect(() => {
+    if (currentProject?.path) {
+      setWorkingPath(currentProject.path)
+    }
+  }, [currentProject?.path])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (activeWorktreeId === "default") {
+      if (currentProject?.path) {
+        setWorkingPath(currentProject.path)
+      }
+      return
+    }
+    const target = worktrees.find((worktree) => worktree.id === activeWorktreeId)
+    if (target?.path) {
+      setWorkingPath(target.path)
+      return
+    }
+
+    // When the requested worktree does not exist, clear the working path and redirect to the default worktree.
+    setWorkingPath(undefined)
+    navigate(`/projects/${projectId}/default/git`, { replace: true })
+  }, [projectId, activeWorktreeId, worktrees, currentProject?.path, navigate])
+
+  const { client } = useProjectSDK(projectId, workingPath)
+  const activeWorktree = useMemo(() => {
+    if (activeWorktreeId === "default") {
+      if (currentProject?.path) {
+        return { id: "default", title: `${currentProject.name ?? "Project"} (default)` }
+      }
+      const defaultTree = worktrees.find((worktree) => worktree.id === "default")
+      if (defaultTree) {
+        return { id: defaultTree.id, title: defaultTree.title }
+      }
+      return undefined
+    }
+    return worktrees.find((worktree) => worktree.id === activeWorktreeId)
+  }, [activeWorktreeId, worktrees, currentProject?.path, currentProject?.name])
+
+  const worktreeTitle = useMemo(() => {
+    if (activeWorktreeId === "default") {
+      return `${currentProject?.name ?? "Project"} (default)`
+    }
+    return activeWorktree?.title ?? activeWorktreeId
+  }, [activeWorktreeId, activeWorktree, currentProject?.name])
+
+  const displayPath = useMemo(() => {
+    if (!workingPath) return ""
+    if (currentProject?.path) {
+      const relative = workingPath.replace(currentProject.path, "")
+      return relative || "/"
+    }
+    return workingPath
+  }, [workingPath, currentProject?.path])
 
   // State
   const [activeTab, setActiveTab] = useState("status")
@@ -155,7 +203,7 @@ export default function GitOperations() {
 
   // Fetch Git status
   const fetchGitStatus = useCallback(async () => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     try {
       const response = await client.session.shell({
@@ -164,7 +212,7 @@ export default function GitOperations() {
           command: "git status --porcelain=v1 -b",
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
 
       const textOutput = extractTextFromMessage(response.data)
@@ -219,7 +267,7 @@ export default function GitOperations() {
           command: "git remote get-url origin",
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
 
       const remoteText = extractTextFromMessage(remoteResponse.data)
@@ -237,7 +285,7 @@ export default function GitOperations() {
     } catch (err) {
       setError(`Failed to fetch Git status: ${err}`)
     }
-  }, [client, currentProject?.path])
+  }, [client, workingPath])
 
   // Fetch branches
   const fetchBranches = useCallback(async () => {
@@ -250,7 +298,7 @@ export default function GitOperations() {
           command: "git branch -vv",
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
 
       const textOutput = extractTextFromMessage(response.data)
@@ -277,11 +325,11 @@ export default function GitOperations() {
     } catch (err) {
       console.error("Failed to fetch branches:", err)
     }
-  }, [client, currentProject?.path])
+  }, [client, workingPath])
 
   // Fetch commit history
   const fetchCommits = useCallback(async () => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     try {
       const response = await client.session.shell({
@@ -290,7 +338,7 @@ export default function GitOperations() {
           command: "git log --oneline -20 --pretty=format:'%H|%h|%an|%ae|%ad|%s' --date=iso",
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
 
       const textOutput = extractTextFromMessage(response.data)
@@ -318,12 +366,12 @@ export default function GitOperations() {
     } catch (err) {
       console.error("Failed to fetch commits:", err)
     }
-  }, [client, currentProject?.path])
+  }, [client, workingPath])
 
   // Fetch file diff
   const fetchDiff = useCallback(
     async (filePath: string) => {
-      if (!client) return
+      if (!client || !workingPath) return
 
       try {
         const response = await client.session.shell({
@@ -332,7 +380,7 @@ export default function GitOperations() {
             command: `git diff HEAD -- "${filePath}"`,
             agent: "git",
           },
-          query: { directory: currentProject?.path },
+          query: { directory: workingPath },
         })
 
         const content = extractTextFromMessage(response.data) || ""
@@ -351,13 +399,11 @@ export default function GitOperations() {
       } catch (err) {
         console.error(`Failed to fetch diff for ${filePath}:`, err)
       }
-    },
-    [client, currentProject?.path]
-  )
+  }, [client, workingPath])
 
   // Git operations
   const stageFile = async (filePath: string) => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading(`stage-${filePath}`)
     try {
@@ -367,7 +413,7 @@ export default function GitOperations() {
           command: `git add "${filePath}"`,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await fetchGitStatus()
     } catch (err) {
@@ -378,7 +424,7 @@ export default function GitOperations() {
   }
 
   const unstageFile = async (filePath: string) => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading(`unstage-${filePath}`)
     try {
@@ -388,7 +434,7 @@ export default function GitOperations() {
           command: `git reset HEAD "${filePath}"`,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await fetchGitStatus()
     } catch (err) {
@@ -399,7 +445,7 @@ export default function GitOperations() {
   }
 
   const commitChanges = async () => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     if (!commitMessage.trim()) {
       setError("Commit message is required")
@@ -414,7 +460,7 @@ export default function GitOperations() {
           command: `git commit -m "${commitMessage.replace(/"/g, '\\"')}"`,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       setCommitMessage("")
       await Promise.all([fetchGitStatus(), fetchCommits()])
@@ -426,7 +472,7 @@ export default function GitOperations() {
   }
 
   const createBranch = async () => {
-    if (!client || !newBranchName.trim()) return
+    if (!client || !newBranchName.trim() || !workingPath) return
 
     setOperationLoading("create-branch")
     try {
@@ -436,7 +482,7 @@ export default function GitOperations() {
           command: `git checkout -b "${newBranchName}"`,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       setNewBranchName("")
       setShowNewBranchDialog(false)
@@ -449,7 +495,7 @@ export default function GitOperations() {
   }
 
   const switchBranch = async (branchName: string) => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading(`switch-${branchName}`)
     try {
@@ -459,7 +505,7 @@ export default function GitOperations() {
           command: `git checkout "${branchName}"`,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await Promise.all([fetchGitStatus(), fetchBranches()])
     } catch (err) {
@@ -470,7 +516,7 @@ export default function GitOperations() {
   }
 
   const deleteBranch = async (branchName: string) => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading(`delete-${branchName}`)
     try {
@@ -480,7 +526,7 @@ export default function GitOperations() {
           command: `git branch -d "${branchName}"`,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await fetchBranches()
     } catch (err) {
@@ -491,7 +537,7 @@ export default function GitOperations() {
   }
 
   const pushChanges = async () => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading("push")
     try {
@@ -501,7 +547,7 @@ export default function GitOperations() {
           command: "git push origin HEAD",
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await fetchGitStatus()
     } catch (err) {
@@ -512,7 +558,7 @@ export default function GitOperations() {
   }
 
   const pullChanges = async () => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading("pull")
     try {
@@ -522,7 +568,7 @@ export default function GitOperations() {
           command: "git pull",
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await Promise.all([fetchGitStatus(), fetchCommits()])
     } catch (err) {
@@ -533,7 +579,7 @@ export default function GitOperations() {
   }
 
   const fetchRemote = async () => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading("fetch")
     try {
@@ -543,7 +589,7 @@ export default function GitOperations() {
           command: "git fetch",
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await Promise.all([fetchGitStatus(), fetchBranches()])
     } catch (err) {
@@ -555,7 +601,7 @@ export default function GitOperations() {
 
   // Fetch stashes
   const fetchStashes = useCallback(async () => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     try {
       const response = await client.session.shell({
@@ -564,7 +610,7 @@ export default function GitOperations() {
           command: "git stash list --pretty=format:'%gd|%s|%at|%gs'",
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
 
       const textOutput = extractTextFromMessage(response.data)
@@ -589,11 +635,11 @@ export default function GitOperations() {
     } catch (err) {
       console.error("Failed to fetch stashes:", err)
     }
-  }, [client, currentProject?.path])
+  }, [client, workingPath])
 
   // Stash operations
   const stashChanges = async (message?: string) => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading("stash")
     try {
@@ -604,7 +650,7 @@ export default function GitOperations() {
           command: cmd,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await Promise.all([fetchGitStatus(), fetchStashes()])
     } catch (err) {
@@ -615,7 +661,7 @@ export default function GitOperations() {
   }
 
   const applyStash = async (index: number) => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading(`apply-stash-${index}`)
     try {
@@ -625,7 +671,7 @@ export default function GitOperations() {
           command: `git stash pop stash@{${index}}`,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await Promise.all([fetchGitStatus(), fetchStashes()])
     } catch (err) {
@@ -636,7 +682,7 @@ export default function GitOperations() {
   }
 
   const deleteStash = async (index: number) => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     setOperationLoading(`delete-stash-${index}`)
     try {
@@ -646,7 +692,7 @@ export default function GitOperations() {
           command: `git stash drop stash@{${index}}`,
           agent: "git",
         },
-        query: { directory: currentProject?.path },
+        query: { directory: workingPath },
       })
       await fetchStashes()
     } catch (err) {
@@ -687,24 +733,24 @@ export default function GitOperations() {
   }
 
   // Initialize data
-  useEffect(() => {
+  const initializeData = useCallback(async () => {
     if (!client) return
 
-    const initializeData = async () => {
-      setLoading(true)
-      setError(null)
+    setLoading(true)
+    setError(null)
 
-      try {
-        await Promise.all([fetchGitStatus(), fetchBranches(), fetchCommits(), fetchStashes()])
-      } catch (err) {
-        setError(`Failed to initialize Git data: ${err}`)
-      } finally {
-        setLoading(false)
-      }
+    try {
+      await Promise.all([fetchGitStatus(), fetchBranches(), fetchCommits(), fetchStashes()])
+    } catch (err) {
+      setError(`Failed to initialize Git data: ${err}`)
+    } finally {
+      setLoading(false)
     }
-
-    initializeData()
   }, [client, fetchGitStatus, fetchBranches, fetchCommits, fetchStashes])
+
+  useEffect(() => {
+    void initializeData()
+  }, [initializeData])
 
   // Auto-refresh effect
   useEffect(() => {
@@ -722,21 +768,6 @@ export default function GitOperations() {
         <div className="flex items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin" />
           <span>Loading Git information...</span>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-full items-center justify-center bg-background text-foreground">
-        <div className="text-center">
-          <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
-          <h2 className="mb-2 text-xl font-semibold">Git Error</h2>
-          <p className="mb-4 text-muted-foreground">{error}</p>
-          <Button onClick={() => window.location.reload()} variant="outline">
-            Retry
-          </Button>
         </div>
       </div>
     )
@@ -776,6 +807,27 @@ export default function GitOperations() {
     <TooltipProvider>
       <div data-testid="git-operations-page" className="h-full overflow-hidden bg-background text-foreground">
         <div className="flex h-full flex-col">
+          {error && (
+            <div
+              role="alert"
+              className="mx-6 mt-4 flex items-start justify-between gap-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+            >
+              <div>
+                <div className="font-medium">Git Error</div>
+                <p className="text-destructive/80">{error}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void initializeData()
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          )}
+
           {/* Header */}
           <div className="flex-shrink-0 border-b border-border p-6">
             <div className="flex items-center justify-between">
@@ -783,7 +835,15 @@ export default function GitOperations() {
                 <GitBranch className="h-6 w-6 text-primary" />
                 <div>
                   <h1 className="text-2xl font-bold">Git Operations</h1>
-                  <p className="text-muted-foreground">Manage your Git repository</p>
+                  <p className="text-muted-foreground">
+                    Worktree: <span className="font-medium">{worktreeTitle}</span>
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    Path: <span className="font-mono">{displayPath || "(unknown)"}</span>
+                    {workingPath && displayPath !== workingPath && (
+                      <span className="ml-1 text-muted-foreground/70">({workingPath})</span>
+                    )}
+                  </p>
                 </div>
               </div>
 
@@ -1028,11 +1088,12 @@ export default function GitOperations() {
                                 <div className="flex items-center gap-2">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button
-                                        onClick={() => toggleFileExpansion(file.path)}
-                                        variant="ghost"
-                                        size="sm"
-                                      >
+                                  <Button
+                                    onClick={() => toggleFileExpansion(file.path)}
+                                    variant="ghost"
+                                    size="sm"
+                                    aria-label={expandedFiles.has(file.path) ? "Hide file diff" : "Show file diff"}
+                                  >
                                         {expandedFiles.has(file.path) ? (
                                           <EyeOff className="h-4 w-4" />
                                         ) : (
@@ -1050,6 +1111,7 @@ export default function GitOperations() {
                                     disabled={operationLoading === `unstage-${file.path}`}
                                     variant="ghost"
                                     size="sm"
+                                    aria-label={`Unstage ${file.path}`}
                                   >
                                     {operationLoading === `unstage-${file.path}` ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -1113,11 +1175,12 @@ export default function GitOperations() {
                                 <div className="flex items-center gap-2">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <Button
-                                        onClick={() => toggleFileExpansion(file.path)}
-                                        variant="ghost"
-                                        size="sm"
-                                      >
+                                  <Button
+                                    onClick={() => toggleFileExpansion(file.path)}
+                                    variant="ghost"
+                                    size="sm"
+                                    aria-label={expandedFiles.has(file.path) ? "Hide file diff" : "Show file diff"}
+                                  >
                                         {expandedFiles.has(file.path) ? (
                                           <EyeOff className="h-4 w-4" />
                                         ) : (
@@ -1135,6 +1198,7 @@ export default function GitOperations() {
                                     disabled={operationLoading === `stage-${file.path}`}
                                     variant="ghost"
                                     size="sm"
+                                    aria-label={`Stage ${file.path}`}
                                   >
                                     {operationLoading === `stage-${file.path}` ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />

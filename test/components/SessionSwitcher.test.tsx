@@ -1,8 +1,9 @@
 import React from "react"
 import { describe, test, expect, beforeEach, rstest } from "@rstest/core"
 import "../setup.ts"
-import { render, waitFor, fireEvent } from "@testing-library/react"
+import { waitFor, fireEvent } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { renderWithRouter } from "../utils/test-router"
 let SessionSwitcher: any
 
 // Mock data
@@ -28,22 +29,13 @@ const mockSessions = [
 let mockCurrentSession: any = mockSessions[0]
 
 const mockNavigate = rstest.fn(() => {})
-let mockParams = { projectId: "test-project" }
-rstest.mock("react-router-dom", () => {
-  const actual = require("react-router-dom")
-  return {
-    ...actual,
-    useParams: () => mockParams,
-  }
-})
-
 // Mock sessions store
 const mockCreateSession = rstest.fn(() => Promise.resolve(mockSessions[0]))
 const mockSelectSession = rstest.fn(() => {})
 let mockSessionsForProject = mockSessions
 
 rstest.mock("@/stores/sessions", () => ({
-  useSessionsForProject: () => mockSessionsForProject,
+  useSessionsForProject: (_projectId: string, _path?: string) => mockSessionsForProject,
   useCurrentSession: () => mockCurrentSession,
   useSessionsStore: () => ({
     createSession: mockCreateSession,
@@ -63,26 +55,9 @@ rstest.mock("../../src/stores/projects", () => ({
   }),
 }))
 
-// Test wrapper
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  const { MemoryRouter } = require("react-router-dom")
-  return (
-    <MemoryRouter
-      initialEntries={["/projects/test-project/sessions/session-1/chat"]}
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      {children}
-    </MemoryRouter>
-  )
-}
-
 describe("SessionSwitcher Component", () => {
   beforeEach(() => {
     rstest.clearAllMocks()
-    mockParams = { projectId: "test-project" }
     mockCurrentSession = mockSessions[0]
     mockSessionsForProject = mockSessions
     const mod = require("@/components/layout/SessionSwitcher")
@@ -91,10 +66,14 @@ describe("SessionSwitcher Component", () => {
 
   // Basic rendering tests
   test("renders session switcher with current session", () => {
-    const { getByText } = render(
-      <TestWrapper>
-        <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />
-      </TestWrapper>,
+    const { getByText } = renderWithRouter(
+      <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />,
+      {
+        projectId: "test-project",
+        worktreeId: "default",
+        sessionId: "session-1",
+        initialPath: "/projects/test-project/default/sessions/session-1/chat",
+      }
     )
 
     expect(getByText("Chat Session 1")).toBeDefined()
@@ -103,10 +82,14 @@ describe("SessionSwitcher Component", () => {
   test("shows select session when no current session", () => {
     mockCurrentSession = null
 
-    const { getByText } = render(
-      <TestWrapper>
-        <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />
-      </TestWrapper>,
+    const { getByText } = renderWithRouter(
+      <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />,
+      {
+        projectId: "test-project",
+        worktreeId: "default",
+        sessionId: "session-1",
+        initialPath: "/projects/test-project/default/sessions/session-1/chat",
+      }
     )
 
     expect(getByText("Select Session")).toBeDefined()
@@ -115,10 +98,14 @@ describe("SessionSwitcher Component", () => {
   test("opens dropdown menu on click", async () => {
     const user = userEvent.setup({ delay: null })
 
-    const { getByRole, getByText } = render(
-      <TestWrapper>
-        <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />
-      </TestWrapper>,
+    const { getByRole, getByText } = renderWithRouter(
+      <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />,
+      {
+        projectId: "test-project",
+        worktreeId: "default",
+        sessionId: "session-1",
+        initialPath: "/projects/test-project/default/sessions/session-1/chat",
+      }
     )
 
     const trigger = getByRole("button")
@@ -132,10 +119,14 @@ describe("SessionSwitcher Component", () => {
   test("creates new session", async () => {
     const user = userEvent.setup({ delay: null })
 
-    const { getByRole, getByText } = render(
-      <TestWrapper>
-        <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />
-      </TestWrapper>,
+    const { getByRole, getByText } = renderWithRouter(
+      <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />,
+      {
+        projectId: "test-project",
+        worktreeId: "default",
+        sessionId: "session-1",
+        initialPath: "/projects/test-project/default/sessions/session-1/chat",
+      }
     )
 
     const trigger = getByRole("button")
@@ -148,29 +139,35 @@ describe("SessionSwitcher Component", () => {
     const newSessionButton = document.querySelector('[data-testid="new-session"]') as HTMLElement
     fireEvent.click(newSessionButton)
 
-    expect(mockCreateSession).toHaveBeenCalledWith("test-project", "New Chat Session")
+    expect(mockCreateSession).toHaveBeenCalledWith("test-project", "/test/path", "New Chat Session")
   })
 
   test("handles empty sessions list", () => {
     mockSessionsForProject = []
     mockCurrentSession = null
 
-    const { getByText } = render(
-      <TestWrapper>
-        <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />
-      </TestWrapper>,
+    const { getByText } = renderWithRouter(
+      <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />,
+      {
+        projectId: "test-project",
+        worktreeId: "default",
+        sessionId: "session-1",
+        initialPath: "/projects/test-project/default/sessions/session-1/chat",
+      }
     )
 
     expect(getByText("Select Session")).toBeDefined()
   })
 
   test("handles missing project ID", () => {
-    mockParams = {}
-
-    const { container } = render(
-      <TestWrapper>
-        <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />
-      </TestWrapper>,
+    const { container } = renderWithRouter(
+      <SessionSwitcher projectId="test-project" navigateOverride={mockNavigate} />,
+      {
+        projectId: "test-project",
+        worktreeId: "default",
+        sessionId: "session-1",
+        initialPath: "/projects/test-project/default/sessions/session-1/chat",
+      }
     )
 
     // Should render without crashing
@@ -180,10 +177,14 @@ describe("SessionSwitcher Component", () => {
   test("navigates on session selection", async () => {
     const user = userEvent.setup({ delay: null })
 
-    const { getByRole, getAllByText } = render(
-      <TestWrapper>
-        <SessionSwitcher projectId="test-project" />
-      </TestWrapper>,
+    const { getByRole } = renderWithRouter(
+      <SessionSwitcher projectId="test-project" />,
+      {
+        projectId: "test-project",
+        worktreeId: "default",
+        sessionId: "session-1",
+        initialPath: "/projects/test-project/default/sessions/session-1/chat",
+      }
     )
 
     const trigger = getByRole("button")
