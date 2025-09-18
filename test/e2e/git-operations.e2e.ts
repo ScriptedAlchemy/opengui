@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { openFirstProjectAndGetId } from "./helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -6,18 +7,7 @@ test.describe("Git Operations", () => {
   let projectId: string
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/")
-    await page.waitForSelector("#root", { state: "visible" })
-
-    const firstProject = page.locator('[data-testid="project-item"]').first()
-    if (await firstProject.isVisible({ timeout: 5000 })) {
-      await firstProject.locator('button:has-text("Open")').click()
-      await page.waitForTimeout(2000)
-      const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
-      if (match) {
-        projectId = match[1]
-      }
-    }
+    projectId = await openFirstProjectAndGetId(page)
   })
 
   const gotoGit = async (page: any) => {
@@ -26,8 +16,13 @@ test.describe("Git Operations", () => {
   }
 
   test("loads git operations page", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoGit(page)
     await expect(page.locator('[data-testid="git-operations-page"]').first()).toBeVisible()
+  })
+
+  test("displays recent commits summary", async ({ page }) => {
+    await gotoGit(page)
+    const commitList = page.locator('[data-testid="recent-commit-item"]')
+    await expect(commitList.first()).toBeVisible()
   })
 })

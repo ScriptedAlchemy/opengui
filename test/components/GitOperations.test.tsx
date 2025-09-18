@@ -5,6 +5,73 @@ let GitOperations: any
 let OpencodeSDKProvider: any
 import { renderWithRouter } from "../utils/test-router"
 
+const originalFetch = globalThis.fetch
+const defaultFetchHandler = (input: RequestInfo | URL) => {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : String(input)
+
+  if (url.includes("/git/status")) {
+    const parsed = new URL(url, "http://localhost")
+    const worktree = parsed.searchParams.get("worktree")
+    const isWorktree = Boolean(worktree && worktree !== "default")
+
+    const branch = isWorktree ? "feature" : "main"
+    const changedFiles = isWorktree ? 3 : 4
+
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: () =>
+        Promise.resolve({
+          branch,
+          changedFiles,
+          ahead: 1,
+          behind: 0,
+          stagedCount: 2,
+          unstagedCount: 1,
+          untrackedCount: 1,
+          staged: [
+            { path: "src/test.ts", status: "M", staged: true },
+            { path: "package.json", status: "A", staged: true },
+          ],
+          modified: [{ path: "README.md", status: "M", staged: false }],
+          untracked: [{ path: "temp.log", status: "??", staged: false }],
+          remoteUrl: "git@github.com:user/repo.git",
+          lastCommit: {
+            hash: "deadbeef",
+            message: "Commit message",
+            author: "Dev",
+            date: new Date().toISOString(),
+          },
+          recentCommits: [
+            {
+              hash: "deadbeef",
+              message: "Commit message",
+              author: "Dev",
+              date: new Date().toISOString(),
+            },
+            {
+              hash: "abc123",
+              message: "Refactor git operations UI",
+              author: "Reviewer",
+              date: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+            },
+            {
+              hash: "ffeedd",
+              message: "docs: refresh contributing guide",
+              author: "Docs Writer",
+              date: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+            },
+          ],
+        }),
+    } as Response)
+  }
+
+  return Promise.resolve({ ok: true, status: 200, statusText: "OK", json: async () => ({}) } as Response)
+}
+
+const mockFetch = rstest.fn(defaultFetchHandler)
+
 // Mock router hooks
 const mockNavigate = rstest.fn(() => {})
 
@@ -82,7 +149,7 @@ rstest.mock("@/stores/worktrees", () => ({
 }))
 
 // Mock SDK service client used by context
-const mockShell = rstest.fn((args: any) => {
+const defaultShellHandler = (args: any) => {
   const cmd = args?.body?.command || ""
   if (cmd.includes("git status")) {
     return Promise.resolve({
@@ -117,7 +184,9 @@ const mockShell = rstest.fn((args: any) => {
   }
   // For push/pull/fetch or anything else
   return Promise.resolve({ data: { parts: [{ type: "text", text: "" }] } })
-})
+}
+
+const mockShell = rstest.fn(defaultShellHandler)
 
 rstest.mock("../../src/services/opencode-sdk-service", () => ({
   opencodeSDKService: {
@@ -190,6 +259,10 @@ const renderWithSDK = (ui: React.ReactElement, routerOptions: any = {}) => {
 describe("GitOperations Component", () => {
   beforeEach(() => {
     rstest.clearAllMocks()
+    mockFetch.mockClear()
+    mockFetch.mockImplementation(defaultFetchHandler)
+    ;(globalThis as any).fetch = mockFetch as any
+    mockShell.mockImplementation(defaultShellHandler)
     const componentModule = require("../../src/pages/GitOperations")
     GitOperations = componentModule.default || componentModule.GitOperations
     const contextModule = require("../../src/contexts/OpencodeSDKContext")
@@ -197,6 +270,7 @@ describe("GitOperations Component", () => {
   })
 
   afterEach(async () => {
+    ;(globalThis as any).fetch = originalFetch
     await act(async () => {})
   })
 
@@ -367,15 +441,61 @@ describe("GitOperations Component", () => {
     renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 
     const commitPanel = await screen.findByTestId("commit-history")
-    expect(within(commitPanel).getByText("Commit message")).toBeDefined()
-    expect(within(commitPanel).getByText("Dev")).toBeDefined()
-    expect(within(commitPanel).getByText("dead")).toBeDefined()
+    await within(commitPanel).findByText("Commit message")
+    await within(commitPanel).findByText("Dev")
+    await within(commitPanel).findByText("Refactor git operations UI")
+    await within(commitPanel).findByText("docs: refresh contributing guide")
+  })
+
+  test("falls back to git log commits when status summary is empty", async () => {
+    mockFetch.mockImplementation((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : String(input)
+      if (url.includes("/git/status")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          json: () =>
+            Promise.resolve({
+              branch: "main",
+              changedFiles: 0,
+              ahead: 0,
+              behind: 0,
+              stagedCount: 0,
+              unstagedCount: 0,
+              untrackedCount: 0,
+              staged: [],
+              modified: [],
+              untracked: [],
+              recentCommits: [],
+            }),
+        } as Response)
+      }
+      return defaultFetchHandler(input)
+    })
+
+    renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
+
+    const commitPanel = await screen.findByTestId("commit-history")
+    await within(commitPanel).findByText("Commit message")
+    await within(commitPanel).findByText("Dev")
+    await waitFor(() => {
+      expect(within(commitPanel).queryByText("dead")).not.toBeNull()
+    })
+
+    mockFetch.mockImplementation(defaultFetchHandler)
   })
 
   // Error handling tests
   test("handles git command errors gracefully", async () => {
-    mockShell.mockRejectedValueOnce(new Error("Git command failed"))
-    
+    mockShell.mockImplementation((args: any) => {
+      const command = args?.body?.command || ""
+      if (command.includes("git pull")) {
+        return Promise.reject(new Error("Git command failed"))
+      }
+      return defaultShellHandler(args)
+    })
+
     const user = userEvent.setup()
     renderWithSDK(<GitOperations />, { projectId: "test-project", worktreeId: "default" })
 

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { openFirstProjectAndGetId } from "../helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -9,22 +10,35 @@ const DEFAULT_WORKTREE = "default"
 
 test.describe("Visual UI Screenshots", () => {
   let projectId = ""
+  const screenshotOpts = {
+    animations: "disabled" as const,
+    timeout: 15000,
+    maxDiffPixelRatio: 0.02,
+  }
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/")
-    await page.waitForSelector("#root", { state: "visible" })
+    const fixedNow = new Date("2025-09-18T12:00:00Z").valueOf()
+    await page.addInitScript((frozenNow) => {
+      const OriginalDate = Date
+      class FrozenDate extends OriginalDate {
+        constructor(...args: any[]) {
+          if (args.length === 0) {
+            super(frozenNow)
+          } else {
+            super(...args)
+          }
+        }
 
-    const firstProject = page.locator('[data-testid="project-item"]').first()
-    if (await firstProject.isVisible({ timeout: 5000 })) {
-      await firstProject.locator('button:has-text("Open")').click()
-      await page.waitForLoadState("domcontentloaded")
-      const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
-      if (match) {
-        projectId = match[1]
-        await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
+        static now() {
+          return frozenNow
+        }
       }
-    }
-    test.skip(!projectId, "No project available to open")
+      // @ts-ignore
+      window.Date = FrozenDate
+    }, fixedNow)
+
+    projectId = await openFirstProjectAndGetId(page)
+    await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
     await page.setViewportSize({ width: 1440, height: 900 })
   })
 
@@ -37,26 +51,26 @@ test.describe("Visual UI Screenshots", () => {
       page.waitForSelector('[data-testid="stats-section"]', { state: "visible" }),
       loadingMsg.waitFor({ state: "detached" }).catch(() => Promise.resolve()),
     ])
-    await expect(page).toHaveScreenshot("dashboard-full.png", { fullPage: true, animations: "disabled", timeout: 15000 })
+    await expect(page).toHaveScreenshot("dashboard-full.png", { fullPage: true, ...screenshotOpts })
     const sidebar = page.locator('[data-testid="project-sidebar"]')
-    await expect(sidebar).toHaveScreenshot("dashboard-sidebar.png", { animations: "disabled", timeout: 15000 })
+    await expect(sidebar).toHaveScreenshot("dashboard-sidebar.png", screenshotOpts)
 
     // Agents
     await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}/agents`)
     await page.waitForSelector('[data-testid="agents-page-title"]')
-    await expect(page).toHaveScreenshot("agents-full.png", { fullPage: true, animations: "disabled", timeout: 15000 })
+    await expect(page).toHaveScreenshot("agents-full.png", { fullPage: true, ...screenshotOpts })
     const controls = page.locator('text=Agent Management').locator("xpath=ancestor::*[contains(@class,'border-b')]").first()
-    await expect(controls).toHaveScreenshot("agents-controls.png", { animations: "disabled", timeout: 15000 })
+    await expect(controls).toHaveScreenshot("agents-controls.png", screenshotOpts)
     await page.getByTestId("templates-button").click()
     const templatesDialog = page.locator('[data-testid="agent-templates-dialog"]')
     await expect(templatesDialog).toBeVisible()
-    await expect(templatesDialog).toHaveScreenshot("agents-templates-dialog.png", { animations: "disabled", timeout: 15000 })
+    await expect(templatesDialog).toHaveScreenshot("agents-templates-dialog.png", screenshotOpts)
     await page.keyboard.press("Escape")
 
     // Files
     await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}/files`)
     await page.waitForSelector('[data-testid="file-browser-page"]')
-    await expect(page).toHaveScreenshot("files-full.png", { fullPage: true, animations: "disabled", timeout: 15000 })
+    await expect(page).toHaveScreenshot("files-full.png", { fullPage: true, ...screenshotOpts })
     const tree = page.locator('[data-testid="file-tree"]')
     const noisyFolders = page.locator('[data-testid="folder-item"]', { hasText: /^test-project-opencode-/ })
     const count = await noisyFolders.count()
@@ -68,19 +82,19 @@ test.describe("Visual UI Screenshots", () => {
       }
     }
     const leftPanel = page.locator('[data-testid="file-browser-page"] > div').first()
-    await expect(leftPanel).toHaveScreenshot("files-left-panel.png", { animations: "disabled" })
-    await expect(tree).toHaveScreenshot("files-tree.png", { animations: "disabled", timeout: 15000 })
+    await expect(leftPanel).toHaveScreenshot("files-left-panel.png", screenshotOpts)
+    await expect(tree).toHaveScreenshot("files-tree.png", screenshotOpts)
     const preferred = page.locator('[data-testid="file-item"]:text("package.json")')
     const fileItem = (await preferred.count()) > 0 ? preferred.first() : page.locator('[data-testid="file-item"]').first()
     await fileItem.click()
     await page.waitForSelector('[data-testid="file-editor-inner"]', { timeout: 20000 })
     const rightPanel = page.locator('[data-testid="file-browser-page"] > div:nth-child(2)')
     await expect(rightPanel).toBeVisible()
-    await expect(rightPanel).toHaveScreenshot("files-editor.png", { animations: "disabled" })
-    await expect(page).toHaveScreenshot("files-editor-full.png", { fullPage: true, animations: "disabled" })
+    await expect(rightPanel).toHaveScreenshot("files-editor.png", screenshotOpts)
+    await expect(page).toHaveScreenshot("files-editor-full.png", { fullPage: true, ...screenshotOpts })
     const searchInput = page.getByTestId("file-search-input")
     await searchInput.fill("package")
-    await expect(tree).toHaveScreenshot("files-search-results.png", { animations: "disabled", timeout: 15000 })
+    await expect(tree).toHaveScreenshot("files-search-results.png", screenshotOpts)
     await searchInput.fill("")
   })
 })

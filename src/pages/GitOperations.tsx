@@ -33,6 +33,7 @@ import { Badge } from "../components/ui/badge"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -51,7 +52,13 @@ import { useProjectSDK } from "../contexts/OpencodeSDKContext"
 import { useCurrentProject } from "@/stores/projects"
 import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
 import { cn, formatRelativeTime, formatDateTime } from "../lib/utils"
-import { extractTextFromMessage } from "../lib/git"
+import {
+  extractTextFromMessage,
+  executeGitCommand,
+  fetchGitStatus as fetchGitStatusApi,
+  type GitStatusFile,
+  type GitSummary,
+} from "../lib/git"
 
 interface GitStatus {
   branch: string
@@ -187,6 +194,7 @@ export default function GitOperations() {
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [branches, setBranches] = useState<GitBranchInfo[]>([])
   const [commits, setCommits] = useState<GitCommitInfo[]>([])
+  const [statusRecentCommits, setStatusRecentCommits] = useState<GitSummary["recentCommits"]>([])
   const [stashes, setStashes] = useState<GitStash[]>([])
   const [diffs, setDiffs] = useState<Record<string, GitDiff>>({})
   const [loading, setLoading] = useState(true)
@@ -202,104 +210,58 @@ export default function GitOperations() {
   const [autoRefresh, setAutoRefresh] = useState(true)
 
   // Fetch Git status
+  const runGitCommand = useCallback(
+    async (command: string) => {
+      if (!client || !workingPath) {
+        throw new Error("Git client is not ready")
+      }
+      return executeGitCommand(client, workingPath, command)
+    },
+    [client, workingPath]
+  )
+
   const fetchGitStatus = useCallback(async () => {
-    if (!client || !workingPath) return
+    if (!projectId) return
 
     try {
-      const response = await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: "git status --porcelain=v1 -b",
-          agent: "git",
-        },
-        query: { directory: workingPath },
+      setError(null)
+      const statusData = await fetchGitStatusApi(projectId, activeWorktreeId)
+      const mapFile = (file: GitStatusFile): GitFile => ({
+        path: file.path,
+        status: file.status as GitFile["status"],
+        staged: file.staged,
+        additions: file.additions,
+        deletions: file.deletions,
       })
-
-      const textOutput = extractTextFromMessage(response.data)
-      const lines = textOutput ? textOutput.split("\n") : []
-      const branchLine = lines.find((line: string) => line.startsWith("##"))
-      const fileLinesRaw = lines.filter((line: string) => !line.startsWith("##") && line.trim())
-
-      // Parse branch info
-      let branch = "main"
-      let ahead = 0
-      let behind = 0
-
-      if (branchLine) {
-        const branchMatch = branchLine.match(/## ([^.]+)/)
-        if (branchMatch) branch = branchMatch[1]
-
-        const aheadMatch = branchLine.match(/ahead (\d+)/)
-        if (aheadMatch) ahead = parseInt(aheadMatch[1])
-
-        const behindMatch = branchLine.match(/behind (\d+)/)
-        if (behindMatch) behind = parseInt(behindMatch[1])
-      }
-
-      // Parse files
-      const staged: GitFile[] = []
-      const modified: GitFile[] = []
-      const untracked: GitFile[] = []
-
-      fileLinesRaw.forEach((line: string) => {
-        const statusCode = line.substring(0, 2)
-        const path = line.substring(3)
-
-        const file: GitFile = {
-          path,
-          status: statusCode.trim() as GitFile["status"],
-          staged: statusCode[0] !== " " && statusCode[0] !== "?",
-        }
-
-        if (statusCode === "??") {
-          untracked.push(file)
-        } else if (statusCode[0] !== " ") {
-          staged.push(file)
-        } else {
-          modified.push(file)
-        }
-      })
-
-      // Get remote URL
-      const remoteResponse = await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: "git remote get-url origin",
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
-
-      const remoteText = extractTextFromMessage(remoteResponse.data)
-      const remoteUrl = remoteText?.trim()
 
       setStatus({
-        branch,
-        ahead,
-        behind,
-        staged,
-        modified,
-        untracked,
-        remoteUrl: remoteUrl || undefined,
+        branch: statusData.branch,
+        ahead: statusData.ahead ?? 0,
+        behind: statusData.behind ?? 0,
+        staged: statusData.staged.map(mapFile),
+        modified: statusData.modified.map(mapFile),
+        untracked: statusData.untracked.map(mapFile),
+        remoteUrl: statusData.remoteUrl,
       })
+      setStatusRecentCommits(statusData.recentCommits ?? [])
     } catch (err) {
-      setError(`Failed to fetch Git status: ${err}`)
+      console.error("Failed to fetch Git status via API:", err)
+      setStatus(null)
+      setError(`Failed to fetch Git status: ${err instanceof Error ? err.message : String(err)}`)
+      setStatusRecentCommits([])
     }
-  }, [client, workingPath])
+  }, [projectId, activeWorktreeId])
 
   // Fetch branches
+  useEffect(() => {
+    void fetchGitStatus()
+  }, [fetchGitStatus])
+
   const fetchBranches = useCallback(async () => {
     if (!client) return
 
     try {
-      const response = await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: "git branch -vv",
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      const response = await runGitCommand("git branch -vv")
 
       const textOutput = extractTextFromMessage(response.data)
       const lines = textOutput ? textOutput.split("\n") : []
@@ -325,21 +287,36 @@ export default function GitOperations() {
     } catch (err) {
       console.error("Failed to fetch branches:", err)
     }
-  }, [client, workingPath])
+  }, [client, workingPath, runGitCommand])
+
+  const recentCommitSummaries = useMemo(() => {
+    if (statusRecentCommits && statusRecentCommits.length > 0) {
+      return statusRecentCommits.map((commit) => ({
+        hash: commit.hash,
+        shortHash: commit.hash.slice(0, 7),
+        author: commit.author,
+        date: commit.date,
+        message: commit.message,
+      }))
+    }
+
+    return commits.map((commit) => ({
+      hash: commit.hash,
+      shortHash: commit.shortHash,
+      author: commit.author,
+      date: commit.date,
+      message: commit.message,
+    }))
+  }, [statusRecentCommits, commits])
 
   // Fetch commit history
   const fetchCommits = useCallback(async () => {
     if (!client || !workingPath) return
 
     try {
-      const response = await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: "git log --oneline -20 --pretty=format:'%H|%h|%an|%ae|%ad|%s' --date=iso",
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      const response = await runGitCommand(
+        "git log --oneline -20 --pretty=format:'%H|%h|%an|%ae|%ad|%s' --date=iso"
+      )
 
       const textOutput = extractTextFromMessage(response.data)
       const lines = textOutput ? textOutput.split("\n") : []
@@ -366,7 +343,7 @@ export default function GitOperations() {
     } catch (err) {
       console.error("Failed to fetch commits:", err)
     }
-  }, [client, workingPath])
+  }, [client, workingPath, runGitCommand])
 
   // Fetch file diff
   const fetchDiff = useCallback(
@@ -374,14 +351,7 @@ export default function GitOperations() {
       if (!client || !workingPath) return
 
       try {
-        const response = await client.session.shell({
-          path: { id: "temp" },
-          body: {
-            command: `git diff HEAD -- "${filePath}"`,
-            agent: "git",
-          },
-          query: { directory: workingPath },
-        })
+        const response = await runGitCommand(`git diff HEAD -- "${filePath}"`)
 
         const content = extractTextFromMessage(response.data) || ""
         const additions = (content.match(/^\+/gm) || []).length
@@ -399,7 +369,7 @@ export default function GitOperations() {
       } catch (err) {
         console.error(`Failed to fetch diff for ${filePath}:`, err)
       }
-  }, [client, workingPath])
+  }, [client, workingPath, runGitCommand])
 
   // Git operations
   const stageFile = async (filePath: string) => {
@@ -407,14 +377,7 @@ export default function GitOperations() {
 
     setOperationLoading(`stage-${filePath}`)
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: `git add "${filePath}"`,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(`git add "${filePath}"`)
       await fetchGitStatus()
     } catch (err) {
       setError(`Failed to stage file: ${err}`)
@@ -428,14 +391,7 @@ export default function GitOperations() {
 
     setOperationLoading(`unstage-${filePath}`)
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: `git reset HEAD "${filePath}"`,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(`git reset HEAD "${filePath}"`)
       await fetchGitStatus()
     } catch (err) {
       setError(`Failed to unstage file: ${err}`)
@@ -454,14 +410,7 @@ export default function GitOperations() {
 
     setOperationLoading("commit")
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: `git commit -m "${commitMessage.replace(/"/g, '\\"')}"`,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(`git commit -m "${commitMessage.replace(/"/g, '\\"')}"`)
       setCommitMessage("")
       await Promise.all([fetchGitStatus(), fetchCommits()])
     } catch (err) {
@@ -476,14 +425,7 @@ export default function GitOperations() {
 
     setOperationLoading("create-branch")
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: `git checkout -b "${newBranchName}"`,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(`git checkout -b "${newBranchName}"`)
       setNewBranchName("")
       setShowNewBranchDialog(false)
       await Promise.all([fetchGitStatus(), fetchBranches()])
@@ -499,14 +441,7 @@ export default function GitOperations() {
 
     setOperationLoading(`switch-${branchName}`)
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: `git checkout "${branchName}"`,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(`git checkout "${branchName}"`)
       await Promise.all([fetchGitStatus(), fetchBranches()])
     } catch (err) {
       setError(`Failed to switch branch: ${err}`)
@@ -520,14 +455,7 @@ export default function GitOperations() {
 
     setOperationLoading(`delete-${branchName}`)
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: `git branch -d "${branchName}"`,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(`git branch -d "${branchName}"`)
       await fetchBranches()
     } catch (err) {
       setError(`Failed to delete branch: ${err}`)
@@ -541,14 +469,7 @@ export default function GitOperations() {
 
     setOperationLoading("push")
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: "git push origin HEAD",
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand("git push origin HEAD")
       await fetchGitStatus()
     } catch (err) {
       setError(`Failed to push: ${err}`)
@@ -562,14 +483,7 @@ export default function GitOperations() {
 
     setOperationLoading("pull")
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: "git pull",
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand("git pull")
       await Promise.all([fetchGitStatus(), fetchCommits()])
     } catch (err) {
       setError(`Failed to pull: ${err}`)
@@ -583,14 +497,7 @@ export default function GitOperations() {
 
     setOperationLoading("fetch")
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: "git fetch",
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand("git fetch")
       await Promise.all([fetchGitStatus(), fetchBranches()])
     } catch (err) {
       setError(`Failed to fetch: ${err}`)
@@ -604,14 +511,7 @@ export default function GitOperations() {
     if (!client || !workingPath) return
 
     try {
-      const response = await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: "git stash list --pretty=format:'%gd|%s|%at|%gs'",
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      const response = await runGitCommand("git stash list --pretty=format:'%gd|%s|%at|%gs'")
 
       const textOutput = extractTextFromMessage(response.data)
       const lines = textOutput ? textOutput.split("\n") : []
@@ -644,14 +544,7 @@ export default function GitOperations() {
     setOperationLoading("stash")
     try {
       const cmd = message ? `git stash push -m "${message}"` : "git stash push"
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: cmd,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(cmd)
       await Promise.all([fetchGitStatus(), fetchStashes()])
     } catch (err) {
       setError(`Failed to stash: ${err}`)
@@ -665,14 +558,7 @@ export default function GitOperations() {
 
     setOperationLoading(`apply-stash-${index}`)
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: `git stash pop stash@{${index}}`,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(`git stash pop stash@{${index}}`)
       await Promise.all([fetchGitStatus(), fetchStashes()])
     } catch (err) {
       setError(`Failed to apply stash: ${err}`)
@@ -686,14 +572,7 @@ export default function GitOperations() {
 
     setOperationLoading(`delete-stash-${index}`)
     try {
-      await client.session.shell({
-        path: { id: "temp" },
-        body: {
-          command: `git stash drop stash@{${index}}`,
-          agent: "git",
-        },
-        query: { directory: workingPath },
-      })
+      await runGitCommand(`git stash drop stash@{${index}}`)
       await fetchStashes()
     } catch (err) {
       setError(`Failed to delete stash: ${err}`)
@@ -734,8 +613,6 @@ export default function GitOperations() {
 
   // Initialize data
   const initializeData = useCallback(async () => {
-    if (!client) return
-
     setLoading(true)
     setError(null)
 
@@ -746,7 +623,7 @@ export default function GitOperations() {
     } finally {
       setLoading(false)
     }
-  }, [client, fetchGitStatus, fetchBranches, fetchCommits, fetchStashes])
+  }, [fetchGitStatus, fetchBranches, fetchCommits, fetchStashes])
 
   useEffect(() => {
     void initializeData()
@@ -851,28 +728,27 @@ export default function GitOperations() {
                 {/* Header-level Commit button to open commit dialog (always visible) */}
                 <Dialog open={showCommitDialog} onOpenChange={setShowCommitDialog}>
                   <DialogTrigger asChild>
-                    <Button
-                      data-testid="commit-button"
-                      variant="outline"
-                      size="sm"
-                    >
+                    <Button data-testid="commit-button" variant="outline" size="sm">
                       <GitCommit className="h-4 w-4" />
                       Commit
                     </Button>
                   </DialogTrigger>
-                           <DialogContent className="border-border bg-background text-foreground">
+                  <DialogContent className="border-border bg-background text-foreground">
                     <DialogHeader>
                       <DialogTitle>Create Commit</DialogTitle>
+                      <DialogDescription>
+                        Provide a concise summary of the staged changes before creating the commit.
+                      </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                       <Textarea
-                         data-testid="commit-message-input"
-                         value={commitMessage}
-                         onChange={(e) => setCommitMessage(e.target.value)}
-                         placeholder="Enter commit message..."
-                         rows={4}
-                       />
-                      <div className="flex gap-2 justify-end">
+                        data-testid="commit-message-input"
+                        value={commitMessage}
+                        onChange={(e) => setCommitMessage(e.target.value)}
+                        placeholder="Enter commit message..."
+                        rows={4}
+                      />
+                      <div className="flex justify-end gap-2">
                         <Button
                           data-testid="commit-cancel-button"
                           variant="outline"
@@ -1039,8 +915,8 @@ export default function GitOperations() {
                         </div>
                         <ScrollArea className="max-h-96">
                           <div className="divide-y divide-[#262626]">
-                            {commits.slice(0, 5).map((commit) => (
-                              <div key={commit.hash} className="p-3">
+                            {recentCommitSummaries.slice(0, 5).map((commit) => (
+                              <div key={commit.hash} className="p-3" data-testid="recent-commit-item">
                                 <div className="space-y-2">
                                   <p className="line-clamp-2 text-sm font-medium text-foreground">
                                     {commit.message}
@@ -1311,14 +1187,18 @@ export default function GitOperations() {
                           <DialogContent className="border-border bg-background text-foreground">
                             <DialogHeader>
                               <DialogTitle>Create New Branch</DialogTitle>
+                              <DialogDescription>
+                                Choose a descriptive branch name to track related work before
+                                creating it from the current HEAD.
+                              </DialogDescription>
                             </DialogHeader>
                             <div className="space-y-4">
-                               <Input
-                                 data-testid="branch-name-input"
-                                 value={newBranchName}
-                                 onChange={(e) => setNewBranchName(e.target.value)}
-                                 placeholder="Branch name..."
-                               />
+                              <Input
+                                data-testid="branch-name-input"
+                                value={newBranchName}
+                                onChange={(e) => setNewBranchName(e.target.value)}
+                                placeholder="Branch name..."
+                              />
                               <div className="flex gap-2">
                                 <Button
                                   onClick={createBranch}

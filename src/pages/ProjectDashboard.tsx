@@ -116,6 +116,21 @@ export default function ProjectDashboard() {
   const sessions = useSessionsForProject(projectId || "", activeWorktreePath)
   const recentSessions = useRecentSessions(projectId || "", 5, activeWorktreePath)
 
+  const additionalRecentCommits = useMemo(() => {
+    type CommitSummary = NonNullable<GitSummary["recentCommits"]>[number]
+
+    if (!gitStatus?.recentCommits?.length) {
+      return [] as CommitSummary[]
+    }
+
+    if (!gitStatus.lastCommit) {
+      return gitStatus.recentCommits.slice(0, 3) as CommitSummary[]
+    }
+
+    const filtered = gitStatus.recentCommits.filter((commit) => commit.hash !== gitStatus.lastCommit?.hash)
+    return filtered.slice(0, 3) as CommitSummary[]
+  }, [gitStatus])
+
   useEffect(() => {
     let cancelled = false
 
@@ -126,9 +141,10 @@ export default function ProjectDashboard() {
 
     const loadGitSummary = async () => {
       try {
-        const client = await getClient(projectId, activeWorktreePath)
-        const summary = await fetchGitSummary(client, activeWorktreePath)
+        const summary = await fetchGitSummary(projectId, resolvedWorktreeId)
         if (!cancelled) {
+          // eslint-disable-next-line no-console
+          console.log("git summary", summary)
           setGitStatus(summary)
         }
       } catch (error) {
@@ -144,7 +160,7 @@ export default function ProjectDashboard() {
     return () => {
       cancelled = true
     }
-  }, [projectId, activeWorktreePath, getClient])
+  }, [projectId, activeWorktreePath, resolvedWorktreeId])
 
   useEffect(() => {
     if (!projectId) return
@@ -755,13 +771,31 @@ export default function ProjectDashboard() {
                     {gitStatus.lastCommit && (
                       <div className="border-t pt-2">
                         <p className="mb-1 text-sm font-medium">Last Commit</p>
-                        <p className="text-muted-foreground truncate text-sm">
+                        <p className="text-muted-foreground truncate text-sm" title={gitStatus.lastCommit.message}>
                           {gitStatus.lastCommit.message}
                         </p>
                         <p className="text-muted-foreground mt-1 text-xs">
                           by {gitStatus.lastCommit.author} •{" "}
                           {formatRelativeTime(gitStatus.lastCommit.date)}
                         </p>
+                      </div>
+                    )}
+
+                    {additionalRecentCommits.length > 0 && (
+                      <div className="border-t pt-2">
+                        <p className="mb-2 text-sm font-medium">Recent Commits</p>
+                        <ul className="space-y-2">
+                          {additionalRecentCommits.map((commit) => (
+                            <li key={commit.hash} className="text-sm">
+                              <p className="truncate text-muted-foreground" title={commit.message}>
+                                {commit.message}
+                              </p>
+                              <p className="text-muted-foreground mt-0.5 text-xs">
+                                by {commit.author} • {formatRelativeTime(commit.date)}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                   </div>

@@ -156,6 +156,7 @@
     "happy-dom": "^15.11.6",
     "jsdom": "^26.1.0",
     "mocksse": "^1.0.4",
+    "msw": "^2.11.2",
     "nodemon": "^3.1.7",
     "postcss": "^8.4.49",
     "prettier-plugin-tailwindcss": "0.6.14",

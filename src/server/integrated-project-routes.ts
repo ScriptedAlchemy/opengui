@@ -67,6 +67,29 @@ const getAgentStoreKey = (projectId: string, worktreePath?: string) => {
   return `${projectId}::${normalizePath(worktreePath)}`
 }
 
+const resolveProjectRecord = (id: string) => {
+  const direct = projectManager.getProject(id)
+  if (direct) {
+    return { project: direct, canonicalId: id }
+  }
+
+  const all = projectManager.getAllProjects()
+  const match = all.find((item) => id.startsWith(item.id) || item.id.startsWith(id))
+  if (match) {
+    return { project: match, canonicalId: match.id }
+  }
+
+  return null
+}
+
+const resolveWorktreeMetadata = (projectId: string, worktreeId: string) => {
+  const direct = projectManager.findWorktreeById(projectId, worktreeId)
+  if (direct) return direct
+
+  const worktrees = projectManager.getWorktrees(projectId)
+  return worktrees.find((tree) => worktreeId.startsWith(tree.id) || tree.id.startsWith(worktreeId))
+}
+
 type ParsedWorktree = {
   path: string
   branch?: string
@@ -76,6 +99,135 @@ type ParsedWorktree = {
   isLocked: boolean
   lockReason?: string
   relativePath: string
+}
+
+type GitFileInfo = {
+  path: string
+  status: string
+  staged: boolean
+}
+
+type GitStatusPayload = {
+  branch: string
+  ahead: number
+  behind: number
+  changedFiles: number
+  stagedCount: number
+  unstagedCount: number
+  untrackedCount: number
+  staged: GitFileInfo[]
+  modified: GitFileInfo[]
+  untracked: GitFileInfo[]
+  remoteUrl?: string
+  lastCommit?: {
+    hash: string
+    author: string
+    date: string
+    message: string
+  }
+  recentCommits?: Array<{
+    hash: string
+    author: string
+    date: string
+    message: string
+  }>
+}
+
+const createEmptyGitStatus = (): GitStatusPayload => ({
+  branch: "unknown",
+  ahead: 0,
+  behind: 0,
+  changedFiles: 0,
+  stagedCount: 0,
+  unstagedCount: 0,
+  untrackedCount: 0,
+  staged: [],
+  modified: [],
+  untracked: [],
+  recentCommits: [],
+})
+
+const GitFileSchema = z.object({
+  path: z.string(),
+  status: z.string(),
+  staged: z.boolean(),
+})
+
+const parseGitStatusOutput = (output: string) => {
+  const lines = output
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+
+  let branch = "unknown"
+  let ahead = 0
+  let behind = 0
+  const staged: GitFileInfo[] = []
+  const modified: GitFileInfo[] = []
+  const untracked: GitFileInfo[] = []
+
+  for (const line of lines) {
+    if (line.startsWith("##")) {
+      const branchInfo = line.slice(2).trim()
+      const aheadMatch = branchInfo.match(/ahead (\d+)/)
+      if (aheadMatch) ahead = Number.parseInt(aheadMatch[1], 10)
+      const behindMatch = branchInfo.match(/behind (\d+)/)
+      if (behindMatch) behind = Number.parseInt(behindMatch[1], 10)
+
+      let branchSection = branchInfo
+      const bracketIndex = branchSection.indexOf(" [")
+      if (bracketIndex !== -1) {
+        branchSection = branchSection.slice(0, bracketIndex)
+      }
+      const ellipsisIndex = branchSection.indexOf("...")
+      if (ellipsisIndex !== -1) {
+        branchSection = branchSection.slice(0, ellipsisIndex)
+      }
+      branchSection = branchSection.trim()
+
+      if (branchSection.startsWith("No commits yet on ")) {
+        branch = branchSection.replace("No commits yet on ", "").trim() || "unknown"
+      } else if (branchSection.startsWith("HEAD")) {
+        branch = "HEAD"
+      } else if (branchSection.length > 0) {
+        branch = branchSection
+      }
+      continue
+    }
+
+    if (line.startsWith("??")) {
+      const filePath = line.slice(3).trim()
+      if (filePath) {
+        untracked.push({ path: filePath, status: "??", staged: false })
+      }
+      continue
+    }
+
+    if (line.length >= 3) {
+      const statusCode = line.slice(0, 2)
+      const filePath = line.slice(3).trim()
+      if (!filePath) continue
+
+      const trimmedStatus = statusCode.trim() || statusCode
+      const isStaged = statusCode[0] !== " " && statusCode[0] !== "?"
+
+      const file: GitFileInfo = {
+        path: filePath,
+        status: trimmedStatus,
+        staged: isStaged,
+      }
+
+      if (isStaged) {
+        staged.push(file)
+      } else {
+        modified.push(file)
+      }
+    }
+  }
+
+  const changedFiles = staged.length + modified.length + untracked.length
+
+  return { branch, ahead, behind, staged, modified, untracked, changedFiles }
 }
 
 const parseWorktreeOutput = (output: string, projectPath: string): ParsedWorktree[] => {
@@ -1559,9 +1711,32 @@ export function addIntegratedProjectRoutes(app: Hono) {
                       branch: z.string(),
                       ahead: z.number(),
                       behind: z.number(),
-                      staged: z.number(),
-                      unstaged: z.number(),
-                      untracked: z.number(),
+                      changedFiles: z.number(),
+                      stagedCount: z.number(),
+                      unstagedCount: z.number(),
+                      untrackedCount: z.number(),
+                      staged: z.array(GitFileSchema),
+                      modified: z.array(GitFileSchema),
+                      untracked: z.array(GitFileSchema),
+                      remoteUrl: z.string().optional(),
+                      lastCommit: z
+                        .object({
+                          hash: z.string(),
+                          author: z.string(),
+                          date: z.string(),
+                          message: z.string(),
+                        })
+                        .optional(),
+                      recentCommits: z
+                        .array(
+                          z.object({
+                            hash: z.string(),
+                            author: z.string(),
+                            date: z.string(),
+                            message: z.string(),
+                          })
+                        )
+                        .optional(),
                     })
                   ),
                 },
@@ -1576,24 +1751,132 @@ export function addIntegratedProjectRoutes(app: Hono) {
             id: z.string(),
           })
         ),
+        zValidator(
+          "query",
+          z.object({
+            worktree: z.string().optional(),
+          })
+        ),
         async (c) => {
           const { id } = c.req.valid("param")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
+          const { worktree } = c.req.valid("query")
 
-          if (!project) {
+          const resolved = resolveProjectRecord(id)
+          if (!resolved) {
             return c.json({ error: "Project not found" }, 404)
           }
 
-          // Return basic git status data
-          return c.json({
-            branch: "main",
-            ahead: 0,
-            behind: 0,
-            staged: 0,
-            unstaged: 0,
-            untracked: 0,
-          })
+          const { project, canonicalId } = resolved
+
+          let targetPath = project.path
+
+          if (worktree && worktree !== "default") {
+            const metadata = resolveWorktreeMetadata(canonicalId, worktree)
+            if (metadata?.path) {
+              targetPath = metadata.path
+            } else if (worktree.includes("/")) {
+              targetPath = worktree
+            } else {
+              return c.json({ error: "Worktree not found" }, 404)
+            }
+          } else {
+            const defaultTree = projectManager.findWorktreeById(id, "default")
+            if (defaultTree?.path) {
+              targetPath = defaultTree.path
+            }
+          }
+
+          if (!targetPath) {
+            return c.json(createEmptyGitStatus())
+          }
+
+          const repoPath = normalizePath(targetPath)
+
+          try {
+            await nodeFs.stat(repoPath)
+          } catch (error) {
+            log.warn("Git path not accessible", { repoPath, error })
+            return c.json(createEmptyGitStatus())
+          }
+
+          const runGit = async (args: string[]) => {
+            const { stdout } = await execFileAsync("git", args, { cwd: repoPath })
+            return stdout.toString()
+          }
+
+          let statusOutput: string
+          try {
+            statusOutput = await runGit(["status", "--porcelain=v1", "-b"])
+          } catch (error) {
+            log.warn("Failed to execute git status", { repoPath, error })
+            return c.json(createEmptyGitStatus())
+          }
+
+          const parsed = parseGitStatusOutput(statusOutput)
+
+          let remoteUrl: string | undefined
+          try {
+            const remoteOutput = await runGit(["remote", "get-url", "origin"])
+            const trimmed = remoteOutput.trim()
+            if (trimmed) {
+              remoteUrl = trimmed
+            }
+          } catch (remoteError) {
+            log.debug("No git remote detected", { repoPath, remoteError })
+          }
+
+          let recentCommits: GitStatusPayload["recentCommits"] = []
+          let lastCommit: GitStatusPayload["lastCommit"]
+          try {
+            const commitOutput = await runGit([
+              "log",
+              "-5",
+              "--pretty=format:%H%x1f%an%x1f%ad%x1f%s",
+              "--date=iso-strict",
+            ])
+            recentCommits = commitOutput
+              .split(/\r?\n/)
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0)
+              .map((line) => {
+                const [hash, author, date, message] = line.split("\x1f")
+                return { hash, author, date, message }
+              })
+              .filter(
+                (commit): commit is {
+                  hash: string
+                  author: string
+                  date: string
+                  message: string
+                } =>
+                  Boolean(commit.hash && commit.author && commit.date && commit.message !== undefined)
+              )
+
+            if (recentCommits.length > 0) {
+              lastCommit = recentCommits[0]
+            }
+          } catch (commitError) {
+            log.debug("Failed to read recent commits", { repoPath, commitError })
+            recentCommits = []
+          }
+
+          const payload: GitStatusPayload = {
+            branch: parsed.branch,
+            ahead: parsed.ahead,
+            behind: parsed.behind,
+            changedFiles: parsed.changedFiles,
+            stagedCount: parsed.staged.length,
+            unstagedCount: parsed.modified.length,
+            untrackedCount: parsed.untracked.length,
+            staged: parsed.staged,
+            modified: parsed.modified,
+            untracked: parsed.untracked,
+            remoteUrl,
+            lastCommit,
+            recentCommits,
+          }
+
+          return c.json(payload)
         }
       )
 

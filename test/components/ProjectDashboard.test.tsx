@@ -232,6 +232,61 @@ rstest.mock("../../src/services/opencode-sdk-service", () => ({
 
 // Mock fetch endpoints used by dashboard
 const mockFetch = rstest.fn((url: string) => {
+  if (url.includes("/git/status")) {
+    const parsed = new URL(url, "http://localhost")
+    const worktree = parsed.searchParams.get("worktree")
+    const isWorktree = Boolean(worktree && worktree !== "default")
+
+    const branch = isWorktree ? "somthing" : "main"
+    const changedFiles = isWorktree ? 1 : 2
+    const message = isWorktree ? "Worktree commit" : "Connect git status"
+
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: () =>
+        Promise.resolve({
+          branch,
+          changedFiles,
+          ahead: 0,
+          behind: 0,
+          stagedCount: isWorktree ? 1 : 2,
+          unstagedCount: isWorktree ? 0 : 1,
+          untrackedCount: isWorktree ? 0 : 1,
+          staged: [],
+          modified: [],
+          untracked: [],
+          lastCommit: {
+            hash: isWorktree ? "def456" : "abc123",
+            message,
+            author: isWorktree ? "Feature Dev" : "ScriptedAlchemy",
+            date: isWorktree ? "2025-09-15T11:00:00Z" : "2025-09-15T12:00:00Z",
+          },
+          recentCommits: [
+            {
+              hash: isWorktree ? "def456" : "abc123",
+              message,
+              author: isWorktree ? "Feature Dev" : "ScriptedAlchemy",
+              date: isWorktree ? "2025-09-15T11:00:00Z" : "2025-09-15T12:00:00Z",
+            },
+            {
+              hash: isWorktree ? "def455" : "abc122",
+              message: isWorktree ? "feat: update worktree support" : "chore: tidy dashboard mocks",
+              author: isWorktree ? "Feature Dev" : "QA Bot",
+              date: isWorktree ? "2025-09-14T10:00:00Z" : "2025-09-14T15:00:00Z",
+            },
+            {
+              hash: isWorktree ? "def454" : "abc121",
+              message: isWorktree ? "fix: address lint issues" : "docs: refresh readme",
+              author: isWorktree ? "Feature Dev" : "Docs Writer",
+              date: isWorktree ? "2025-09-13T09:00:00Z" : "2025-09-13T09:30:00Z",
+            },
+          ],
+        }),
+    } as Response)
+  }
+
   if (url.includes("/resources")) {
     return Promise.resolve({
       ok: true,
@@ -398,7 +453,10 @@ describe("ProjectDashboard", () => {
       expect(within(gitCard).getByText("2")).toBeDefined()
       expect(within(gitCard).getByText("main")).toBeDefined()
       expect(within(gitCard).getByText("Connect git status")).toBeDefined()
-      expect(within(gitCard).getByText(/Developer/)).toBeDefined()
+      expect(within(gitCard).getByText(/ScriptedAlchemy/)).toBeDefined()
+      expect(within(gitCard).getByText("Recent Commits")).toBeDefined()
+      expect(within(gitCard).getByText("chore: tidy dashboard mocks")).toBeDefined()
+      expect(within(gitCard).getByText("docs: refresh readme")).toBeDefined()
     })
   })
 
@@ -440,6 +498,7 @@ describe("ProjectDashboard", () => {
     await waitFor(() => {
       const gitCard = result.getByTestId("git-status-section")
       expect(within(gitCard).getByText("main")).toBeDefined()
+      expect(within(gitCard).getByText("chore: tidy dashboard mocks")).toBeDefined()
     })
 
     await waitFor(() => {
@@ -466,6 +525,9 @@ describe("ProjectDashboard", () => {
       const gitCard = result.getByTestId("git-status-section")
       expect(within(gitCard).getByText("somthing")).toBeDefined()
       expect(within(gitCard).getByText("Worktree commit")).toBeDefined()
+      expect(within(gitCard).getByText("Recent Commits")).toBeDefined()
+      expect(within(gitCard).getByText("feat: update worktree support")).toBeDefined()
+      expect(within(gitCard).queryByText("chore: tidy dashboard mocks")).toBeNull()
     })
 
     await waitFor(() => {
