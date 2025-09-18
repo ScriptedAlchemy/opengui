@@ -287,7 +287,7 @@ export default function GitOperations() {
     } catch (err) {
       console.error("Failed to fetch branches:", err)
     }
-  }, [client, workingPath, runGitCommand])
+  }, [client, runGitCommand])
 
   const recentCommitSummaries = useMemo(() => {
     if (statusRecentCommits && statusRecentCommits.length > 0) {
@@ -535,7 +535,7 @@ export default function GitOperations() {
     } catch (err) {
       console.error("Failed to fetch stashes:", err)
     }
-  }, [client, workingPath])
+  }, [client, workingPath, runGitCommand])
 
   // Stash operations
   const stashChanges = async (message?: string) => {

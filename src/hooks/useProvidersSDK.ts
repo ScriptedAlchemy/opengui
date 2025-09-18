@@ -71,46 +71,50 @@ export function useProvidersSDK(
 
         setProviders(formattedProviders)
 
-        // Validate persisted selection against freshly loaded providers/models
-        const persistedProvider = selectedProvider
-        const providerValid = formattedProviders.some((provider) => provider.id === persistedProvider)
-        let nextProvider = persistedProvider
-        if (!providerValid) {
-          // Prefer anthropic if present, otherwise first provider
-          nextProvider =
-            formattedProviders.find((provider) => provider.id === "anthropic")?.id ||
-            formattedProviders[0]?.id ||
-            ""
-          setSelectedProvider(nextProvider)
+        // Prefer providers that work in local/test environments without external credentials.
+        const pickPreferredProvider = () => {
+          const priority = ["opencode", "openai", "anthropic"]
+          for (const id of priority) {
+            const match = formattedProviders.find((provider) => provider.id === id)
+            if (match) return match
+          }
+          return formattedProviders[0]
         }
 
-        const modelsForNext = formattedProviders.find((provider) => provider.id === nextProvider)?.models ?? []
-        const modelValid = modelsForNext.some((model) => model.id === selectedModel)
+        const persistedProvider = selectedProvider
+        const providerValid = formattedProviders.some((provider) => provider.id === persistedProvider)
+
+        let activeProviderId = persistedProvider
+        if (!providerValid) {
+          const fallback = pickPreferredProvider()
+          activeProviderId = fallback?.id ?? ""
+          if (activeProviderId) setSelectedProvider(activeProviderId)
+        }
+
+        if (!activeProviderId && formattedProviders.length > 0) {
+          const fallback = pickPreferredProvider()
+          activeProviderId = fallback?.id ?? ""
+          if (activeProviderId) setSelectedProvider(activeProviderId)
+        }
+
+        const modelsForActive =
+          formattedProviders.find((provider) => provider.id === activeProviderId)?.models ?? []
+        const modelValid = modelsForActive.some((model) => model.id === selectedModel)
         if (!modelValid) {
-          const defaultModelId = (data.default || {})[nextProvider]
-          const firstModel = modelsForNext[0]?.id
+          const defaultModelId = (data.default || {})[activeProviderId]
+          const firstModel = modelsForActive[0]?.id
           const resolved = defaultModelId || firstModel || ""
           if (resolved) setSelectedModel(resolved)
         }
 
-        // Set default provider and model if not set (respect persisted value first)
-        if (!selectedProvider && formattedProviders.length > 0) {
-          // Try to use anthropic as default provider if available
-          let defaultProvider = formattedProviders.find((p) => p.id === "anthropic")
-          if (!defaultProvider) {
-            defaultProvider = formattedProviders[0]
-          }
-
-          setSelectedProvider(defaultProvider.id)
-
-          // Use the default model from API if available
-          const defaultModelId = defaultModels[defaultProvider.id]
-          if (!selectedModel) {
-            if (defaultModelId) {
-              setSelectedModel(defaultModelId)
-            } else if (defaultProvider.models.length > 0) {
-              setSelectedModel(defaultProvider.models[0].id)
-            }
+        if (!persistedProvider && !providerValid && formattedProviders.length > 0) {
+          const fallback = pickPreferredProvider()
+          if (fallback) {
+            setSelectedProvider(fallback.id)
+            const defaultModelId = defaultModels[fallback.id]
+            const firstModel = fallback.models[0]?.id
+            const resolved = defaultModelId || firstModel || ""
+            if (resolved) setSelectedModel(resolved)
           }
         }
       } catch (error) {

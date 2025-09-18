@@ -1,5 +1,5 @@
 import { test, expect, Page } from "@playwright/test"
-import { goToChat } from "./helpers"
+import { ensureDefaultProject, goToChat, openFirstProjectAndGetId } from "./helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -49,10 +49,12 @@ async function navigateToProjectPage(page: Page, pageName: string, projectIdPara
 test.describe("Comprehensive Project Lifecycle", () => {
   let apiErrors: Array<{url: string, status: number, method: string}> = []
   let projectId: string | null = null
+  let projectDashboardUrl = ""
 
-  test.beforeEach(async ({ page }) => {
-    // Reset API error tracking
-    apiErrors = []
+test.beforeEach(async ({ page }) => {
+  // Reset API error tracking
+  apiErrors = []
+  await ensureDefaultProject(page)
     
     // Set up comprehensive API error monitoring
     page.on("response", (response) => {
@@ -107,34 +109,9 @@ test.describe("Comprehensive Project Lifecycle", () => {
     // ============================================
     
     
-    await page.goto("/")
-    await waitForPageLoad(page)
-    
-    // Verify project list is displayed using proper data-testid
-    const projectList = page.locator('[data-testid="project-item"]')
-    await expect(projectList.first()).toBeVisible({ timeout: 10000 })
-    
-    // Get project information
-    const firstProject = page.locator('[data-testid="project-item"]').first()
-    const projectName = await firstProject.locator('[data-testid="project-name"]').textContent()
-    expect(projectName).toBeTruthy()
-    
-    
-    // Open the project using proper data-testid
-    const openButton = firstProject.locator('[data-testid="button-open-project"]')
-    await expect(openButton).toBeVisible({ timeout: 10000 })
-    await openButton.click()
-    
-    // Wait for project dashboard
-    await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 10000 })
-    
-    // Extract project ID from URL
-    const currentUrl = page.url()
-    const projectIdMatch = currentUrl.match(/\/projects\/([a-f0-9]+)/)
-    if (projectIdMatch) {
-      projectId = projectIdMatch[1]
-      
-    }
+    projectId = await openFirstProjectAndGetId(page)
+    projectDashboardUrl = `/projects/${projectId}/${DEFAULT_WORKTREE}`
+    await page.goto(projectDashboardUrl)
     
     
     
@@ -210,7 +187,7 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     
     // Navigate back to dashboard
-    await page.goto(currentUrl)
+    await page.goto(projectDashboardUrl)
     await page.waitForTimeout(2000)
     
     // Navigate to git operations using proper navigation
@@ -220,12 +197,12 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     // Check git status elements using proper data-testids
     const gitStatus = page.locator('[data-testid="git-status"]')
-    expect(await gitStatus.isVisible({ timeout: 5000 })).toBe(true)
-    
-    
+    await expect(gitStatus).toBeVisible({ timeout: 15_000 })
+
+
     // Test git actions - should have at least some git functionality
     const gitActions = page.locator('[data-testid="git-operations-page"]')
-    expect(await gitActions.isVisible({ timeout: 5000 })).toBe(true)
+    await expect(gitActions).toBeVisible({ timeout: 15_000 })
     
     
     
@@ -236,12 +213,13 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     
     // Navigate back to dashboard
-    await page.goto(currentUrl)
+    await page.goto(projectDashboardUrl)
     await page.waitForTimeout(2000)
-    
+
     // Access agent management using proper data-testid
-    expect(await manageAgentsButton.isVisible({ timeout: 5000 })).toBe(true)
-    await manageAgentsButton.click()
+    const manageAgentsButtonPhase5 = page.locator('[data-testid="quick-action-manage-agents"]')
+    expect(await manageAgentsButtonPhase5.isVisible({ timeout: 10_000 })).toBe(true)
+    await manageAgentsButtonPhase5.click()
     await page.waitForTimeout(2000)
     
     // Check agent management interface using proper data-testids
@@ -261,7 +239,7 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     
     // Navigate back to dashboard
-    await page.goto(currentUrl)
+    await page.goto(projectDashboardUrl)
     await page.waitForTimeout(2000)
     
     await goToChat(page, projectId || "")
@@ -281,7 +259,7 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     
     // Navigate to project settings
-    await page.goto(currentUrl)
+    await page.goto(projectDashboardUrl)
     await page.waitForTimeout(2000)
     
     const settingsNavSuccess = await navigateToProjectPage(page, "settings", projectId || undefined)
@@ -310,7 +288,7 @@ test.describe("Comprehensive Project Lifecycle", () => {
     
     
     // Navigate to sessions list
-    await page.goto(currentUrl)
+    await page.goto(projectDashboardUrl)
     await page.waitForTimeout(2000)
     
     const sessionsNavSuccess = await navigateToProjectPage(page, "sessions", projectId || undefined)

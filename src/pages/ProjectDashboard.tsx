@@ -143,7 +143,6 @@ export default function ProjectDashboard() {
       try {
         const summary = await fetchGitSummary(projectId, resolvedWorktreeId)
         if (!cancelled) {
-          // eslint-disable-next-line no-console
           console.log("git summary", summary)
           setGitStatus(summary)
         }

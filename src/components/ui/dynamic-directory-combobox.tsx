@@ -38,6 +38,7 @@ interface DynamicDirectoryComboboxProps {
   searchPlaceholder?: string
   className?: string
   disabled?: boolean
+  debounceDelay?: number
   // Function to fetch subdirectories for a given path
   fetchDirectories: (path: string) => Promise<DirectoryEntry[]>
 }
@@ -50,6 +51,7 @@ export function DynamicDirectoryCombobox({
   searchPlaceholder = "Type to search directories (e.g. 'dev', 'projects')...",
   className,
   disabled = false,
+  debounceDelay = 150,
   fetchDirectories,
 }: DynamicDirectoryComboboxProps) {
   const [open, setOpen] = React.useState(false)
@@ -174,32 +176,34 @@ export function DynamicDirectoryCombobox({
 
   // Debounced search - reduce delay for better responsiveness
   React.useEffect(() => {
+    if (!open) return
+
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
     }
-    
+
     // Immediate search for empty or very short terms
     if (!search || search.length <= 1) {
       deepSearch(search)
     } else {
       searchTimeoutRef.current = setTimeout(() => {
         deepSearch(search)
-      }, 150) // Reduced from 300ms for better UX
+      }, debounceDelay)
     }
-    
+
     return () => {
       if (searchTimeoutRef.current) {
         clearTimeout(searchTimeoutRef.current)
       }
     }
-  }, [search, deepSearch])
+  }, [open, search, deepSearch, debounceDelay])
 
   // Load initial directories when opened (only once)
   React.useEffect(() => {
     if (open && searchResults.length === 0) {
       deepSearch('')
     }
-  }, [open, deepSearch])
+  }, [open, deepSearch, searchResults.length])
 
   // Format display name with path context
   const formatDisplayName = (result: SearchResult) => {

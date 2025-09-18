@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test"
+import path from "node:path"
+import { ensureDemoProjectOnDisk } from "./helpers"
 
 const DEFAULT_WORKTREE = "default"
+const CRYSTAL_PROJECT_ROOT = path.join(process.cwd(), "test-results", "e2e-crystal-project")
 
 // Updated for SDK-only architecture:
 // - No project start/stop needed
@@ -8,6 +11,10 @@ const DEFAULT_WORKTREE = "default"
 // - Sessions created via SDK calls
 
 test.describe("Crystal Project Flow", () => {
+  test.beforeAll(() => {
+    ensureDemoProjectOnDisk(CRYSTAL_PROJECT_ROOT)
+  })
+
   test("should add Crystal project and navigate through app", async ({ page }) => {
     // Navigate to app
     await page.goto("/")
@@ -32,7 +39,7 @@ test.describe("Crystal Project Flow", () => {
       const pathInput = page.locator('[data-testid="project-path-input"]')
       const nameInput = page.locator('[data-testid="project-name-input"]')
 
-      await pathInput.fill("/Users/bytedance/dev/crystal")
+      await pathInput.fill(CRYSTAL_PROJECT_ROOT)
       await nameInput.fill("Crystal Project")
 
       const submitButton = dialog.locator('[data-testid="button-create-project"]')

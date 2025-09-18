@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { ensureDefaultProject, openFirstProjectAndGetId } from "./helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -21,20 +22,8 @@ test.describe("File Browser", () => {
       }
     })
 
-    await page.goto("/")
-    await page.waitForSelector("#root", { state: "visible" })
-    await page.waitForTimeout(2000)
-
-    const firstProject = page.locator('[data-testid="project-item"]').first()
-    if (await firstProject.isVisible({ timeout: 5000 })) {
-      await firstProject.locator('button:has-text("Open")').click()
-      await page.waitForTimeout(2000)
-      const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
-      if (match) {
-        projectId = match[1]
-        await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
-      }
-    }
+    await ensureDefaultProject(page)
+    projectId = await openFirstProjectAndGetId(page)
   })
 
   const gotoFiles = async (page: any) => {
@@ -43,24 +32,21 @@ test.describe("File Browser", () => {
   }
 
   test("should navigate to file browser page", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoFiles(page)
     expect(await page.locator('[data-testid="file-browser-page"]').isVisible({ timeout: 5000 })).toBe(true)
   })
 
   test("should display file tree structure", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoFiles(page)
     await expect(page.locator('[data-testid="file-tree"]').first()).toBeVisible({ timeout: 30000 })
   })
 
   test("should expand and collapse folders", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoFiles(page)
 
     const folderItems = page.locator('[data-testid="folder-item"]')
     const hasFolder = (await folderItems.count()) > 0
-    test.skip(!hasFolder, "No folders in this project to expand/collapse")
+    expect(hasFolder, "Expected demo project to include at least one folder").toBe(true)
 
     const folderItem = folderItems.first()
     await expect(folderItem).toBeVisible({ timeout: 30000 })
@@ -71,13 +57,12 @@ test.describe("File Browser", () => {
   })
 
   test("should open and display file content", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoFiles(page)
 
     const preferred = page.locator('[data-testid="file-item"]:text("package.json")')
     const anyFile = page.locator('[data-testid="file-item"]').first()
     const hasFile = (await page.locator('[data-testid="file-item"]').count()) > 0
-    test.skip(!hasFile, "No files available to open in this project")
+    expect(hasFile, "Expected demo project to include at least one file").toBe(true)
 
     const fileItem = (await preferred.count()) > 0 ? preferred.first() : anyFile
     await expect(fileItem).toBeVisible({ timeout: 30000 })

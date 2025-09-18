@@ -1,13 +1,11 @@
-
-import { describe, test, expect, beforeEach, rstest } from "@rstest/core"
+import { describe, test, expect, beforeEach, afterAll, rstest } from "@rstest/core"
 import { render, waitFor } from "@testing-library/react"
 import { MemoryRouter, Routes, Route } from "react-router-dom"
 import ChatInterfaceV2 from "../../src/pages/ChatInterfaceV2"
-
+import { opencodeSDKService } from "../../src/services/opencode-sdk-service"
 // Mock react-router-dom hooks
 const mockNavigate = rstest.fn(() => {})
 let mockParams: any = { projectId: "test-project", sessionId: "test-session-1" }
-
 rstest.mock("react-router-dom", () => {
   const actual = require("react-router-dom")
   return {
@@ -17,7 +15,6 @@ rstest.mock("react-router-dom", () => {
     useLocation: () => ({ pathname: "/projects/test-project/sessions/test-session-1/chat" }),
   }
 })
-
 // Mock project store
 let mockCurrentProject: any = {
   id: "test-project",
@@ -30,111 +27,107 @@ let mockCurrentProject: any = {
 rstest.mock("../../src/stores/projects", () => ({
   useCurrentProject: () => mockCurrentProject,
 }))
-
-// Mock the OpenCode SDK service
-rstest.mock("../../src/services/opencode-sdk-service", () => ({
-  opencodeSDKService: {
-    getClient: rstest.fn(() => Promise.resolve({
-      project: {
-        current: () => Promise.resolve({ data: { id: "test-project", path: "/test/path" } }),
-      },
-      session: {
-        list: () => Promise.resolve({ data: [] }),
-        messages: () => Promise.resolve({ data: [] }),
-      },
-      config: {
-        get: () => Promise.resolve({ data: {} }),
-        providers: () => Promise.resolve({ data: { providers: [], default: {} } }),
-      },
-    })),
-    stopAll: rstest.fn(() => Promise.resolve()),
-  },
-}))
-
-// Mock the SDK context provider to avoid HTTP requests
-rstest.mock("../../src/contexts/OpencodeSDKContext", () => {
-  const React = require("react")
-  return {
-    OpencodeSDKProvider: ({ children }: any) => React.createElement(React.Fragment, {}, children),
-    useOpencodeSDK: () => ({
-      getClient: rstest.fn(() => Promise.resolve(null)),
-      currentClient: null,
-      isLoading: false,
-      error: null,
-    }),
-    useProjectSDK: () => ({
-      client: null,
-      isLoading: false,
-      error: null,
-    }),
+type InstanceStatus = "running" | "starting" | "stopped" | "error"
+let mockProjectData: { id: string; path: string } | null = {
+  id: "test-project",
+  path: "/test/path",
+}
+let mockInstanceStatus: InstanceStatus = "running"
+type MockSession = {
+  id: string
+  title: string
+  projectID: string
+  directory: string
+  version: string
+  time: {
+    created: number
+    updated: number
   }
+}
+type MockMessage = {
+  id: string
+  sessionID: string
+  type: "text"
+  content: string
+  time: {
+    created: number
+  }
+}
+const createMockSession = (): MockSession => ({
+  id: "test-session-1",
+  title: "Test Session",
+  projectID: "test-project",
+  directory: "/test/path",
+  version: "1",
+  time: { created: Date.now() / 1000, updated: Date.now() / 1000 },
 })
-
-// Mock all SDK hooks to prevent infinite loops
-rstest.mock("../../src/hooks/useProjectSDK", () => ({
-  useProjectSDK: () => ({
+let mockSessions: MockSession[] = [createMockSession()]
+let mockCurrentSession: MockSession | null = mockSessions[0] ?? null
+let mockMessages: MockMessage[] = []
+let mockIsStreaming = false
+let mockInputValue = ""
+const originalGetClient = opencodeSDKService.getClient
+const originalStopAll = opencodeSDKService.stopAll
+function createMockSdkClient() {
+  return {
     project: {
-      id: "test-project",
-      path: "/test/path",
+      current: async () => ({ data: { id: "test-project", path: "/test/path" } }),
+      list: async () => ({ data: [mockProjectData].filter(Boolean) }),
     },
-    instanceStatus: "running",
-    client: null,
-  }),
-}))
-
-rstest.mock("../../src/hooks/useProvidersSDK", () => ({
-  useProvidersSDK: () => ({
-    providers: [],
-    selectedProvider: "anthropic",
-    selectedModel: "claude-3",
-    setSelectedProvider: rstest.fn(() => {}),
-    setSelectedModel: rstest.fn(() => {}),
-    availableModels: [],
-  }),
-}))
-
-const mockSessions = [
-  {
-    id: "test-session-1",
-    title: "Test Session",
-    projectID: "test-project",
-    directory: "/test/path",
-    version: "1",
-    time: { created: Date.now() / 1000, updated: Date.now() / 1000 },
-  },
-]
-
-rstest.mock("../../src/hooks/useSessionsSDK", () => ({
-  useSessionsSDK: () => ({
-    sessions: mockSessions,
-    currentSession: mockSessions[0],
-    isLoading: false,
-    handleCreateSession: rstest.fn(() => Promise.resolve()),
-    handleRenameSession: rstest.fn(() => Promise.resolve()),
-    handleDeleteSession: rstest.fn(() => Promise.resolve()),
-  }),
-}))
-
-rstest.mock("../../src/hooks/useMessagesSDK", () => ({
-  useMessagesSDK: () => ({
-    messages: [],
-    inputValue: "",
-    setInputValue: rstest.fn(() => {}),
-    isStreaming: false,
-    setMessages: rstest.fn(() => {}),
-    setIsStreaming: rstest.fn(() => {}),
-    handleSendMessage: rstest.fn(() => Promise.resolve()),
-    handleStopStreaming: rstest.fn(() => {}),
-    loadMessages: rstest.fn(() => Promise.resolve()),
-  }),
-}))
-
-rstest.mock("../../src/hooks/useSSESDK", () => ({
-  useSSESDK: () => {},
-}))
-
-
-
+    session: {
+      list: async () => ({ data: mockSessions }),
+      create: async ({ body }: { body: { title?: string } }) => {
+        const newSession: MockSession = {
+          id: `session-${Date.now()}`,
+          title: body.title || "New Session",
+          projectID: "test-project",
+          directory: "/test/path",
+          version: "1",
+          time: { created: Date.now() / 1000, updated: Date.now() / 1000 },
+        }
+        mockSessions.push(newSession)
+        mockCurrentSession = newSession
+        return { data: newSession }
+      },
+      update: async ({ path, body }: { path: { id: string }; body: { title?: string } }) => {
+        const target = mockSessions.find((s) => s.id === path.id)
+        if (target && body.title) {
+          target.title = body.title
+          target.time.updated = Date.now() / 1000
+        }
+        return { data: target ?? null }
+      },
+      delete: async ({ path }: { path: { id: string } }) => {
+        mockSessions = mockSessions.filter((s) => s.id !== path.id)
+        if (mockCurrentSession?.id === path.id) {
+          mockCurrentSession = mockSessions[0] ?? null
+        }
+        return { data: true }
+      },
+      messages: async () => ({ data: mockMessages }),
+    },
+    config: {
+      get: async () => ({ data: {} }),
+      providers: async () => ({
+        data: { providers: [], default: {} },
+      }),
+    },
+  }
+}
+let mockSdkClient = createMockSdkClient()
+function resetChatMocks() {
+  mockProjectData = {
+    id: "test-project",
+    path: "/test/path",
+  }
+  mockInstanceStatus = "running"
+  mockSessions = [createMockSession()]
+  mockCurrentSession = mockSessions[0] ?? null
+  mockMessages = []
+  mockIsStreaming = false
+  mockInputValue = ""
+  mockSdkClient = createMockSdkClient()
+}
 // Test wrapper component with routes
 function TestWrapper() {
   return (
@@ -151,13 +144,12 @@ function TestWrapper() {
     </MemoryRouter>
   )
 }
-
 // Mock fetch for backend URL
 const originalFetch = global.fetch
-
 describe("ChatInterface Component", () => {
   beforeEach(() => {
     rstest.clearAllMocks()
+    resetChatMocks()
     mockParams = { projectId: "test-project", sessionId: "test-session-1" }
     mockCurrentProject = {
       id: "test-project",
@@ -167,112 +159,112 @@ describe("ChatInterface Component", () => {
       addedAt: new Date().toISOString(),
       lastOpened: new Date().toISOString(),
     }
-    
-    // Mock global fetch as well
-    global.fetch = rstest.fn((url: any) => {
-      if (typeof url === 'string' && url.includes("/api/backend-url")) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve({ url: "/opencode" }),
-        } as Response)
+    global.fetch = rstest.fn((input: any, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input?.url ?? ""
+      if (typeof url === "string") {
+        if (url.includes("/api/backend-url")) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ url: "/opencode" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            })
+          )
+        }
+        if (url.startsWith("/opencode")) {
+          const parsedUrl = new URL(url, "http://localhost")
+          const baseResponse = { status: 200, headers: { "Content-Type": "application/json" } }
+          if (parsedUrl.pathname === "/opencode/project/current") {
+            return Promise.resolve(
+              new Response(
+                JSON.stringify({ data: { id: "test-project", path: "/test/path" } }),
+                baseResponse
+              )
+            )
+          }
+          if (parsedUrl.pathname === "/opencode/session") {
+            if ((init?.method ?? "GET").toUpperCase() === "POST") {
+              return Promise.resolve(
+                new Response(
+                  JSON.stringify({ data: { id: "test-session-2" } }),
+                  { ...baseResponse, status: 201 }
+                )
+              )
+            }
+            return Promise.resolve(new Response(JSON.stringify({ data: [] }), baseResponse))
+          }
+          if (parsedUrl.pathname.endsWith("/message")) {
+            return Promise.resolve(new Response(JSON.stringify({ data: [] }), baseResponse))
+          }
+          if (parsedUrl.pathname === "/opencode/config") {
+            return Promise.resolve(new Response(JSON.stringify({ data: {} }), baseResponse))
+          }
+          return Promise.resolve(new Response(JSON.stringify({ data: {} }), baseResponse))
+        }
       }
-      return originalFetch(url)
+      return originalFetch(input, init as any)
     }) as any
+    ;(opencodeSDKService as any).getClient = rstest.fn(async () => mockSdkClient)
+    ;(opencodeSDKService as any).stopAll = rstest.fn(async () => undefined)
   })
-
-  test("renders chat interface with all components", async () => {
+  afterAll(() => {
+    global.fetch = originalFetch
+    opencodeSDKService.getClient = originalGetClient
+    opencodeSDKService.stopAll = originalStopAll
+  })
+  test("renders chat interface with core regions", async () => {
     const { getByTestId } = render(<TestWrapper />)
-
     await waitFor(() => {
-      expect(getByTestId("chat-sidebar")).toBeDefined()
-      expect(getByTestId("chat-header")).toBeDefined()
-      expect(getByTestId("chat-main-area")).toBeDefined()
-      expect(getByTestId("chat-input")).toBeDefined()
+      expect(getByTestId("chat-sidebar")).toBeTruthy()
+      expect(getByTestId("chat-header")).toBeTruthy()
+      expect(getByTestId("chat-main-area")).toBeTruthy()
+      expect(getByTestId("chat-input")).toBeTruthy()
     })
   })
-
-  test.skip("shows no project message when projectId is missing", async () => {
-    // Set projectId to empty string
-    mockParams = { projectId: "", sessionId: "test-session-1", worktreeId: "default" }
+  test("shows fallback badge when project metadata is unavailable", async () => {
     mockCurrentProject = null
-
-    const { container } = render(<TestWrapper />)
-
-    await waitFor(() => {
-      const noProjectText = container.querySelector(".text-muted-foreground")
-      expect(noProjectText).toBeDefined()
-      expect(noProjectText?.textContent).toBe("No project selected")
-    })
+    mockProjectData = null
+    const { findAllByText } = render(<TestWrapper />)
+    const fallbackBadges = await findAllByText("Unknown")
+    expect(fallbackBadges.length).toBeGreaterThan(0)
   })
-
-  test("renders with new session", async () => {
+  test("renders with new session route", async () => {
     mockParams = { projectId: "test-project", sessionId: "new" }
-
     const { getByTestId } = render(<TestWrapper />)
-
     await waitFor(() => {
-      expect(getByTestId("chat-main-area")).toBeDefined()
+      expect(getByTestId("chat-main-area")).toBeTruthy()
     })
   })
-
-  test.skip("handles different instance statuses", async () => {
-    // Skip - can't re-mock modules during test execution with rstest
-    const { getByTestId } = render(<TestWrapper />)
-
-    await waitFor(() => {
-      expect(getByTestId("chat-messages")).toBeDefined()
-    })
+  test("displays empty state when no sessions exist", async () => {
+    mockSessions = []
+    mockCurrentSession = null
+    const { findByTestId } = render(<TestWrapper />)
+    const emptyState = await findByTestId("empty-sessions")
+    expect(emptyState.textContent).toBe("No sessions yet")
   })
-
-  test.skip("handles no session state", async () => {
-    // Skip - can't re-mock modules during test execution with rstest
-    const { getByText } = render(<TestWrapper />)
-
-    // Should show no session message when currentSession is null
-    await waitFor(() => {
-      expect(getByText("No session selected")).toBeDefined()
-    })
-  })
-
-  test.skip("handles streaming state", async () => {
-    // Ensure we have a current session for streaming to work
-    rstest.mock("../../src/hooks/useSessionsSDK", () => ({
-      useSessionsSDK: () => ({
-        sessions: mockSessions,
-        currentSession: mockSessions[0],
-        isLoading: false,
-        handleCreateSession: rstest.fn(() => Promise.resolve()),
-        handleRenameSession: rstest.fn(() => Promise.resolve()),
-        handleDeleteSession: rstest.fn(() => Promise.resolve()),
-      }),
-    }))
-
-    rstest.mock("../../src/hooks/useMessagesSDK", () => ({
-      useMessagesSDK: () => ({
-        messages: [
+  test("renders messages returned by the SDK client", async () => {
+    mockSessions = [createMockSession()]
+    mockCurrentSession = mockSessions[0]
+    mockMessages = [
+      {
+        info: {
+          id: "msg-1",
+          sessionID: mockCurrentSession.id,
+          role: "assistant",
+          time: { created: Math.floor(Date.now() / 1000) },
+        },
+        parts: [
           {
-            id: "msg-1",
-            sessionID: "test-session-1",
+            id: "part-1",
+            sessionID: mockCurrentSession.id,
+            messageID: "msg-1",
             type: "text",
-            content: "Hello",
-            time: { created: Date.now() / 1000 },
+            text: "Hello",
           },
         ],
-        inputValue: "",
-        setInputValue: rstest.fn(() => {}),
-        isStreaming: true,
-        setMessages: rstest.fn(() => {}),
-        setIsStreaming: rstest.fn(() => {}),
-        handleSendMessage: rstest.fn(() => Promise.resolve()),
-        handleStopStreaming: rstest.fn(() => {}),
-        loadMessages: rstest.fn(() => Promise.resolve()),
-      }),
-    }))
-
-    const { getByTestId } = render(<TestWrapper />)
-
-    await waitFor(() => {
-      expect(getByTestId("chat-messages")).toBeDefined()
-    })
+      },
+    ]
+    const { findByText } = render(<TestWrapper />)
+    const message = await findByText("Hello")
+    expect(message).toBeTruthy()
   })
 })

@@ -5,6 +5,89 @@ import path from "node:path"
 // Opens the app, clicks the first project's Open button, ensures dashboard,
 // and returns the resolved projectId from the URL.
 const DEFAULT_WORKTREE = "default"
+export const DEMO_PROJECT_ROOT = path.join(process.cwd(), "test-results", "e2e-demo-project")
+
+export function ensureDemoProjectOnDisk(root: string) {
+  const srcDir = path.join(root, "src")
+  const componentsDir = path.join(srcDir, "components")
+
+  fs.mkdirSync(componentsDir, { recursive: true })
+
+  const packageJsonPath = path.join(root, "package.json")
+  const readmePath = path.join(root, "README.md")
+  const indexPath = path.join(srcDir, "index.ts")
+  const componentPath = path.join(componentsDir, "App.tsx")
+
+  const packageJson = {
+    name: "e2e-demo-project",
+    version: "1.0.0",
+    main: "src/index.ts",
+    scripts: {
+      build: "echo 'build'",
+      test: "echo 'test'",
+    },
+  }
+
+  fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`, "utf8")
+  fs.writeFileSync(readmePath, "# E2E Demo Project\n\nThis project is generated automatically for end-to-end testing.\n", "utf8")
+  fs.writeFileSync(
+    indexPath,
+    "import { App } from './components/App'\n\nexport const run = () => App();\n",
+    "utf8"
+  )
+  fs.writeFileSync(
+    componentPath,
+    "export const App = () => 'Hello from E2E demo project';\n",
+    "utf8"
+  )
+}
+
+export async function ensureDefaultProject(page: Page): Promise<{ id: string; path: string }> {
+  ensureDemoProjectOnDisk(DEMO_PROJECT_ROOT)
+
+  const listResponse = await page.request.get("/api/projects")
+  if (!listResponse.ok()) {
+    throw new Error(`Failed to list projects: ${listResponse.status()} ${listResponse.statusText()}`)
+  }
+
+  const projects = (await listResponse.json()) as Array<{ id: string; path: string }>
+  const normalizedRoot = path.resolve(DEMO_PROJECT_ROOT)
+  const existing = Array.isArray(projects)
+    ? projects.find((project) => project?.path && path.resolve(project.path) === normalizedRoot)
+    : undefined
+
+  if (existing) {
+    return existing
+  }
+
+  const createResponse = await page.request.post("/api/projects", {
+    data: {
+      path: DEMO_PROJECT_ROOT,
+      name: "E2E Demo Project",
+    },
+  })
+
+  if (!createResponse.ok()) {
+    const retryResponse = await page.request.get("/api/projects")
+    if (retryResponse.ok()) {
+      const retryProjects = (await retryResponse.json()) as Array<{ id: string; path: string }>
+      const fallback = Array.isArray(retryProjects)
+        ? retryProjects.find((project) => project?.path && path.resolve(project.path) === normalizedRoot)
+        : undefined
+      if (fallback) {
+        return fallback
+      }
+    }
+    const errorText = await createResponse.text()
+    throw new Error(`Failed to create demo project: ${createResponse.status()} ${errorText}`)
+  }
+
+  const created = (await createResponse.json()) as { id: string; path?: string }
+  return {
+    id: created.id,
+    path: created.path ?? DEMO_PROJECT_ROOT,
+  }
+}
 
 export async function openFirstProjectAndGetId(page: Page): Promise<string> {
   await page.goto("/")

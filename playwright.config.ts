@@ -83,7 +83,7 @@ export default defineConfig({
 
   // Use production build for E2E tests to avoid any HMR/dev server behavior
   webServer: {
-    command: "pnpm run start",
+    command: "pnpm run dev",
     url: base,
     reuseExistingServer: true,
     timeout: 120000,

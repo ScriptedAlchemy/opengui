@@ -41,6 +41,19 @@ export function FileExplorer({ nodes, selectedPath, onSelect, onToggle, onContex
           style={{ paddingLeft: `${indentPx}px` }}
           onClick={() => onSelect(node)}
           onContextMenu={(e) => onContextMenu(node, e)}
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              onSelect(node)
+            } else if (event.key === "ArrowRight" && isDir && !isOpen) {
+              event.preventDefault()
+              onToggle(node)
+            } else if (event.key === "ArrowLeft" && isDir && isOpen) {
+              event.preventDefault()
+              onToggle(node)
+            }
+          }}
         >
           {isDir && (
             <button

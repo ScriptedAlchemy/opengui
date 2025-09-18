@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
-import { openFirstProjectAndGetId, goToChat } from "./helpers"
+import { ensureDefaultProject, openFirstProjectAndGetId, goToChat } from "./helpers"
 
 type ReasoningPart = {
   type: string
@@ -30,6 +30,7 @@ const watchReasoningResponses = (page: Page) => {
 
 test.describe("Thinking Component", () => {
   test("exposes reasoning tokens when available", async ({ page }) => {
+    await ensureDefaultProject(page)
     const projectId = await openFirstProjectAndGetId(page)
     await goToChat(page, projectId)
 
@@ -57,6 +58,7 @@ test.describe("Thinking Component", () => {
   })
 
   test("supports basic chat interactions", async ({ page }) => {
+    await ensureDefaultProject(page)
     const projectId = await openFirstProjectAndGetId(page)
     await goToChat(page, projectId)
 
@@ -74,6 +76,6 @@ test.describe("Thinking Component", () => {
         .first()
     ).toBeVisible({ timeout: 10_000 })
 
-    await expect(page.locator('[data-testid="message-assistant"]')).toBeVisible({ timeout: 45_000 })
+    await expect(page.locator('[data-testid="message-assistant"]').first()).toBeVisible({ timeout: 45_000 })
   })
 })

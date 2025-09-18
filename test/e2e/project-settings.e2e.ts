@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { ensureDefaultProject, openFirstProjectAndGetId } from "./helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -21,19 +22,8 @@ test.describe("Project Settings", () => {
       }
     })
 
-    await page.goto("/")
-    await page.waitForSelector("#root", { state: "visible" })
-
-    const firstProject = page.locator('[data-testid="project-item"]').first()
-    if (await firstProject.isVisible({ timeout: 5000 })) {
-      await firstProject.locator('button:has-text("Open")').click()
-      await page.waitForTimeout(2000)
-      const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
-      if (match) {
-        projectId = match[1]
-        await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
-      }
-    }
+    await ensureDefaultProject(page)
+    projectId = await openFirstProjectAndGetId(page)
   })
 
   const gotoSettings = async (page: any) => {
@@ -42,19 +32,16 @@ test.describe("Project Settings", () => {
   }
 
   test("should navigate to project settings page", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSettings(page)
     await expect(page.locator('[data-testid="settings-header"]').first()).toBeVisible({ timeout: 5000 })
   })
 
   test("should display settings navigation tabs", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSettings(page)
     await expect(page.locator('[data-testid="settings-navigation"]').first()).toBeVisible({ timeout: 5000 })
   })
 
   test("should display general settings section", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSettings(page)
     await expect(page.locator('[data-testid="general-settings-section"]').first()).toBeVisible({ timeout: 5000 })
   })

@@ -8,6 +8,10 @@
 
 import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk/client"
 
+import { createLogger } from "../util/logger"
+
+const logger = createLogger("OpencodeSDKService")
+
 export interface ProjectInstance {
   id: string
   path: string
@@ -62,10 +66,12 @@ export class OpencodeSDKService {
       if (!data.url || typeof data.url !== 'string') {
         throw new Error('Invalid backend URL received from server')
       }
-      console.log(`Fetched OpenCode backend URL (proxied): ${data.url}`)
+      logger.info("Fetched OpenCode backend URL", {
+        sensitive: { baseUrl: data.url },
+      })
       return data.url
     } catch (error) {
-      console.error('Failed to fetch backend URL:', error)
+      logger.error("Failed to fetch backend URL", { error })
       throw new Error('Unable to connect to OpenCode backend. Please ensure the server is running.')
     }
   }
@@ -106,10 +112,17 @@ export class OpencodeSDKService {
       }
 
       this.instances.set(projectId, instance)
-      console.log(`Created OpenCode client for project ${projectId} (via proxy ${baseUrl})`)
+      logger.info("Created OpenCode client for project", {
+        context: { projectPath },
+        sensitive: { projectId, baseUrl },
+      })
       return instance
     } catch (error) {
-      console.error(`Failed to create OpenCode client for project ${projectId}:`, error)
+      logger.error("Failed to create OpenCode client for project", {
+        context: { projectPath },
+        sensitive: { projectId },
+        error,
+      })
       throw error
     }
   }
@@ -138,10 +151,17 @@ export class OpencodeSDKService {
       }
 
       this.instances.set(projectId, instance)
-      console.log(`Created OpenCode client instance for project ${projectId} (via proxy ${baseUrl})`)
+      logger.info("Created OpenCode client instance for project", {
+        context: { projectPath },
+        sensitive: { projectId, baseUrl },
+      })
       return instance
     } catch (error) {
-      console.error(`Failed to create OpenCode client for project ${projectId}:`, error)
+      logger.error("Failed to create OpenCode client for project", {
+        context: { projectPath },
+        sensitive: { projectId },
+        error,
+      })
       throw error
     }
   }

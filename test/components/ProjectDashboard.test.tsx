@@ -401,7 +401,9 @@ describe("ProjectDashboard", () => {
     })
   })
 
-  test.skip("shows loading state initially", async () => {
+  test("shows loading indicator while project data loads", async () => {
+    mockLoadSessions.mockImplementationOnce(() => new Promise((resolve) => setTimeout(resolve, 50)))
+
     let result: any
     await act(async () => {
       result = render(
@@ -411,8 +413,9 @@ describe("ProjectDashboard", () => {
       )
     })
 
-    // Should show loading initially - component doesn't show this text
-    expect(result.getByText("Loading project dashboard...")).toBeDefined()
+    await waitFor(() => {
+      expect(result.getByText("Loading project dashboard...")).toBeTruthy()
+    })
   })
 
   test("displays project stats cards", async () => {

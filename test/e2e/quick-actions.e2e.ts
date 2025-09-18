@@ -3,6 +3,7 @@
  */
 
 import { test, expect } from "@playwright/test"
+import { ensureDefaultProject, openFirstProjectAndGetId } from "./helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -10,24 +11,11 @@ test.describe("Quick Actions Navigation", () => {
   let projectId: string
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/")
-    await page.waitForSelector("#root", { state: "visible" })
-
-    const firstProject = page.locator('[data-testid="project-item"]').first()
-    if (await firstProject.isVisible({ timeout: 5000 })) {
-      await firstProject.locator('button:has-text("Open")').click()
-      await page.waitForTimeout(2000)
-      const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
-      if (match) {
-        projectId = match[1]
-        await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
-      }
-    }
+    await ensureDefaultProject(page)
+    projectId = await openFirstProjectAndGetId(page)
   })
 
   test("should navigate correctly when clicking quick action buttons", async ({ page }) => {
-    if (!projectId) test.skip()
-
     await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
     await expect(page.locator('[data-testid="project-dashboard"]').first()).toBeVisible({ timeout: 20000 })
     await expect(page.locator('[data-testid="quick-actions-section"]').first()).toBeVisible({ timeout: 10000 })
@@ -50,31 +38,17 @@ test.describe("Project Dashboard", () => {
   let projectId: string
 
   test.beforeEach(async ({ page }) => {
-    await page.goto("/")
-    await page.waitForSelector("#root", { state: "visible" })
-
-    const firstProject = page.locator('[data-testid="project-item"]').first()
-    if (await firstProject.isVisible({ timeout: 5000 })) {
-      await firstProject.locator('button:has-text("Open")').click()
-      await page.waitForTimeout(2000)
-      const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
-      if (match) {
-        projectId = match[1]
-      }
-    }
+    await ensureDefaultProject(page)
+    projectId = await openFirstProjectAndGetId(page)
   })
 
   test("should navigate to project dashboard", async ({ page }) => {
-    if (!projectId) test.skip()
-
     await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
     await expect(page.locator('[data-testid="project-dashboard"]').first()).toBeVisible({ timeout: 10000 })
     await expect(page.locator('[data-testid="total-sessions-stat"]').first()).toBeVisible()
   })
 
   test("should handle session navigation", async ({ page }) => {
-    if (!projectId) test.skip()
-
     await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
     await expect(page.locator('[data-testid="project-dashboard"]').first()).toBeVisible({ timeout: 10000 })
 

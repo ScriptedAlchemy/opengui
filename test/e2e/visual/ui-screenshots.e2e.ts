@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { openFirstProjectAndGetId } from "../helpers"
+import { ensureDefaultProject, openFirstProjectAndGetId } from "../helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -37,9 +37,10 @@ test.describe("Visual UI Screenshots", () => {
       window.Date = FrozenDate
     }, fixedNow)
 
+    await ensureDefaultProject(page)
     projectId = await openFirstProjectAndGetId(page)
     await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
-    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.setViewportSize({ width: 1440, height: 2000 })
   })
 
   test("capture core app surfaces", async ({ page }) => {

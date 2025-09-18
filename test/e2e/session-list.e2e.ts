@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { ensureDefaultProject, openFirstProjectAndGetId } from "./helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -22,19 +23,8 @@ test.describe("Session List", () => {
       }
     })
 
-    await page.goto("/")
-    await page.waitForSelector("#root", { state: "visible", timeout: 10000 })
-
-    const firstProject = page.locator('[data-testid="project-item"]').first()
-    if (await firstProject.isVisible({ timeout: 5000 })) {
-      await firstProject.locator('button:has-text("Open")').click()
-      await page.waitForTimeout(2000)
-      const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
-      if (match) {
-        projectId = match[1]
-        await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
-      }
-    }
+    await ensureDefaultProject(page)
+    projectId = await openFirstProjectAndGetId(page)
   })
 
   const gotoSessions = async (page: any) => {
@@ -43,19 +33,16 @@ test.describe("Session List", () => {
   }
 
   test("should display session list", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSessions(page)
     expect(await page.locator('[data-testid="sessions-list"]').isVisible({ timeout: 5000 })).toBe(true)
   })
 
   test("should have new session creation button", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSessions(page)
     expect(await page.locator('[data-testid="new-session-button"]').isVisible({ timeout: 5000 })).toBe(true)
   })
 
   test("should handle new session creation", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSessions(page)
     const newSessionButton = page.locator('[data-testid="new-session-button"]')
     expect(await newSessionButton.isVisible({ timeout: 5000 })).toBe(true)
@@ -65,19 +52,16 @@ test.describe("Session List", () => {
   })
 
   test("should display search functionality", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSessions(page)
     expect(await page.locator('[data-testid="search-input"]').isVisible({ timeout: 5000 })).toBe(true)
   })
 
   test("should show loading state", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSessions(page)
     await expect(page.locator('[data-testid="sessions-list"]')).toBeVisible()
   })
 
   test("should show error state for API failures", async ({ page }) => {
-    if (!projectId) test.skip()
     await gotoSessions(page)
     expect(apiErrors.filter((error) => error.status >= 500).length).toBe(0)
   })

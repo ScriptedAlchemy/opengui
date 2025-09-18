@@ -19,6 +19,7 @@ import {
   AlertCircle,
   Home,
   Save,
+  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useProjectSDK } from "@/contexts/OpencodeSDKContext"
@@ -32,6 +33,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { FileExplorer, type FileTreeNode as ExplorerNode } from "@/components/code/FileExplorer"
 import type { OpencodeClient } from "@opencode-ai/sdk/client"
+import { Checkbox } from "@/components/ui/checkbox"
+import { useSessionsStore } from "../stores/sessions"
 
 interface FileNode {
   name: string
@@ -60,6 +63,12 @@ type FileApiWithExtensions = FileApi & {
   write?: (options: { body: { path: string; content: string }; query: { directory: string } }) => Promise<unknown>
   rename?: (options: { body: { oldPath: string; newPath: string }; query: { directory: string } }) => Promise<unknown>
   delete?: (options: { query: { path: string; directory: string } }) => Promise<unknown>
+}
+
+type FileListQuery = {
+  path: string
+  directory?: string
+  showHidden?: boolean
 }
 
 const mapToFileNode = (entry: unknown): FileNode | null => {
@@ -316,11 +325,14 @@ export default function FileBrowser() {
   const [error, setError] = useState<string | null>(null)
   const [selectedPath, setSelectedPath] = useState<string>()
   const [searchQuery, setSearchQuery] = useState("")
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list")
+  const [showHidden, setShowHidden] = useState(false)
 
   // Editor state
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([])
   const [activeTab, setActiveTab] = useState<string>()
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isAskAiLoading, setIsAskAiLoading] = useState(false)
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -334,6 +346,8 @@ export default function FileBrowser() {
   const [showRenameDialog, setShowRenameDialog] = useState(false)
   const [newFileName, setNewFileName] = useState("")
   const [targetNode, setTargetNode] = useState<FileTreeNode | null>(null)
+
+  const createSession = useSessionsStore((state) => state.createSession)
 
   // Resolve project path from store or API
   const [resolvedPath, setResolvedPath] = useState<string | undefined>(currentProject?.path)
@@ -370,6 +384,15 @@ export default function FileBrowser() {
   }, [projectId, activeWorktreeId, worktrees, currentProject?.path, navigate])
 
   const { client } = useProjectSDK(projectId, resolvedPath)
+  const activeFile = useMemo(() => openFiles.find((file) => file.path === activeTab) ?? null, [openFiles, activeTab])
+  const makeListQuery = useCallback(
+    (path: string): FileListQuery => ({
+      path,
+      directory: resolvedPath,
+      showHidden,
+    }),
+    [resolvedPath, showHidden]
+  )
 
   // Load initial file tree
   useEffect(() => {
@@ -380,10 +403,7 @@ export default function FileBrowser() {
         setIsLoading(true)
         setError(null)
         const response = await client.file.list({
-          query: {
-            path: "",
-            directory: resolvedPath,
-          },
+          query: makeListQuery(""),
         })
         const tree = buildFileTree(normalizeFileList(response.data))
         setFileTree(tree)
@@ -395,7 +415,7 @@ export default function FileBrowser() {
     }
 
     loadFiles()
-  }, [client, resolvedPath])
+  }, [client, resolvedPath, showHidden, makeListQuery])
 
   const updateNodeInTree = useCallback(
     (
@@ -429,10 +449,7 @@ export default function FileBrowser() {
         setFileTree((prev) => updateNodeInTree(prev, node.path, { isLoading: true }))
 
         const response = await client.file.list({
-          query: {
-            path: node.path,
-            directory: resolvedPath,
-          },
+          query: makeListQuery(node.path),
         })
         const children = buildFileTree(normalizeFileList(response.data))
 
@@ -447,8 +464,8 @@ export default function FileBrowser() {
         console.error("Failed to load directory:", error)
         setFileTree((prev) => updateNodeInTree(prev, node.path, { isLoading: false }))
       }
-    },
-    [client, resolvedPath, updateNodeInTree]
+  },
+    [client, resolvedPath, updateNodeInTree, makeListQuery]
   )
 
   // Handle file selection
@@ -614,10 +631,7 @@ export default function FileBrowser() {
           ? targetNode.path
           : targetNode.path.split("/").slice(0, -1).join("/")
       const response = await client.file.list({
-        query: {
-          path: refreshPath || "",
-          directory: resolvedPath,
-        },
+        query: makeListQuery(refreshPath || ""),
       })
       const newTree = buildFileTree(normalizeFileList(response.data))
 
@@ -636,7 +650,15 @@ export default function FileBrowser() {
       setNewFileName("")
       setTargetNode(null)
     }
-  }, [targetNode, newFileName, client, resolvedPath, performWrite, updateNodeInTree])
+  }, [
+    targetNode,
+    newFileName,
+    client,
+    resolvedPath,
+    performWrite,
+    updateNodeInTree,
+    makeListQuery,
+  ])
 
   const handleRename = useCallback(async () => {
     if (!targetNode || !newFileName.trim() || !client || !resolvedPath) return
@@ -650,10 +672,7 @@ export default function FileBrowser() {
       // Refresh the file tree
       const parentPath = targetNode.path.split("/").slice(0, -1).join("/")
       const response = await client.file.list({
-        query: {
-          path: parentPath || "",
-          directory: resolvedPath,
-        },
+        query: makeListQuery(parentPath || ""),
       })
       const newTree = buildFileTree(normalizeFileList(response.data))
 
@@ -682,7 +701,16 @@ export default function FileBrowser() {
       setNewFileName("")
       setTargetNode(null)
     }
-  }, [targetNode, newFileName, client, activeTab, resolvedPath, performRename, updateNodeInTree])
+  }, [
+    targetNode,
+    newFileName,
+    client,
+    activeTab,
+    resolvedPath,
+    performRename,
+    updateNodeInTree,
+    makeListQuery,
+  ])
 
   const handleDelete = useCallback(
     async (node: FileTreeNode) => {
@@ -701,10 +729,7 @@ export default function FileBrowser() {
         // Refresh the file tree
         const parentPath = node.path.split("/").slice(0, -1).join("/")
         const response = await client.file.list({
-          query: {
-            path: parentPath || "",
-            directory: resolvedPath,
-          },
+          query: makeListQuery(parentPath || ""),
         })
         const newTree = buildFileTree(normalizeFileList(response.data))
 
@@ -719,7 +744,7 @@ export default function FileBrowser() {
         setError(`Failed to delete file: ${error instanceof Error ? error.message : error}`)
       }
     },
-    [activeTab, openFiles, client, resolvedPath, performDelete, updateNodeInTree]
+    [activeTab, openFiles, client, resolvedPath, performDelete, updateNodeInTree, makeListQuery]
   )
 
   // Save all dirty files
@@ -734,6 +759,42 @@ export default function FileBrowser() {
       setError(`Failed to save files: ${err instanceof Error ? err.message : err}`)
     }
   }, [openFiles, client, resolvedPath, performWrite])
+
+  const handleAskAI = useCallback(async () => {
+    if (!projectId || !resolvedPath || !activeFile || !client?.session?.prompt) return
+    try {
+      setIsAskAiLoading(true)
+      const session = await createSession(
+        projectId,
+        resolvedPath,
+        `Insights for ${activeFile.name}`
+      )
+
+      const sessionId = session?.id
+      if (!sessionId) {
+        return
+      }
+
+      await client.session.prompt({
+        path: { id: sessionId },
+        query: { directory: resolvedPath },
+        body: {
+          parts: [
+            {
+              type: "text",
+              text: `Provide an analysis and summary for the file ${activeFile.path}. Highlight key responsibilities, important exports, and any potential issues to review.`,
+            },
+          ],
+        },
+      })
+
+      navigate(`/projects/${projectId}/${activeWorktreeId}/sessions/${sessionId}/chat`)
+    } catch (error) {
+      console.error("Failed to ask AI about file:", error)
+    } finally {
+      setIsAskAiLoading(false)
+    }
+  }, [projectId, resolvedPath, activeFile, client, createSession, navigate, activeWorktreeId])
 
   // Handle code edits in Monaco
   const handleCodeChange = useCallback((path: string, newContent: string) => {
@@ -821,8 +882,8 @@ export default function FileBrowser() {
     >
       {/* Left Panel - File Tree */}
       <div className="flex w-80 flex-col border-r border-border bg-card">
-        {/* Search */}
-        <div data-testid="breadcrumb-navigation" className="border-b border-border p-4">
+        {/* Controls */}
+        <div data-testid="file-browser-controls" className="border-b border-border p-4 space-y-3">
           <div className="relative">
             <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform" />
             <Input
@@ -832,6 +893,34 @@ export default function FileBrowser() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="border-input bg-background pl-10 placeholder:text-muted-foreground"
             />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div role="group" aria-label="View mode" className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                aria-pressed={viewMode === "list"}
+                onClick={() => setViewMode("list")}
+              >
+                List View
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                aria-pressed={viewMode === "grid"}
+                onClick={() => setViewMode("grid")}
+              >
+                Grid View
+              </Button>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox
+                checked={showHidden}
+                onCheckedChange={(value) => setShowHidden(value === true)}
+                aria-label="Show hidden files"
+              />
+              <span>Show hidden files</span>
+            </label>
           </div>
         </div>
 
@@ -849,6 +938,7 @@ export default function FileBrowser() {
                 onSelect={handleFileSelect}
                 onToggle={handleToggle}
                 onContextMenu={handleContextMenu}
+                className={viewMode === "grid" ? "grid grid-cols-2 gap-2" : "space-y-1"}
               />
             </div>
           )}
@@ -876,6 +966,19 @@ export default function FileBrowser() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {activeFile && (
+              <Button
+                data-testid="ask-ai-button"
+                variant="ghost"
+                size="sm"
+                onClick={handleAskAI}
+                disabled={isAskAiLoading}
+                className="text-purple-400 hover:text-purple-300"
+              >
+                <Sparkles className="mr-1 h-4 w-4" />
+                {isAskAiLoading ? "Asking..." : "Ask AI"}
+              </Button>
+            )}
             {openFiles.some((f) => f.isDirty) && (
               <Button
                 data-testid="save-button"
@@ -908,20 +1011,28 @@ export default function FileBrowser() {
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
               <TabsList className="mx-4 mt-2">
                 {openFiles.map((file) => (
-                  <TabsTrigger key={file.path} value={file.path} className="flex items-center gap-2">
-                    {React.createElement(getFileIcon(file.name, "file"), { className: "w-4 h-4" })}
-                    <span>{file.name}</span>
-                    {file.isDirty && <div className="h-1.5 w-1.5 rounded-full bg-yellow-500" />}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleTabClose(file.path)
-                      }}
-                      aria-label="Close tab"
-                      className="ml-1 rounded p-0.5 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
+                  <TabsTrigger
+                    key={file.path}
+                    value={file.path}
+                    asChild
+                    className="flex items-center gap-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      {React.createElement(getFileIcon(file.name, "file"), { className: "w-4 h-4" })}
+                      <span>{file.name}</span>
+                      {file.isDirty && <div className="h-1.5 w-1.5 rounded-full bg-yellow-500" />}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleTabClose(file.path)
+                        }}
+                        aria-label="Close tab"
+                        className="ml-1 rounded p-0.5 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
                   </TabsTrigger>
                 ))}
               </TabsList>

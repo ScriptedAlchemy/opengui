@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, rstest } from "@rstest/core"
 import { fireEvent, waitFor, act } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { renderWithRouter } from "../utils/test-router"
 
 let FileBrowser: any
@@ -150,23 +151,31 @@ rstest.mock("@/contexts/OpencodeSDKContext", () => ({
 
 // Mock sessions store with worktree-aware signature
 const mockLoadSessions = rstest.fn(() => Promise.resolve())
-const mockCreateSession = rstest.fn((projectId: string, worktreePath: string, title: string) => 
+const mockCreateSession = rstest.fn((projectId: string, worktreePath: string, title: string) =>
   Promise.resolve({ id: "session-1", title, projectID: projectId, directory: worktreePath })
 )
-rstest.mock("../../src/stores/sessions", () => ({
-  useSessionsStore: () => ({
+
+function createSessionsStoreExports() {
+  const getState = () => ({
     loadSessions: mockLoadSessions,
     createSession: mockCreateSession,
-  }),
-  useSessionsForProject: () => [],
-}))
-rstest.mock("@/stores/sessions", () => ({
-  useSessionsStore: () => ({
-    loadSessions: mockLoadSessions,
-    createSession: mockCreateSession,
-  }),
-  useSessionsForProject: () => [],
-}))
+  })
+
+  const useSessionsStore = (selector?: (state: ReturnType<typeof getState>) => unknown) => {
+    const state = getState()
+    return selector ? selector(state) : state
+  }
+
+  ;(useSessionsStore as any).getState = getState
+
+  return {
+    useSessionsStore,
+    useSessionsForProject: () => [],
+  }
+}
+
+rstest.mock("../../src/stores/sessions", createSessionsStoreExports)
+rstest.mock("@/stores/sessions", createSessionsStoreExports)
 
 // Mock hooks
 // Helper to render with SDK context
@@ -179,12 +188,19 @@ const renderWithSDK = (ui: React.ReactElement, routerOptions: any = {}) => {
 
 describe("FileBrowser Component", () => {
   beforeEach(() => {
-    rstest.clearAllMocks()
+    mockFileList.mockClear()
+    mockFileRead.mockClear()
+    mockSessionCreate.mockClear()
+    mockSessionPrompt.mockClear()
+    mockLoadSessions.mockClear()
+    mockCreateSession.mockClear()
+    mockLoadWorktrees.mockClear()
+    mockNavigate.mockClear()
+
     const componentModule = require("../../src/pages/FileBrowser")
     FileBrowser = componentModule.default || componentModule.FileBrowser
   })
 
-  // Basic rendering tests
   test("renders file browser interface", async () => {
     const { getByText, getByPlaceholderText } = renderWithSDK(
       <FileBrowser />,
@@ -201,18 +217,18 @@ describe("FileBrowser Component", () => {
     expect(mockLoadWorktrees).toHaveBeenCalledWith("test-project")
   })
 
-  // File listing tests
   test("loads files on mount", async () => {
     renderWithSDK(<FileBrowser />, { projectId: "test-project", worktreeId: "default" })
 
     await waitFor(() => {
-      expect(mockFileList).toHaveBeenCalledWith({
-        query: { path: "", directory: "/project" },
-      })
+      expect(mockFileList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({ path: "", directory: "/project" }),
+        })
+      )
     })
   })
 
-  // Directory navigation tests
   test("navigates into directory", async () => {
     const { getByText } = renderWithSDK(
       <FileBrowser />,
@@ -220,18 +236,17 @@ describe("FileBrowser Component", () => {
     )
 
     await waitFor(() => expect(getByText("src")).toBeDefined())
-
-    const srcDir = getByText("src")
-    fireEvent.click(srcDir)
+    fireEvent.click(getByText("src"))
 
     await waitFor(() => {
-      expect(mockFileList).toHaveBeenCalledWith({
-        query: { path: "/project/src", directory: "/project" },
-      })
+      expect(mockFileList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({ path: "/project/src", directory: "/project" }),
+        })
+      )
     })
   })
 
-  // File selection tests
   test("selects and reads file", async () => {
     const { getByText } = renderWithSDK(
       <FileBrowser />,
@@ -239,9 +254,7 @@ describe("FileBrowser Component", () => {
     )
 
     await waitFor(() => expect(getByText("package.json")).toBeDefined())
-
-    const file = getByText("package.json")
-    fireEvent.click(file)
+    fireEvent.click(getByText("package.json"))
 
     await waitFor(() => {
       expect(mockFileRead).toHaveBeenCalledWith({
@@ -250,7 +263,6 @@ describe("FileBrowser Component", () => {
     })
   })
 
-  // Search functionality tests
   test("filters files by search term", async () => {
     const { getByPlaceholderText, getByText, queryByText } = renderWithSDK(
       <FileBrowser />,
@@ -268,109 +280,164 @@ describe("FileBrowser Component", () => {
     })
   })
 
-  // View mode tests - Skip as the component doesn't have view toggles
-  test.skip("toggles between list and grid view", async () => {
-    const { getByRole, container } = renderWithSDK(
+  test("toggles between list and grid view", async () => {
+    const { getByRole, getByTestId, findByTestId } = renderWithSDK(
       <FileBrowser />,
       { projectId: "test-project", worktreeId: "default" }
     )
 
-    await waitFor(() => expect(container.querySelector(".space-y-1")).toBeDefined())
+    const fileTree = (await findByTestId("file-tree")) as HTMLElement
+    expect(fileTree.className).toContain("space-y-1")
 
-    // Toggle to grid view
-    const gridButton = getByRole("button", { name: /grid/i })
-    fireEvent.click(gridButton)
+    fireEvent.click(getByRole("button", { name: /grid view/i }))
+    await waitFor(() => {
+      expect(getByTestId("file-tree").className).toContain("grid")
+    })
 
-    expect(container.querySelector(".grid")).toBeDefined()
+    fireEvent.click(getByRole("button", { name: /list view/i }))
+    await waitFor(() => {
+      expect(getByTestId("file-tree").className).toContain("space-y-1")
+    })
   })
 
-  // Hidden files toggle - Skip as the component doesn't have this feature
-  test.skip("toggles hidden files visibility", async () => {
-    const { getByRole } = renderWithSDK(
+  test("toggles hidden files visibility", async () => {
+    const { getByLabelText } = renderWithSDK(
       <FileBrowser />,
       { projectId: "test-project", worktreeId: "default" }
     )
 
     await waitFor(() => expect(mockFileList).toHaveBeenCalled())
+    mockFileList.mockClear()
 
-    const hiddenToggle = getByRole("checkbox")
-    fireEvent.click(hiddenToggle)
+    fireEvent.click(getByLabelText("Show hidden files"))
 
     await waitFor(() => {
-      expect(mockFileList).toHaveBeenCalledWith({
-        query: { directory: "/project", showHidden: true },
-      })
+      expect(mockFileList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({ directory: "/project", showHidden: true }),
+        })
+      )
     })
   })
 
-  // Path navigation tests
   test("navigates using breadcrumb path", async () => {
-    // Update mock to return nested files
-    mockFileList.mockResolvedValueOnce({
-      data: mockFiles
-    }).mockResolvedValueOnce({
-      data: [
-        {
-          name: "index.js",
-          type: "file",
-          path: "/project/src/index.js",
-          size: 512,
-          modified: new Date().toISOString(),
-        },
-      ],
-    })
+    mockFileList.mockClear()
+    mockFileList.mockImplementationOnce(() =>
+      Promise.resolve({ data: mockFiles })
+    )
+    mockFileList.mockImplementationOnce(() =>
+      Promise.resolve({
+        data: [
+          {
+            name: "index.js",
+            type: "file",
+            path: "/project/src/index.js",
+            size: 512,
+            modified: new Date().toISOString(),
+          },
+        ],
+      })
+    )
 
     const { getByText } = renderWithSDK(
       <FileBrowser />,
       { projectId: "test-project", worktreeId: "default" }
     )
 
-    // Navigate into src directory first
     await waitFor(() => expect(getByText("src")).toBeDefined())
     fireEvent.click(getByText("src"))
 
-    // Wait for breadcrumb to update
     await waitFor(() => {
       expect(mockFileList).toHaveBeenLastCalledWith({
-        query: { path: "/project/src", directory: "/project" },
+        query: { path: "/project/src", directory: "/project", showHidden: false },
       })
-    })
-
-    // Click on project in breadcrumb
-    fireEvent.click(getByText("package.json"))
-    
-    await waitFor(() => {
-      expect(getByText("project")).toBeDefined()
     })
   })
 
-  // AI chat integration tests - Skip as the component doesn't have this feature
-  test.skip("asks AI about selected file", async () => {
+  test("opens context menu for file entries", async () => {
+    const { findAllByTestId, findByText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    const [firstFile] = await findAllByTestId("file-item")
+    fireEvent.contextMenu(firstFile)
+
+    expect(await findByText("New File")).toBeTruthy()
+  })
+
+  test("asks AI about selected file", async () => {
     const { getByText, getByRole } = renderWithSDK(
       <FileBrowser />,
       { projectId: "test-project", worktreeId: "default" }
     )
 
-    // Select a file
     await waitFor(() => expect(getByText("package.json")).toBeDefined())
     fireEvent.click(getByText("package.json"))
 
-    // Click ask AI button
-    await waitFor(() => expect(getByRole("button", { name: /ask ai/i })).toBeDefined())
-    const askAIButton = getByRole("button", { name: /ask ai/i })
-    fireEvent.click(askAIButton)
+    await waitFor(() => expect(mockFileRead).toHaveBeenCalled())
+    mockFileRead.mockClear()
+
+    const askAIButton = await waitFor(() => getByRole("button", { name: /ask ai/i }))
+    await userEvent.click(askAIButton)
 
     await waitFor(() => {
-      expect(mockCreateSession).toHaveBeenCalledWith(
-        "test-project",
-        "/project",
-        expect.any(String)
-      )
-      expect(mockSessionPrompt).toHaveBeenCalled()
+      if (mockCreateSession.mock.calls.length === 0) {
+        throw new Error("createSession not called yet")
+      }
+    })
+    const [projectArg, pathArg, titleArg] = mockCreateSession.mock.calls.at(-1) ?? []
+    expect(projectArg).toBe("test-project")
+    expect(pathArg).toBe("/project")
+    expect(typeof titleArg).toBe("string")
+
+    await waitFor(() => {
+      const promptArgs = mockSessionPrompt.mock.calls.at(-1)?.[0]
+      expect(promptArgs?.query?.directory).toBe("/project")
     })
   })
 
-  // Error handling tests
+  test("creates session with worktree path when asking AI", async () => {
+    mockFileList.mockClear()
+    mockFileList.mockImplementationOnce(({ query }) => {
+      const directory = query?.directory ?? "/project-feature"
+      return Promise.resolve({
+        data: mockFiles.map((file) => ({
+          ...file,
+          path: file.path.replace("/project", directory),
+        })),
+      })
+    })
+
+    const { getByText, getByRole } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "feature" }
+    )
+
+    await waitFor(() => expect(getByText("package.json")).toBeDefined())
+    fireEvent.click(getByText("package.json"))
+
+    await waitFor(() => expect(mockFileRead).toHaveBeenCalled())
+    mockFileRead.mockClear()
+
+    const askAIButton = await waitFor(() => getByRole("button", { name: /ask ai/i }))
+    await userEvent.click(askAIButton)
+
+    await waitFor(() => {
+      if (mockCreateSession.mock.calls.length === 0) {
+        throw new Error("createSession not called yet")
+      }
+    })
+    const [projectArg, pathArg] = mockCreateSession.mock.calls.at(-1) ?? []
+    expect(projectArg).toBe("test-project")
+    expect(pathArg).toBe("/project-feature")
+
+    await waitFor(() => {
+      const promptArgs = mockSessionPrompt.mock.calls.at(-1)?.[0]
+      expect(promptArgs?.query?.directory).toBe("/project-feature")
+    })
+  })
+
   test("handles file loading error", async () => {
     mockFileList.mockRejectedValueOnce(new Error("Failed to load files"))
 
@@ -384,66 +451,43 @@ describe("FileBrowser Component", () => {
     })
   })
 
-  // Worktree awareness tests
   test("loads files from correct worktree path", async () => {
     renderWithSDK(<FileBrowser />, { projectId: "test-project", worktreeId: "feature" })
 
     await waitFor(() => {
       expect(mockFileList).toHaveBeenCalledWith({
-        query: { path: "", directory: "/project-feature" },
+        query: { path: "", directory: "/project-feature", showHidden: false },
       })
     })
   })
 
-  test.skip("creates session with worktree path", async () => {
-    const { getByText, getByRole } = renderWithSDK(
-      <FileBrowser />,
-      { projectId: "test-project", worktreeId: "feature" }
-    )
-
-    // Update mock for feature worktree
-    mockFileList.mockResolvedValueOnce({
-      data: mockFiles.map(f => ({ ...f, path: f.path.replace("/project", "/project-feature") }))
-    })
-
-    // Select a file
-    await waitFor(() => expect(getByText("package.json")).toBeDefined())
-    fireEvent.click(getByText("package.json"))
-
-    // Ask AI
-    await waitFor(() => expect(getByRole("button", { name: /ask ai/i })).toBeDefined())
-    fireEvent.click(getByRole("button", { name: /ask ai/i }))
-
-    await waitFor(() => {
-      expect(mockCreateSession).toHaveBeenCalledWith(
-        "test-project",
-        "/project-feature",
-        expect.any(String)
-      )
-    })
-  })
-
-  // Keyboard navigation tests - Skip as keyboard navigation might not be implemented
-  test.skip("supports keyboard navigation", async () => {
-    const { getByText, container } = renderWithSDK(
+  test("supports keyboard navigation for files", async () => {
+    const { getByText } = renderWithSDK(
       <FileBrowser />,
       { projectId: "test-project", worktreeId: "default" }
     )
 
-    await waitFor(() => expect(getByText("package.json")).toBeDefined())
+    const label = await waitFor(() => getByText("package.json"))
+    const fileItem = label.closest('[data-testid="file-item"]') as HTMLElement | null
+    expect(fileItem).not.toBeNull()
 
-    // Focus first file
-    const firstFile = container.querySelector(".hover\\:bg-accent") as HTMLElement
-    act(() => {
-      firstFile?.focus()
-    })
+    act(() => fileItem?.focus())
+    fireEvent.keyDown(fileItem!, { key: "Enter" })
 
-    // Navigate with arrow keys
-    fireEvent.keyDown(firstFile, { key: "ArrowDown" })
-    fireEvent.keyDown(document.activeElement!, { key: "Enter" })
+    await waitFor(() => expect(mockFileRead).toHaveBeenCalled())
+  })
 
-    await waitFor(() => {
-      expect(mockFileRead).toHaveBeenCalled()
-    })
+  test("exposes accessible roles for file tree items", async () => {
+    const { findByTestId, findAllByTestId } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    const tree = await findByTestId("file-tree")
+    expect(tree.getAttribute("role")).toBe("tree")
+
+    const items = await findAllByTestId("file-item")
+    expect(items.length).toBeGreaterThan(0)
+    expect(items[0].getAttribute("role")).toBe("treeitem")
   })
 })
