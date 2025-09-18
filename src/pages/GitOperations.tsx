@@ -1151,17 +1151,6 @@ export default function GitOperations() {
                       </div>
                     )}
 
-                    {/* No Changes */}
-                    {status &&
-                      status.staged.length === 0 &&
-                      status.modified.length === 0 &&
-                      status.untracked.length === 0 && (
-                        <div className="rounded-lg border border-border bg-card p-8 text-center">
-                          <CheckCircle className="mx-auto mb-4 h-12 w-12 text-green-500" />
-                          <h3 className="mb-2 text-lg font-semibold">Working tree clean</h3>
-                          <p className="text-muted-foreground">No changes to commit</p>
-                        </div>
-                      )}
                   </div>
 
                   {/* Sidebar */}
