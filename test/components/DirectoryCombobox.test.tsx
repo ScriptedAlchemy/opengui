@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { describe, it, expect } from '@rstest/core'
 import { DirectoryCombobox } from '../../src/components/ui/directory-combobox'
 import type { DirectoryEntry } from '../../src/components/ui/directory-combobox'
@@ -98,7 +98,7 @@ describe('DirectoryCombobox', () => {
       fireEvent.click(button)
 
       // Find the search input
-      const searchInput = screen.getByPlaceholderText('Search directories...')
+      const [searchInput] = screen.getAllByPlaceholderText('Search directories...')
       
       // Type in the search input
       fireEvent.change(searchInput, { target: { value: 'doc' } })
@@ -125,7 +125,7 @@ describe('DirectoryCombobox', () => {
       const button = screen.getByRole('combobox')
       fireEvent.click(button)
 
-      const searchInput = screen.getByPlaceholderText('Search directories...')
+      const [searchInput] = screen.getAllByPlaceholderText('Search directories...')
       fireEvent.change(searchInput, { target: { value: 'xyz123' } })
 
       expect(screen.getByText('No directories found')).toBeInTheDocument()
@@ -143,7 +143,7 @@ describe('DirectoryCombobox', () => {
       const button = screen.getByRole('combobox')
       fireEvent.click(button)
 
-      const searchInput = screen.getByPlaceholderText('Search directories...')
+      const [searchInput] = screen.getAllByPlaceholderText('Search directories...')
       
       // Search with uppercase
       fireEvent.change(searchInput, { target: { value: 'DOC' } })
@@ -180,7 +180,9 @@ describe('DirectoryCombobox', () => {
       fireEvent.click(button)
 
       // Find the Documents item
-      const documentsItem = screen.getByText('Documents').closest('[role="option"]')
+      const listbox = screen.getByRole('listbox')
+      const documentsOption = within(listbox).getByText('Documents')
+      const documentsItem = documentsOption.closest('[role="option"]')
       expect(documentsItem).toBeInTheDocument()
       
       // Check mark should be visible for selected item (opacity-100)

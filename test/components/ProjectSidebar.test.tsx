@@ -29,6 +29,12 @@ const create = rstest.fn(async () => sessions[0])
 const select = rstest.fn(() => {})
 const del = rstest.fn(async () => {})
 const clear = rstest.fn(() => {})
+const loadWorktrees = rstest.fn(async () => {})
+const removeWorktree = rstest.fn(async () => {})
+const mockWorktrees = [
+  { id: "default", title: "Default", path: "/tmp/p1", relativePath: "." },
+  { id: "feature", title: "Feature", path: "/tmp/p1/worktrees/feature", relativePath: "worktrees/feature" },
+]
 
 rstest.mock("../../src/stores/sessions", () => ({
   useSessionsStore: () => ({
@@ -62,6 +68,50 @@ rstest.mock("@/stores/sessions", () => ({
   useSessionsCreateLoading: () => false,
   useSessionsListLoading: () => false,
 }))
+
+rstest.mock("../../src/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: (state: any) => unknown) => {
+    const state = {
+      loadWorktrees,
+      removeWorktree,
+      worktreesByProject: new Map([["p1", mockWorktrees]]),
+      loadingByProject: new Map([["p1", false]]),
+    }
+    return selector ? selector(state) : state
+  },
+  useWorktreesForProject: () => mockWorktrees,
+  useWorktreesLoading: () => false,
+}))
+
+rstest.mock("@/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: (state: any) => unknown) => {
+    const state = {
+      loadWorktrees,
+      removeWorktree,
+      worktreesByProject: new Map([["p1", mockWorktrees]]),
+      loadingByProject: new Map([["p1", false]]),
+    }
+    return selector ? selector(state) : state
+  },
+  useWorktreesForProject: () => mockWorktrees,
+  useWorktreesLoading: () => false,
+}))
+
+rstest.mock("react-router-dom", () => {
+  const actual = require("react-router-dom")
+  return {
+    ...actual,
+    NavLink: ({ className, to, children, ...rest }: any) => {
+      const computedClass = typeof className === "function" ? className({ isActive: false }) : className
+      const href = typeof to === "string" ? to : "#"
+      return (
+        <a href={href} className={computedClass as string} {...rest}>
+          {children}
+        </a>
+      )
+    },
+  }
+})
 
 
 

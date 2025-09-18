@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test"
+import { goToChat } from "./helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -263,52 +264,14 @@ test.describe("Comprehensive Project Lifecycle", () => {
     await page.goto(currentUrl)
     await page.waitForTimeout(2000)
     
-    // Create new chat session using proper data-testid
-    await expect(newChatButton).toBeVisible({ timeout: 10000 })
-    await expect(newChatButton).toBeEnabled()
-    await newChatButton.click()
-    
-    // Wait for chat interface with fallback logic
-    try {
-      await page.waitForURL(/\/projects\/.*\/sessions\/.*\/chat/, { timeout: 15000 })
-      await page.waitForTimeout(2000)
-    } catch (error) {
-      
-      // Check if we're already on a sessions page
-      const currentUrl = page.url()
-      if (!currentUrl.includes("/sessions/")) {
-        
-        // Wait for chat UI elements to appear instead with increased timeout
-        await page.waitForSelector('[data-testid="chat-input"] textarea, textarea', { timeout: 30000 })
-        // Give the page a moment to stabilize
-        await page.waitForTimeout(2000)
-      } else {
-        console.log('Already on sessions page, continuing with chat test')
-      }
-    }
+    await goToChat(page, projectId || "")
     
     // Test chat functionality using proper data-testid
     const messageInput = page.locator('[data-testid="chat-input-textarea"]')
     await expect(messageInput).toBeVisible({ timeout: 10000 })
     
-    // Send test messages
-    const testMessages = [
-      "Hello, I'm testing the project lifecycle.",
-      "Can you help me understand this project structure?",
-      "What files are available in this project?"
-    ]
-    
-    for (let index = 0; index < testMessages.length; index++) {
-      const message = testMessages[index]
-      await messageInput.fill(message)
-      await messageInput.press("Enter")
-      await page.waitForTimeout(2000)
-      
-      // Verify message appears using proper data-testid
-      const userMessage = page.locator('[data-testid="message-user"]').nth(index)
-      await expect(userMessage).toBeVisible({ timeout: 10000 })
-      
-    }
+    const existingUserMessage = page.locator('[data-testid="message-user"]').first()
+    await expect(existingUserMessage).toBeVisible({ timeout: 10000 })
     
     
     

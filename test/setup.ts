@@ -769,6 +769,33 @@ Object.defineProperty(global, "fetch", {
       }
     }
 
+    const gitStatusMatch = pathname.match(/^\/api\/projects\/([^/]+)\/git\/status$/)
+    if (gitStatusMatch) {
+      return jsonResponse({
+        branch: "main",
+        ahead: 0,
+        behind: 0,
+        changedFiles: 2,
+        stagedCount: 1,
+        unstagedCount: 1,
+        untrackedCount: 0,
+        staged: [
+          { path: "src/components/ProjectDashboard.tsx", status: "M", staged: true },
+        ],
+        modified: [
+          { path: "src/pages/GitOperations.tsx", status: "M", staged: false },
+        ],
+        untracked: [],
+        remoteUrl: "git@github.com:mock/repo.git",
+        lastCommit: {
+          hash: "abc123",
+          author: "Mock Author",
+          date: new Date().toISOString(),
+          message: "Mock commit",
+        },
+      })
+    }
+
     const projectMatch = pathname.match(/^\/api\/projects\/([^/]+)$/)
     if (projectMatch) {
       const projectId = decodeURIComponent(projectMatch[1])

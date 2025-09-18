@@ -63,10 +63,17 @@ test.describe("Thinking Component", () => {
     const input = page.locator('[data-testid="chat-input-textarea"]')
     await expect(input).toBeVisible({ timeout: 10_000 })
 
-    await input.fill("Hello from reasoning smoke test")
+    const prompt = "Hello from reasoning smoke test"
+    await input.fill(prompt)
     await input.press("Enter")
 
-    await expect(page.locator('[data-testid="message-user"]')).toBeVisible({ timeout: 10_000 })
+    await expect(
+      page
+        .locator('[data-testid="message-user"]')
+        .filter({ hasText: prompt })
+        .first()
+    ).toBeVisible({ timeout: 10_000 })
+
     await expect(page.locator('[data-testid="message-assistant"]')).toBeVisible({ timeout: 45_000 })
   })
 })
