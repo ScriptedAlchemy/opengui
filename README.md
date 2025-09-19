@@ -169,6 +169,17 @@ pnpm run test:stores          # Store tests
 
 # E2E tests (requires Playwright)
 pnpm run test:e2e             # Run all E2E tests
+
+# CI-friendly E2E run (stubbed models)
+pnpm run test:e2e:ci          # Uses TEST_REAL_MODELS=0 to stub assistant replies
+
+Note on models:
+- By default, E2E tests stub assistant responses for speed and determinism.
+- To exercise real model calls locally, set `TEST_REAL_MODELS=1`:
+
+```bash
+TEST_REAL_MODELS=1 pnpm run test:e2e
+```
 ```
 
 ## Environment Variables

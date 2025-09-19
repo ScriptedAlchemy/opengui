@@ -186,7 +186,7 @@ export type ResponseProps = HTMLAttributes<HTMLDivElement> & {
   parseIncompleteMarkdown?: boolean
 }
 
-const components: Options["components"] = {
+const baseComponents: Options["components"] = {
   ol: ({ node, children, className, ...props }) => (
     <ol className={cn("ml-4 list-outside list-decimal", className)} {...props}>
       {children}
@@ -202,6 +202,11 @@ const components: Options["components"] = {
       {children}
     </ul>
   ),
+  p: ({ node, children, className, ...props }) => (
+    <p className={cn("leading-7 [&:not(:first-child)]:mt-4", className)} {...props}>
+      {children}
+    </p>
+  ),
   hr: ({ node, className, ...props }) => (
     <hr className={cn("border-border my-6", className)} {...props} />
   ),
@@ -209,6 +214,27 @@ const components: Options["components"] = {
     <span className={cn("font-semibold", className)} {...props}>
       {children}
     </span>
+  ),
+  em: ({ node, children, className, ...props }) => (
+    <em className={cn("italic", className)} {...props}>
+      {children}
+    </em>
+  ),
+  del: ({ node, children, className, ...props }) => (
+    <del className={cn("text-muted-foreground", className)} {...props}>
+      {children}
+    </del>
+  ),
+  kbd: ({ node, children, className, ...props }) => (
+    <kbd
+      className={cn(
+        "border-border bg-muted text-muted-foreground inline-flex items-center gap-1 rounded border px-1 text-xs uppercase",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </kbd>
   ),
   a: ({ node, children, className, ...props }) => (
     <a
@@ -293,6 +319,31 @@ const components: Options["components"] = {
       {children}
     </blockquote>
   ),
+  details: ({ node, children, className, open, ...props }) => (
+    <details
+      open={open}
+      className={cn(
+        "border-border bg-muted/30 text-foreground my-2 overflow-hidden rounded-md border",
+        "[&>summary]:cursor-pointer [&>summary]:select-none",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </details>
+  ),
+  summary: ({ node, children, className, ...props }) => (
+    <summary
+      className={cn(
+        "text-muted-foreground/90 bg-muted/50 px-3 py-2 text-sm font-medium",
+        "hover:bg-muted/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </summary>
+  ),
   code: ({ node, className, ...props }) => {
     const inline = node?.position?.start.line === node?.position?.end.line
 
@@ -356,9 +407,14 @@ export const Response = memo(
 
     const markdownOptions: HardenedOptions = {
       ...(options ?? {}),
-      components,
-      remarkPlugins: [remarkGfm, remarkMath],
-      rehypePlugins: [rehypeKatex],
+      components: {
+        ...baseComponents,
+        ...(options?.components ?? {}),
+      },
+      remarkPlugins: Array.from(
+        new Set([...(options?.remarkPlugins ?? []), remarkGfm, remarkMath])
+      ),
+      rehypePlugins: [...(options?.rehypePlugins ?? []), rehypeKatex],
     }
 
     const resolvedAllowedImages = allowedImagePrefixes ?? options?.allowedImagePrefixes ?? ["*"]

@@ -90,6 +90,9 @@ export async function ensureDefaultProject(page: Page): Promise<{ id: string; pa
 }
 
 export async function openFirstProjectAndGetId(page: Page): Promise<string> {
+  // Ensure the default demo project exists before attempting UI navigation.
+  // This stabilizes suites that rely on an existing project but do not call ensureDefaultProject explicitly.
+  await ensureDefaultProject(page)
   await page.goto("/")
   await page.waitForSelector("#root", { state: "visible" })
 

@@ -34,6 +34,41 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       }
     })
 
+    // Gate real model usage: mock assistant replies for CI
+    const useRealModels = process.env.TEST_REAL_MODELS === '1'
+    if (!useRealModels) {
+      await page.route('**/session/*/message', async (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        const now = Math.floor(Date.now() / 1000)
+        const body = {
+          info: {
+            id: `mock-assistant-${now}`,
+            role: 'assistant',
+            sessionID: 'stub',
+            time: { created: now, completed: now },
+            system: [],
+            modelID: 'mock-model',
+            providerID: 'mock-provider',
+            mode: 'test',
+            path: { cwd: '', root: '' },
+            summary: false,
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          },
+          parts: [
+            {
+              id: `mock-part-${now}`,
+              sessionID: 'stub',
+              messageID: `mock-assistant-${now}`,
+              type: 'text',
+              text: 'This is a mocked assistant reply.',
+            },
+          ],
+        }
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+      })
+    }
+
     const projectId = await openFirstProjectAndGetId(page)
     await goToChat(page, projectId)
     
@@ -58,8 +93,9 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     await textarea.fill("Test message")
     await textarea.press("Enter")
 
-    // Wait for response and API calls to complete
-    await page.waitForTimeout(20000)
+    // Wait for an assistant message with environment-based timeout
+    const assistantTimeout = useRealModels ? 45_000 : 5_000
+    await expect(page.locator('[data-testid="message-assistant"]').last()).toBeVisible({ timeout: assistantTimeout })
     
     // Log API errors for debugging but don't fail tests
     if (apiErrors.length > 0) {
@@ -82,10 +118,10 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     const userMsg = await userMessages.count()
     const assistantMsg = await assistantMessages.count()
 
-    
-
     // Test should verify that at least one user message exists
     expect(userMsg).toBeGreaterThan(0)
+    // And at least one assistant message (mocked in CI)
+    expect(assistantMsg).toBeGreaterThan(0)
     
   })
 })

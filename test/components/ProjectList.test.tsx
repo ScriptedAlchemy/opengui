@@ -207,10 +207,17 @@ describe("ProjectList Component", () => {
       if (dialog) {
         const withinDialog = within(dialog as HTMLElement)
 
-        // Fill form
-        const pathInput = withinDialog.getByPlaceholderText("/path/to/your/project")
-        await userEvent.clear(pathInput)
-        await userEvent.type(pathInput, "/test/project/path")
+        // Open the directory combobox
+        const combo = withinDialog.getByRole("button", { name: /search or select directories/i })
+        await userEvent.click(combo)
+
+        // Type to search and pick a directory
+        const searchInput = withinDialog.getByPlaceholderText("Type to search (e.g. 'dev', 'projects')...")
+        await userEvent.type(searchInput, "projects")
+
+        // Select the "projects" directory from results
+        const option = await withinDialog.findByText("projects")
+        await userEvent.click(option)
 
         // Submit
         const createButton = withinDialog.getByRole("button", { name: /add project/i })
@@ -221,7 +228,7 @@ describe("ProjectList Component", () => {
     })
   })
 
-  test("uses directory picker for project path", async () => {
+  test("shows directory combobox for project path", async () => {
     const { getByRole, container } = render(
       <TestWrapper>
         <ProjectList />
@@ -235,10 +242,8 @@ describe("ProjectList Component", () => {
       const dialog = container.querySelector('[role="dialog"]')
       if (dialog) {
         const withinDialog = within(dialog as HTMLElement)
-        const browseButton = withinDialog.queryByRole("button", { name: /browse/i })
-        if (browseButton) {
-          expect(browseButton).toBeDefined()
-        }
+        const combobox = withinDialog.getByRole("button", { name: /search or select directories/i })
+        expect(combobox).toBeDefined()
       }
     })
   })

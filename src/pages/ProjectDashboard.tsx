@@ -50,6 +50,7 @@ import { useOpencodeSDK } from "../contexts/OpencodeSDKContext"
 import type { Project } from "../lib/api/project-manager"
 import { fetchGitSummary } from "@/lib/git"
 import type { GitSummary } from "@/lib/git"
+import { formatRelativeTime } from "@/lib/utils"
 
 interface AgentSummary {
   activeCount: number
@@ -419,20 +420,6 @@ export default function ProjectDashboard() {
     }
   }, [projectId, activeWorktreePath, resolvedWorktreeId, createSession, navigate])
 
-  const formatRelativeTime = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / (1000 * 60))
-    const diffHours = Math.floor(diffMins / 60)
-    const diffDays = Math.floor(diffHours / 24)
-
-    if (diffMins < 1) return "Just now"
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    return `${diffDays}d ago`
-  }
-
   // In SDK mode, projects are always effectively "running"
   const isRunning = true
   // Project instances are managed externally; no transient starting state used here
@@ -452,7 +439,7 @@ export default function ProjectDashboard() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{session.title}</p>
                 <p className="text-muted-foreground text-sm">
-                  {formatRelativeTime(new Date(session.time.updated * 1000).toISOString())}
+                  {formatRelativeTime(session.time.updated)}
                 </p>
               </div>
               <MessageSquare className="text-muted-foreground h-4 w-4" />
@@ -558,7 +545,7 @@ export default function ProjectDashboard() {
                 <div className="text-2xl font-bold">{sessions.length}</div>
                 <p className="text-muted-foreground text-xs">
                   {recentSessions.length > 0 &&
-                    `Last: ${formatRelativeTime(new Date(recentSessions[0].time.updated * 1000).toISOString())}`}
+                    `Last: ${formatRelativeTime(recentSessions[0].time.updated)}`}
                 </p>
               </CardContent>
             </Card>

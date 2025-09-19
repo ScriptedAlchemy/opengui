@@ -26,6 +26,12 @@ import nodePath from "node:path"
 import * as nodeFs from "node:fs/promises"
 import nodeOs from "node:os"
 import { fetchGitHubContentBatch } from "./github/cache"
+import {
+  createServerGitHubClient,
+  GhCliError,
+  GhNotAuthenticatedError,
+  GhNotInstalledError,
+} from "./github/client"
 
 const log = Log.create({ service: "integrated-project-routes" })
 
@@ -66,11 +72,98 @@ const GitHubContentItemSchema = z.object({
   updatedAt: z.string().optional(),
 })
 
+const GitHubCacheTtlOverridesSchema = z.object({
+  issue: z.number().int().nonnegative().optional(),
+  pull: z.number().int().nonnegative().optional(),
+  issueComments: z.number().int().nonnegative().optional(),
+  pullComments: z.number().int().nonnegative().optional(),
+  reviewComments: z.number().int().nonnegative().optional(),
+  pullStatus: z.number().int().nonnegative().optional(),
+  issueList: z.number().int().nonnegative().optional(),
+  pullList: z.number().int().nonnegative().optional(),
+})
+
+const GitHubCacheTtlSchema = z.union([
+  z.number().int().nonnegative(),
+  GitHubCacheTtlOverridesSchema,
+])
+
+const GitHubIssuesListParamsSchema = z.object({
+  state: z.enum(["open", "closed", "all"]).optional(),
+  labels: z.array(z.string()).optional(),
+  sort: z.enum(["created", "updated", "comments"]).optional(),
+  direction: z.enum(["asc", "desc"]).optional(),
+  perPage: z.number().int().min(1).max(100).optional(),
+  assignee: z.string().optional(),
+})
+
+const GitHubPullsListParamsSchema = z.object({
+  state: z.enum(["open", "closed", "all"]).optional(),
+  sort: z.enum(["created", "updated", "popularity", "long-running"]).optional(),
+  direction: z.enum(["asc", "desc"]).optional(),
+  perPage: z.number().int().min(1).max(100).optional(),
+  head: z.string().optional(),
+  base: z.string().optional(),
+})
+
 const GitHubContentRequestSchema = z.object({
   repo: GitHubRepoSchema,
-  items: GitHubContentItemSchema.array().min(1, "At least one item is required").max(100),
-  cacheTtlMs: z.number().int().nonnegative().optional(),
+  items: GitHubContentItemSchema.array().max(100).optional(),
+  cacheTtlMs: GitHubCacheTtlSchema.optional(),
+  includeIssues: GitHubIssuesListParamsSchema.nullable().optional(),
+  includePulls: GitHubPullsListParamsSchema.nullable().optional(),
+  includeStatuses: z.boolean().optional(),
 })
+
+const GitHubIssuesListRequestSchema = z.object({
+  repo: GitHubRepoSchema,
+  params: GitHubIssuesListParamsSchema.optional(),
+})
+
+const GitHubPullsListRequestSchema = z.object({
+  repo: GitHubRepoSchema,
+  params: GitHubPullsListParamsSchema.optional(),
+})
+
+const GitHubPullStatusRequestSchema = z.object({
+  repo: GitHubRepoSchema,
+})
+
+const PullRequestStatusResponseSchema = z.object({
+  sha: z.string(),
+  overallState: z.enum(["success", "pending", "failure", "error"]),
+  combinedStatus: z.unknown().optional(),
+  checkRuns: z.unknown().optional(),
+  checkSuites: z.unknown().optional(),
+})
+
+const formatGitHubError = (error: unknown): string => {
+  if (error instanceof GhNotInstalledError) {
+    return "GitHub CLI (gh) is not installed on this system. Install GitHub CLI to enable GitHub integration."
+  }
+
+  if (error instanceof GhNotAuthenticatedError) {
+    return "GitHub CLI is not authenticated. Run `gh auth login` or provide a valid token."
+  }
+
+  if (error instanceof GhCliError) {
+    return error.message
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === "string") {
+    return error
+  }
+
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return "Unknown error"
+  }
+}
 
 const PackageJsonResponseSchema = z.object({
   path: z.string(),
@@ -1807,6 +1900,163 @@ export function addIntegratedProjectRoutes(app: Hono) {
       }
     )
       .post(
+        "/api/projects/:id/github/issues/list",
+        describeRoute({
+          description: "List GitHub issues for a repository",
+          operationId: "projects.github.issues.list",
+          responses: {
+            200: {
+              description: "GitHub issues",
+              content: {
+                "application/json": {
+                  schema: resolver(
+                    z.object({
+                      items: z.array(z.unknown()),
+                    })
+                  ),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator(
+          "param",
+          z.object({
+            id: z.string(),
+          })
+        ),
+        zValidator("json", GitHubIssuesListRequestSchema),
+        async (c) => {
+          const { id } = c.req.valid("param")
+          const { repo, params } = c.req.valid("json")
+
+          const resolved = resolveProjectRecord(id)
+          if (!resolved) {
+            return c.json({ error: "Project not found" }, 404)
+          }
+
+          const client = createServerGitHubClient()
+
+          try {
+            const items = await client.listIssues(repo, params ?? {})
+            return c.json({ items })
+          } catch (error) {
+            const message = formatGitHubError(error)
+            log.error("Failed to list GitHub issues", {
+              projectId: id,
+              repo,
+              error,
+            })
+            return c.json({ error: message }, 502)
+          }
+        }
+      )
+      .post(
+        "/api/projects/:id/github/pulls/list",
+        describeRoute({
+          description: "List GitHub pull requests for a repository",
+          operationId: "projects.github.pulls.list",
+          responses: {
+            200: {
+              description: "GitHub pull requests",
+              content: {
+                "application/json": {
+                  schema: resolver(
+                    z.object({
+                      items: z.array(z.unknown()),
+                    })
+                  ),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator(
+          "param",
+          z.object({
+            id: z.string(),
+          })
+        ),
+        zValidator("json", GitHubPullsListRequestSchema),
+        async (c) => {
+          const { id } = c.req.valid("param")
+          const { repo, params } = c.req.valid("json")
+
+          const resolved = resolveProjectRecord(id)
+          if (!resolved) {
+            return c.json({ error: "Project not found" }, 404)
+          }
+
+          const client = createServerGitHubClient()
+
+          try {
+            const items = await client.listPullRequests(repo, params ?? {})
+            return c.json({ items })
+          } catch (error) {
+            const message = formatGitHubError(error)
+            log.error("Failed to list GitHub pull requests", {
+              projectId: id,
+              repo,
+              error,
+            })
+            return c.json({ error: message }, 502)
+          }
+        }
+      )
+      .post(
+        "/api/projects/:id/github/pulls/:number/status",
+        describeRoute({
+          description: "Get rollup status information for a GitHub pull request",
+          operationId: "projects.github.pulls.status",
+          responses: {
+            200: {
+              description: "Pull request status summary",
+              content: {
+                "application/json": {
+                  schema: resolver(PullRequestStatusResponseSchema),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator(
+          "param",
+          z.object({
+            id: z.string(),
+            number: z.coerce.number().int().positive(),
+          })
+        ),
+        zValidator("json", GitHubPullStatusRequestSchema),
+        async (c) => {
+          const { id, number } = c.req.valid("param")
+          const { repo } = c.req.valid("json")
+
+          const resolved = resolveProjectRecord(id)
+          if (!resolved) {
+            return c.json({ error: "Project not found" }, 404)
+          }
+
+          const client = createServerGitHubClient()
+
+          try {
+            const payload = await client.getPullRequestStatus(repo, number)
+            return c.json(payload)
+          } catch (error) {
+            const message = formatGitHubError(error)
+            log.error("Failed to load GitHub pull request status", {
+              projectId: id,
+              repo,
+              number,
+              error,
+            })
+            return c.json({ error: message }, 502)
+          }
+        }
+      )
+      .post(
         "/api/projects/:id/github/content",
         describeRoute({
           description: "Fetch GitHub issue and pull request content with caching",
@@ -1837,26 +2087,28 @@ export function addIntegratedProjectRoutes(app: Hono) {
         zValidator("json", GitHubContentRequestSchema),
         async (c) => {
           const { id } = c.req.valid("param")
-          const { repo, items, cacheTtlMs } = c.req.valid("json")
-
-          if (!items.length) {
-            return c.json({ error: "No items requested" }, 400)
-          }
+          const {
+            repo,
+            items = [],
+            cacheTtlMs,
+            includeIssues,
+            includePulls,
+            includeStatuses,
+          } = c.req.valid("json")
 
           const resolved = resolveProjectRecord(id)
           if (!resolved) {
             return c.json({ error: "Project not found" }, 404)
           }
 
-          const tokenHeader = c.req.header("x-github-token")?.trim()
-          const token = tokenHeader ? tokenHeader : undefined
-
           try {
             const payload = await fetchGitHubContentBatch({
               repo,
               items,
-              token,
               cacheTtlMs,
+              includeIssues: includeIssues ?? null,
+              includePulls: includePulls ?? null,
+              includeStatuses,
             })
             return c.json(payload)
           } catch (error) {

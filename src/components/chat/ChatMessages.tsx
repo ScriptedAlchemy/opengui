@@ -12,6 +12,7 @@ import {
 import { Image } from "@/components/ui/shadcn-io/ai/image"
 import { Button } from "@/components/ui/button"
 import { renderTool } from "@/lib/chat/toolRenderers"
+import { resolveDate } from "@/lib/utils"
 import { getFileIcon, isImageFile, isTextFile } from "@/util/file"
 
 interface ChatMessagesProps {
@@ -79,7 +80,7 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
                     </span>
                     {message.time && (
                       <span className="text-muted-foreground text-xs">
-                        {new Date(message.time.created * 1000).toLocaleTimeString()}
+                        {resolveDate(message.time.created).toLocaleTimeString()}
                       </span>
                     )}
                   </div>

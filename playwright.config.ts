@@ -40,10 +40,10 @@ export default defineConfig({
 
   // Fail fast on CI
   // Enable more parallelism for faster test execution
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 2 : 2,
+  workers: 1,
   maxFailures: 5,
 
   // Quieter reporter locally
@@ -83,7 +83,8 @@ export default defineConfig({
 
   // Use production build for E2E tests to avoid any HMR/dev server behavior
   webServer: {
-    command: "pnpm run dev",
+    // Ensure demo project directories exist before server boots to avoid warnings.
+    command: "node scripts/e2e-prep.cjs && pnpm run dev:server",
     url: base,
     reuseExistingServer: true,
     timeout: 120000,

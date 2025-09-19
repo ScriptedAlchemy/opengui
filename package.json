@@ -1,5 +1,5 @@
 {
-  "name": "@opencode/app",
+  "name": "opengui",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -31,6 +31,7 @@
     "pretest:e2e": "npx kill-port 3001",
     "test:e2e": "pnpm build && npx playwright test",
     "test:visual": "pnpm build && npx playwright test test/e2e/visual/ui-screenshots.e2e.ts --project=chromium --reporter=line",
+    "test:e2e:ci": "TEST_REAL_MODELS=0 pnpm build && npx playwright test",
     "health-check": "tsx scripts/health-check.ts"
   },
   "dependencies": {
@@ -108,6 +109,7 @@
     "react-syntax-highlighter": "15.6.6",
     "recharts": "2.15.4",
     "rehype-katex": "7.0.1",
+    "rehype-raw": "^7.0.0",
     "remark-gfm": "4.0.1",
     "remark-math": "6.0.0",
     "shiki": "3.12.0",

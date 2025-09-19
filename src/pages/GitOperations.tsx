@@ -59,6 +59,9 @@ import {
   type GitStatusFile,
   type GitSummary,
 } from "../lib/git"
+import { parseUnifiedDiff } from "@/lib/git-diff-parser"
+import { DiffPreview } from "@/components/diff-preview"
+import type { DiffData } from "@/types/diff"
 
 interface GitStatus {
   branch: string
@@ -108,6 +111,7 @@ interface GitDiff {
   additions: number
   deletions: number
   content: string
+  parsed: DiffData | null
 }
 
 interface GitStash {
@@ -356,6 +360,7 @@ export default function GitOperations() {
         const content = extractTextFromMessage(response.data) || ""
         const additions = (content.match(/^\+/gm) || []).length
         const deletions = (content.match(/^-/gm) || []).length
+        const parsed = parseUnifiedDiff(content, filePath)
 
         setDiffs((prev) => ({
           ...prev,
@@ -364,6 +369,7 @@ export default function GitOperations() {
             additions,
             deletions,
             content,
+            parsed,
           },
         }))
       } catch (err) {
@@ -999,13 +1005,13 @@ export default function GitOperations() {
                               </div>
 
                               {expandedFiles.has(file.path) && diffs[file.path] && (
-                                <div className="mt-3 rounded border border-border bg-input/30 p-3">
-                                  <div className="mb-2 flex items-center justify-between">
-                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                      <span className="text-green-400">
+                                <div className="mt-3 space-y-2">
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-4">
+                                      <span className="text-emerald-400">
                                         +{diffs[file.path].additions}
                                       </span>
-                                      <span className="text-red-400">
+                                      <span className="text-rose-400">
                                         -{diffs[file.path].deletions}
                                       </span>
                                     </div>
@@ -1013,13 +1019,12 @@ export default function GitOperations() {
                                       onClick={() => copyToClipboard(diffs[file.path].content)}
                                       variant="ghost"
                                       size="sm"
+                                      className="text-muted-foreground"
                                     >
                                       <Copy className="h-3 w-3" />
                                     </Button>
                                   </div>
-                                  <pre className="overflow-x-auto font-mono text-xs whitespace-pre-wrap">
-                                    {diffs[file.path].content}
-                                  </pre>
+                                  <DiffPreview diff={diffs[file.path].parsed} rawDiff={diffs[file.path].content} />
                                 </div>
                               )}
                             </div>
@@ -1086,13 +1091,13 @@ export default function GitOperations() {
                               </div>
 
                               {expandedFiles.has(file.path) && diffs[file.path] && (
-                                <div className="mt-3 rounded border border-border bg-input/30 p-3">
-                                  <div className="mb-2 flex items-center justify-between">
-                                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                                      <span className="text-green-400">
+                                <div className="mt-3 space-y-2">
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-4">
+                                      <span className="text-emerald-400">
                                         +{diffs[file.path].additions}
                                       </span>
-                                      <span className="text-red-400">
+                                      <span className="text-rose-400">
                                         -{diffs[file.path].deletions}
                                       </span>
                                     </div>
@@ -1100,13 +1105,12 @@ export default function GitOperations() {
                                       onClick={() => copyToClipboard(diffs[file.path].content)}
                                       variant="ghost"
                                       size="sm"
+                                      className="text-muted-foreground"
                                     >
                                       <Copy className="h-3 w-3" />
                                     </Button>
                                   </div>
-                                  <pre className="overflow-x-auto font-mono text-xs whitespace-pre-wrap">
-                                    {diffs[file.path].content}
-                                  </pre>
+                                  <DiffPreview diff={diffs[file.path].parsed} rawDiff={diffs[file.path].content} />
                                 </div>
                               )}
                             </div>

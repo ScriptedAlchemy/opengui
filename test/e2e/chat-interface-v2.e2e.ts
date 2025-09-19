@@ -68,6 +68,46 @@ test.describe("Chat Interface V2", () => {
 
     const networkIssues = collectNetworkIssues(page)
 
+    // For CI and local runs without real models, stub the prompt endpoint
+    // to return a deterministic assistant message quickly.
+    const useRealModels = process.env.TEST_REAL_MODELS === '1'
+    if (!useRealModels) {
+      await page.route('**/session/*/message', async (route) => {
+        if (route.request().method() !== 'POST') return route.continue()
+        const now = Math.floor(Date.now() / 1000)
+        const body = {
+          info: {
+            id: `mock-assistant-${now}`,
+            role: 'assistant',
+            sessionID: 'stub',
+            time: { created: now, completed: now },
+            system: [],
+            modelID: 'mock-model',
+            providerID: 'mock-provider',
+            mode: 'test',
+            path: { cwd: '', root: '' },
+            summary: false,
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+          },
+          parts: [
+            {
+              id: `mock-part-${now}`,
+              sessionID: 'stub',
+              messageID: `mock-assistant-${now}`,
+              type: 'text',
+              text: 'This is a mocked assistant reply.',
+            },
+          ],
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(body),
+        })
+      })
+    }
+
     await ensureProviderAndModel(page)
 
     const messageInput = page.locator('[data-testid="chat-input-textarea"]')
@@ -84,7 +124,8 @@ test.describe("Chat Interface V2", () => {
     await expect(userMessage).toBeVisible({ timeout: 10_000 })
 
     const assistantMessage = page.locator('[data-testid="message-assistant"]').last()
-    await expect(assistantMessage).toBeVisible({ timeout: 45_000 })
+    const assistantTimeout = process.env.TEST_REAL_MODELS === '1' ? 45_000 : 5_000
+    await expect(assistantMessage).toBeVisible({ timeout: assistantTimeout })
     const assistantText = (await assistantMessage.textContent())?.trim() ?? ""
     expect(assistantText.length).toBeGreaterThan(0)
 

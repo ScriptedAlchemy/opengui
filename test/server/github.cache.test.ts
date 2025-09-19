@@ -82,10 +82,12 @@ const pullReviewComments = [
   },
 ]
 
-describe("GitHub cache", () => {
-  let cacheDir: string
-  let originalCacheEnv: string | undefined
-let mocks: {
+type MockClientMode = "success" | "cliMissing" | "resourceNotFound"
+
+let mockClientMode: MockClientMode = "success"
+let resourceNotFoundTracker: { issueCalls: number } | null = null
+
+interface ClientCallMetrics {
   issueCalls: number
   issueCommentCalls: number
   pullCalls: number
@@ -93,9 +95,168 @@ let mocks: {
   reviewCommentCalls: number
 }
 
-let MockGhCliError: typeof Error
-let MockGhNotInstalledError: typeof Error
-let MockGhNotAuthenticatedError: typeof Error
+type GhErrorWithStderr = Error & { stderr?: string }
+
+function createEmptyMetrics(): ClientCallMetrics {
+  return {
+    issueCalls: 0,
+    issueCommentCalls: 0,
+    pullCalls: 0,
+    pullCommentCalls: 0,
+    reviewCommentCalls: 0,
+  }
+}
+
+let successClientMetrics: ClientCallMetrics = createEmptyMetrics()
+
+function setMockClientMode(mode: MockClientMode) {
+  mockClientMode = mode
+}
+
+function setResourceNotFoundTracker(tracker: { issueCalls: number } | null) {
+  resourceNotFoundTracker = tracker
+}
+
+type GhErrorClasses = {
+  cli: typeof Error
+  notInstalled: typeof Error
+  notAuthenticated: typeof Error
+}
+
+function createGhErrorClasses(): GhErrorClasses {
+  class LocalGhCliError extends Error {}
+  class LocalGhNotInstalledError extends LocalGhCliError {}
+  class LocalGhNotAuthenticatedError extends LocalGhCliError {}
+
+  return {
+    cli: LocalGhCliError,
+    notInstalled: LocalGhNotInstalledError,
+    notAuthenticated: LocalGhNotAuthenticatedError,
+  }
+}
+
+function resetGhErrorClasses(): GhErrorClasses {
+  const classes = createGhErrorClasses()
+  ;(globalThis as Record<PropertyKey, unknown>)["__opencodeGithubCacheGhErrors__"] = classes
+  return classes
+}
+
+function getGhErrorClasses(): GhErrorClasses {
+  const current = (globalThis as Record<PropertyKey, unknown>)["__opencodeGithubCacheGhErrors__"] as
+    | GhErrorClasses
+    | undefined
+  if (current) {
+    return current
+  }
+  return resetGhErrorClasses()
+}
+
+function createMockGitHubClient(ghErrors: GhErrorClasses) {
+  const baseRateLimit = {
+    core: {
+      limit: 5000,
+      remaining: 4900,
+      used: 100,
+      resetAt: new Date("2025-02-03T15:00:00Z").toISOString(),
+    },
+  }
+
+  if (mockClientMode === "cliMissing") {
+    return {
+      getIssue: async () => {
+        throw new ghErrors.notInstalled()
+      },
+      fetchIssueComments: async () => {
+        throw new ghErrors.notInstalled()
+      },
+      getPullRequest: async () => {
+        throw new ghErrors.notInstalled()
+      },
+      fetchPullRequestComments: async () => {
+        throw new ghErrors.notInstalled()
+      },
+      fetchPullRequestReviewComments: async () => {
+        throw new ghErrors.notInstalled()
+      },
+      getPullRequestStatus: async () => {
+        throw new ghErrors.notInstalled()
+      },
+      getRateLimit: () => baseRateLimit,
+    }
+  }
+
+  if (mockClientMode === "resourceNotFound") {
+    const buildNotFoundError = () => {
+      const error = new ghErrors.cli("HTTP 404: Not Found") as GhErrorWithStderr
+      error.stderr = "HTTP 404: Not Found"
+      return error
+    }
+
+    return {
+      getIssue: async () => {
+        if (resourceNotFoundTracker) {
+          resourceNotFoundTracker.issueCalls += 1
+        }
+        throw buildNotFoundError()
+      },
+      fetchIssueComments: async () => {
+        throw buildNotFoundError()
+      },
+      getPullRequest: async () => {
+        throw buildNotFoundError()
+      },
+      fetchPullRequestComments: async () => {
+        throw buildNotFoundError()
+      },
+      fetchPullRequestReviewComments: async () => {
+        throw buildNotFoundError()
+      },
+      getPullRequestStatus: async () => {
+        throw buildNotFoundError()
+      },
+      getRateLimit: () => baseRateLimit,
+    }
+  }
+
+  return {
+    getIssue: async () => {
+      successClientMetrics.issueCalls += 1
+      return issueFixture
+    },
+    fetchIssueComments: async () => {
+      successClientMetrics.issueCommentCalls += 1
+      return issueComments
+    },
+    getPullRequest: async () => {
+      successClientMetrics.pullCalls += 1
+      return pullFixture
+    },
+    fetchPullRequestComments: async () => {
+      successClientMetrics.pullCommentCalls += 1
+      return pullComments
+    },
+    fetchPullRequestReviewComments: async () => {
+      successClientMetrics.reviewCommentCalls += 1
+      return pullReviewComments
+    },
+    getPullRequestStatus: async () => ({
+      sha: pullFixture.head.sha,
+      overallState: "success" as const,
+    }),
+    getRateLimit: () => baseRateLimit,
+  }
+}
+
+describe("GitHub cache", () => {
+  let cacheDir: string
+  let originalCacheEnv: string | undefined
+  let mocks: {
+    issueCalls: number
+    issueCommentCalls: number
+    pullCalls: number
+    pullCommentCalls: number
+    reviewCommentCalls: number
+  }
 
   beforeEach(async () => {
     cacheDir = path.join(tmpdir(), `opencode-github-cache-${Math.random().toString(36).slice(2)}`)
@@ -104,49 +265,23 @@ let MockGhNotAuthenticatedError: typeof Error
     originalCacheEnv = process.env.OPENCODE_GITHUB_CACHE_DIR
     process.env.OPENCODE_GITHUB_CACHE_DIR = cacheDir
 
-    mocks = {
-      issueCalls: 0,
-      issueCommentCalls: 0,
-      pullCalls: 0,
-      pullCommentCalls: 0,
-      reviewCommentCalls: 0,
-    }
+    successClientMetrics = createEmptyMetrics()
+    mocks = successClientMetrics
 
-    class LocalGhCliError extends Error {}
-    class LocalGhNotInstalledError extends LocalGhCliError {}
-    class LocalGhNotAuthenticatedError extends LocalGhCliError {}
+    setMockClientMode("success")
+    setResourceNotFoundTracker(null)
+    resetGhErrorClasses()
 
-    MockGhCliError = LocalGhCliError
-    MockGhNotInstalledError = LocalGhNotInstalledError
-    MockGhNotAuthenticatedError = LocalGhNotAuthenticatedError
+    rs.mock("../../src/server/github/client", () => {
+      const ghErrors = getGhErrorClasses()
 
-    rs.mock("../../src/server/github/client", () => ({
-      createServerGitHubClient: () => ({
-        getIssue: async () => {
-          mocks.issueCalls += 1
-          return issueFixture
-        },
-        fetchIssueComments: async () => {
-          mocks.issueCommentCalls += 1
-          return issueComments
-        },
-        getPullRequest: async () => {
-          mocks.pullCalls += 1
-          return pullFixture
-        },
-        fetchPullRequestComments: async () => {
-          mocks.pullCommentCalls += 1
-          return pullComments
-        },
-        fetchPullRequestReviewComments: async () => {
-          mocks.reviewCommentCalls += 1
-          return pullReviewComments
-        },
-      }),
-      GhCliError: LocalGhCliError,
-      GhNotInstalledError: LocalGhNotInstalledError,
-      GhNotAuthenticatedError: LocalGhNotAuthenticatedError,
-    }))
+      return {
+        createServerGitHubClient: () => createMockGitHubClient(ghErrors),
+        GhCliError: ghErrors.cli,
+        GhNotInstalledError: ghErrors.notInstalled,
+        GhNotAuthenticatedError: ghErrors.notAuthenticated,
+      }
+    })
   })
 
   afterEach(async () => {
@@ -175,6 +310,12 @@ let MockGhNotAuthenticatedError: typeof Error
     expect(first.items[0].cached).toBe(false)
     expect(mocks.issueCalls).toBe(1)
     expect(mocks.issueCommentCalls).toBe(1)
+    expect(first.meta.cacheMisses).toBe(1)
+    expect(first.meta.cacheHits).toBe(0)
+    expect(first.meta.errorHits).toBe(0)
+    expect(first.issues).toHaveLength(1)
+    expect(first.issues[0].number).toBe(101)
+    expect(Object.keys(first.statuses)).toHaveLength(0)
 
     const second = await fetchGitHubContentBatch({
       repo: repoRef,
@@ -186,6 +327,9 @@ let MockGhNotAuthenticatedError: typeof Error
     expect(second.items[0].stale).toBe(false)
     expect(mocks.issueCalls).toBe(1)
     expect(mocks.issueCommentCalls).toBe(1)
+    expect(second.meta.cacheHits).toBe(1)
+    expect(second.meta.cacheMisses).toBe(0)
+    expect(second.meta.errorHits).toBe(0)
 
     const third = await fetchGitHubContentBatch({
       repo: repoRef,
@@ -195,6 +339,9 @@ let MockGhNotAuthenticatedError: typeof Error
     expect(third.items[0].cached).toBe(false)
     expect(mocks.issueCalls).toBe(2)
     expect(mocks.issueCommentCalls).toBe(2)
+    expect(third.meta.cacheMisses).toBe(1)
+    expect(third.meta.refreshed).toBeGreaterThanOrEqual(1)
+    expect(third.meta.errorHits).toBe(0)
 
     const cacheFiles = await fs.readdir(cacheDir, { recursive: true })
     expect(cacheFiles.some((file) => file.endsWith("issue-101.json"))).toBe(true)
@@ -216,9 +363,13 @@ let MockGhNotAuthenticatedError: typeof Error
     const item = result.items[0]
     expect(item.comments).toHaveLength(1)
     expect(item.reviewComments).toHaveLength(1)
+    expect(item.status?.overallState).toBe("success")
+    expect(result.statuses[42]?.overallState).toBe("success")
     expect(mocks.pullCalls).toBe(1)
     expect(mocks.pullCommentCalls).toBe(1)
     expect(mocks.reviewCommentCalls).toBe(1)
+    expect(result.meta.cacheMisses).toBe(1)
+    expect(result.meta.errorHits).toBe(0)
 
     const subsequent = await fetchGitHubContentBatch({
       repo: repoRef,
@@ -229,33 +380,13 @@ let MockGhNotAuthenticatedError: typeof Error
     expect(mocks.pullCalls).toBe(1)
     expect(mocks.pullCommentCalls).toBe(1)
     expect(mocks.reviewCommentCalls).toBe(1)
+    expect(subsequent.items[0].status?.overallState).toBe("success")
+    expect(subsequent.meta.cacheHits).toBe(1)
+    expect(subsequent.meta.errorHits).toBe(0)
   })
 
   test("returns descriptive error when gh cli is unavailable", async () => {
-    rs.resetModules()
-
-    rs.mock("../../src/server/github/client", () => ({
-      createServerGitHubClient: () => ({
-        getIssue: async () => {
-          throw new MockGhNotInstalledError("gh missing")
-        },
-        fetchIssueComments: async () => {
-          throw new MockGhNotInstalledError("gh missing")
-        },
-        getPullRequest: async () => {
-          throw new MockGhNotInstalledError("gh missing")
-        },
-        fetchPullRequestComments: async () => {
-          throw new MockGhNotInstalledError("gh missing")
-        },
-        fetchPullRequestReviewComments: async () => {
-          throw new MockGhNotInstalledError("gh missing")
-        },
-      }),
-      GhCliError: MockGhCliError,
-      GhNotInstalledError: MockGhNotInstalledError,
-      GhNotAuthenticatedError: MockGhNotAuthenticatedError,
-    }))
+    setMockClientMode("cliMissing")
 
     const { fetchGitHubContentBatch, __resetGitHubCacheForTesting } = await rs.importActual<
       typeof import("../../src/server/github/cache")
@@ -271,5 +402,49 @@ let MockGhNotAuthenticatedError: typeof Error
     expect(result.items).toHaveLength(0)
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0].message).toContain("GitHub CLI (gh) is not installed")
+  })
+
+  test("caches not found errors for a short period", async () => {
+    const tracker = { issueCalls: 0 }
+    setResourceNotFoundTracker(tracker)
+    setMockClientMode("resourceNotFound")
+
+    const { fetchGitHubContentBatch, __resetGitHubCacheForTesting } = await rs.importActual<
+      typeof import("../../src/server/github/cache")
+    >("../../src/server/github/cache")
+
+    __resetGitHubCacheForTesting()
+
+    const first = await fetchGitHubContentBatch({
+      repo: repoRef,
+      items: [{ type: "issue", number: 999 }],
+    })
+
+    expect(first.errors).toHaveLength(1)
+    expect(first.errors[0]).toMatchObject({
+      type: "issue",
+      number: 999,
+      status: 404,
+      cached: false,
+    })
+    expect(first.meta.cacheMisses).toBe(1)
+    expect(first.meta.errorHits).toBe(0)
+    expect(tracker.issueCalls).toBe(1)
+
+    const second = await fetchGitHubContentBatch({
+      repo: repoRef,
+      items: [{ type: "issue", number: 999 }],
+    })
+
+    expect(second.errors).toHaveLength(1)
+    expect(second.errors[0]).toMatchObject({
+      type: "issue",
+      number: 999,
+      cached: true,
+      status: 404,
+    })
+    expect(second.meta.cacheMisses).toBe(0)
+    expect(second.meta.errorHits).toBe(1)
+    expect(tracker.issueCalls).toBe(1)
   })
 })

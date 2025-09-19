@@ -7,8 +7,9 @@ import type { Worktree } from "@/lib/api/project-manager"
 import type { GitStatusResponse } from "@/lib/git"
 import { UNSAFE_NavigationContext } from "react-router-dom"
 import { renderWithRouter } from "../utils/test-router"
+type GitHubIntegrationComponent = (typeof import("../../src/pages/GitHubIntegration"))["default"]
 
-let GitHubIntegration: React.ComponentType
+let GitHubIntegration: GitHubIntegrationComponent
 
 const mockNavigate = rstest.fn((path?: string) => path)
 const mockCreateWorktree = rstest.fn(
@@ -76,7 +77,7 @@ const githubIssues = [
     title: "Investigate flaky tests",
     state: "open" as const,
     html_url: "https://github.com/mock/repo/issues/101",
-    body: "Intermittent failures observed during nightly runs",
+    body: "**Summary**\\n\\n- Intermittent failures observed during nightly runs\\n- `rsbuild` job flapping intermittently\\n\\nSee the [debug logs](https://example.com/logs) for raw output.",
     created_at: issueOpenedAt,
     updated_at: issueOpenedAt,
     labels: [
@@ -104,7 +105,7 @@ const pullRequests = [
     state: "open" as const,
     draft: false,
     html_url: "https://github.com/mock/repo/pull/42",
-    body: "Resolves failing CI jobs",
+    body: "Resolves failing CI jobs.\\n\\n![Status chart](https://example.com/status-chart.png)",
     created_at: pullUpdatedAt,
     updated_at: pullUpdatedAt,
     merged_at: null,
@@ -125,7 +126,7 @@ const pullRequests = [
     state: "open" as const,
     draft: false,
     html_url: "https://github.com/mock/repo/pull/43",
-    body: "Adds structured logging",
+    body: "Adds structured logging with JSON output",
     created_at: pullUpdatedAt,
     updated_at: pullUpdatedAt,
     merged_at: null,
@@ -151,7 +152,7 @@ const issueCommentsByNumber: Record<number, any[]> = {
   101: [
     {
       id: 6001,
-      body: "Reproduced the failure on CI for visibility.",
+      body: "Reproduced the failure on CI. [View logs](https://ci.example.com/logs/6001).",
       html_url: "https://github.com/mock/repo/issues/101#issuecomment-6001",
       created_at: issueCommentedAt,
       updated_at: issueCommentedAt,
@@ -169,7 +170,7 @@ const pullCommentsByNumber: Record<number, any[]> = {
   42: [
     {
       id: 6101,
-      body: "Ensured pipelines rerun successfully after this patch.",
+      body: "Ensured pipelines rerun successfully after this patch. See commit `abc123`.",
       html_url: "https://github.com/mock/repo/pull/42#issuecomment-6101",
       created_at: pullCommentedAt,
       updated_at: pullCommentedAt,
@@ -206,69 +207,9 @@ const pullReviewCommentsByNumber: Record<number, any[]> = {
   ],
 }
 
-const combinedStatuses: Record<string, any> = {
-  [failingPrSha]: {
-    state: "failure",
-    sha: failingPrSha,
-    total_count: 1,
-    statuses: [
-      {
-        id: 9001,
-        state: "failure",
-        context: "ci/test",
-        description: "Tests failed",
-        target_url: "https://ci.example.com/42",
-        created_at: pullUpdatedAt,
-        updated_at: pullUpdatedAt,
-      },
-    ],
-  },
-  [passingPrSha]: {
-    state: "success",
-    sha: passingPrSha,
-    total_count: 1,
-    statuses: [
-      {
-        id: 9002,
-        state: "success",
-        context: "ci/test",
-        description: "All checks passed",
-        target_url: "https://ci.example.com/43",
-        created_at: pullUpdatedAt,
-        updated_at: pullUpdatedAt,
-      },
-    ],
-  },
-}
-
-const checkRunsBySha: Record<string, any[]> = {
-  [failingPrSha]: [
-    {
-      id: 9101,
-      name: "ci/test",
-      html_url: "https://ci.example.com/42",
-      status: "completed",
-      conclusion: "failure",
-      started_at: pullUpdatedAt,
-      completed_at: pullUpdatedAt,
-    },
-  ],
-  [passingPrSha]: [
-    {
-      id: 9102,
-      name: "ci/test",
-      html_url: "https://ci.example.com/43",
-      status: "completed",
-      conclusion: "success",
-      started_at: pullUpdatedAt,
-      completed_at: pullUpdatedAt,
-    },
-  ],
-}
-
-const checkSuitesBySha: Record<string, any[]> = {
-  [failingPrSha]: [],
-  [passingPrSha]: [],
+const pullStatusByNumber: Record<number, { sha: string; overallState: "success" | "failure" | "pending" | "error" }> = {
+  42: { sha: failingPrSha, overallState: "failure" },
+  43: { sha: passingPrSha, overallState: "success" },
 }
 
 const jsonResponse = (data: unknown, init: ResponseInit = {}) => {
@@ -280,51 +221,6 @@ const jsonResponse = (data: unknown, init: ResponseInit = {}) => {
     ...init,
     headers,
   })
-}
-
-const resolveGitHubResponse = (url: URL): Response | undefined => {
-  if (url.pathname === "/repos/mock/repo/issues") {
-    return jsonResponse(githubIssues)
-  }
-
-  if (url.pathname === "/repos/mock/repo/pulls") {
-    return jsonResponse(pullRequests)
-  }
-
-  const pullMatch = url.pathname.match(/^\/repos\/mock\/repo\/pulls\/(\d+)$/)
-  if (pullMatch) {
-    const pull = pullDetails[pullMatch[1]]
-    if (!pull) {
-      return jsonResponse({ message: "Not Found" }, { status: 404 })
-    }
-    return jsonResponse(pull)
-  }
-
-  const statusMatch = url.pathname.match(/^\/repos\/mock\/repo\/commits\/([^/]+)\/status$/)
-  if (statusMatch) {
-    const sha = decodeURIComponent(statusMatch[1])
-    const payload = combinedStatuses[sha]
-    if (!payload) {
-      return jsonResponse({ message: "Not Found" }, { status: 404 })
-    }
-    return jsonResponse(payload)
-  }
-
-  const checkRunsMatch = url.pathname.match(/^\/repos\/mock\/repo\/commits\/([^/]+)\/check-runs$/)
-  if (checkRunsMatch) {
-    const sha = decodeURIComponent(checkRunsMatch[1])
-    const runs = checkRunsBySha[sha] || []
-    return jsonResponse({ total_count: runs.length, check_runs: runs })
-  }
-
-  const checkSuitesMatch = url.pathname.match(/^\/repos\/mock\/repo\/commits\/([^/]+)\/check-suites$/)
-  if (checkSuitesMatch) {
-    const sha = decodeURIComponent(checkSuitesMatch[1])
-    const suites = checkSuitesBySha[sha] || []
-    return jsonResponse({ total_count: suites.length, check_suites: suites })
-  }
-
-  return undefined
 }
 
 let originalFetch: typeof globalThis.fetch | undefined
@@ -495,13 +391,37 @@ describe("GitHubIntegration", () => {
               ? (init.body as { toString: () => string }).toString()
               : ""
 
-        const parsed = rawBody ? JSON.parse(rawBody) : { items: [] }
-        const requestedItems: Array<{ type: string; number: number }> = parsed.items ?? []
+        const parsed = rawBody ? JSON.parse(rawBody) : {}
+        const requestedItems: Array<{ type: string; number: number; updatedAt?: string }> = parsed.items ?? []
+        const includeIssues = parsed.includeIssues
+        const includePulls = parsed.includePulls
+        const includeStatuses = parsed.includeStatuses !== false
+
         const fetchedAt = new Date("2025-02-03T14:00:00Z").toISOString()
         const items: any[] = []
         const errors: any[] = []
+        const seenKeys = new Set<string>()
 
-        for (const item of requestedItems) {
+        const inferredItems = (() => {
+          if (requestedItems.length > 0) {
+            return requestedItems
+          }
+          const issueEntries = includeIssues
+            ? githubIssues.map((issue) => ({ type: "issue" as const, number: issue.number, updatedAt: issue.updated_at }))
+            : []
+          const pullEntries = includePulls
+            ? pullRequests.map((pull) => ({ type: "pull" as const, number: pull.number, updatedAt: pull.updated_at }))
+            : []
+          return [...issueEntries, ...pullEntries]
+        })()
+
+        for (const item of inferredItems) {
+          const key = `${item.type}:${item.number}`
+          if (seenKeys.has(key)) {
+            continue
+          }
+          seenKeys.add(key)
+
           if (item.type === "issue") {
             const issue = githubIssues.find((candidate) => candidate.number === item.number)
             if (!issue) {
@@ -537,42 +457,51 @@ describe("GitHubIntegration", () => {
             item: pull,
             comments: pullCommentsByNumber[pull.number] ?? [],
             reviewComments: pullReviewCommentsByNumber[pull.number] ?? [],
+            status: includeStatuses ? pullStatusByNumber[pull.number] ?? null : undefined,
           })
         }
 
-        return jsonResponse({ items, errors })
-      }
+        const statuses = includeStatuses
+          ? Object.fromEntries(
+              Object.entries(pullStatusByNumber).map(([number, status]) => [Number(number), status])
+            )
+          : {}
 
-      if (!urlString.startsWith("https://api.github.com")) {
-        if (!boundDelegate) {
-          throw new Error("No fetch implementation available for non-GitHub request")
+        const meta = {
+          cacheHits: 0,
+          cacheMisses: seenKeys.size,
+          refreshed: seenKeys.size,
+          staleHits: 0,
+          warmed: 0,
+          errorHits: 0,
         }
-        return boundDelegate(input, init)
-      }
 
-      if (method !== "GET") {
-        if (!boundDelegate) {
-          throw new Error(`Unhandled GitHub request with method ${method}`)
+        const rateLimit = {
+          fetchedAt,
+          core: {
+            limit: 5000,
+            remaining: 4920,
+            used: 80,
+            resetAt: new Date("2025-02-03T15:00:00Z").toISOString(),
+          },
         }
-        return boundDelegate(input, init)
+
+        return jsonResponse({
+          items,
+          errors,
+          issues: githubIssues,
+          pulls: pullRequests,
+          statuses,
+          meta,
+          rateLimit,
+        })
       }
 
-      let url: URL
-      try {
-        url = new URL(urlString)
-      } catch {
-        if (!boundDelegate) {
-          throw new Error(`Invalid URL passed to fetch: ${urlString}`)
-        }
-        return boundDelegate(input, init)
+      if (!boundDelegate) {
+        throw new Error(`Unhandled fetch request: ${method} ${urlString}`)
       }
 
-      const response = resolveGitHubResponse(url)
-      if (response) {
-        return response
-      }
-
-      return jsonResponse({ message: "Not Found" }, { status: 404 })
+      return boundDelegate(input, init)
     }
 
     global.fetch = scopedFetch
@@ -582,8 +511,8 @@ describe("GitHubIntegration", () => {
     mockCreateSession.mockClear()
     mockFetchGitStatus.mockClear()
     mockFetchGitStatus.mockImplementation(async () => gitStatusResponse)
-    const componentModule = require("../../src/pages/GitHubIntegration")
-    GitHubIntegration = componentModule.default || componentModule.GitHubIntegration
+    const componentModule = await import("../../src/pages/GitHubIntegration")
+    GitHubIntegration = componentModule.default ?? componentModule.GitHubIntegration
   })
 
   afterEach(() => {
@@ -605,21 +534,30 @@ describe("GitHubIntegration", () => {
       expect(screen.getByText("Connected to mock/repo")).toBeDefined()
     })
 
-    const issuesTab = screen.getByRole("tab", { name: /Issues/i })
-    const pullsTab = screen.getByRole("tab", { name: /Pull Requests/i })
-    expect(issuesTab).toBeDefined()
-    expect(pullsTab).toBeDefined()
+    const rateLimitIndicator = await screen.findByText(/GitHub API remaining:/i)
+    expect(rateLimitIndicator).toHaveTextContent(/4,920\s*\/\s*5,000/i)
+    expect(rateLimitIndicator).toHaveTextContent(/reset/i)
 
-    const issueTitle = await screen.findByText("#101 · Investigate flaky tests")
-    const issueCard = issueTitle.closest('[data-slot="card"]') as HTMLElement
-    expect(issueCard).not.toBeNull()
-    expect(within(issueCard).getByRole("button", { name: /Research/i })).toBeDefined()
-    expect(within(issueCard).getByRole("button", { name: /Fix with AI/i })).toBeDefined()
-    await within(issueCard).findByText(/Intermittent failures observed during nightly runs/i)
-    await within(issueCard).findByText(/Reproduced the failure on CI for visibility\./i)
-    await within(issueCard).findByText(/Commented/i)
+    const issuesToggle = screen.getByRole("button", { name: /Issues/i })
+    const pullsToggle = screen.getByRole("button", { name: /Pull requests/i })
+    expect(issuesToggle).toBeDefined()
+    expect(pullsToggle).toBeDefined()
 
-    await user.click(pullsTab)
+    const issueButton = await screen.findByRole("button", { name: /#101 · Investigate flaky tests/i })
+    expect(issueButton).toBeDefined()
+    const issueRow = issueButton.parentElement?.parentElement as HTMLElement
+    expect(issueRow).toBeDefined()
+    expect(within(issueRow).getByRole("button", { name: /Research/i })).toBeDefined()
+    expect(within(issueRow).getByRole("button", { name: /Fix with AI/i })).toBeDefined()
+    await within(issueRow).findByText(/Intermittent failures observed during nightly runs/i)
+    const showMoreButton = within(issueRow).getByRole("button", { name: /Show more/i })
+    await user.click(showMoreButton)
+    await within(issueRow).findByText(/Reproduced the failure on CI/i)
+    const issueLogLink = within(issueRow).getByRole("link", { name: /View logs/i })
+    expect(issueLogLink).toHaveAttribute("href", "https://ci.example.com/logs/6001")
+    await within(issueRow).findByText(/Commented/i)
+
+    await user.click(pullsToggle)
 
     const failingTitle = await screen.findByText("#42 · Fix failing pipeline")
     const failingCard = failingTitle.closest('[data-slot="card"]') as HTMLElement
@@ -628,7 +566,10 @@ describe("GitHubIntegration", () => {
     const failingFixButton = within(failingCard).getByRole("button", { name: /Fix with AI/i })
     expect(failingFixButton).toBeDefined()
     await within(failingCard).findByText(/Resolves failing CI jobs/i)
+    expect(within(failingCard).getByRole("img", { name: /status chart/i })).toBeDefined()
     await within(failingCard).findByText(/Ensured pipelines rerun successfully after this patch\./i)
+    await within(failingCard).findByText(/See commit/i)
+    expect(within(failingCard).getByText(/abc123/i)).toBeDefined()
     await within(failingCard).findByText(/Consider guarding against null payloads here\./i)
     await within(failingCard).findByText(/src\/services\/pipeline\.ts/i)
 
@@ -668,11 +609,11 @@ describe("GitHubIntegration", () => {
       expect(lastCall[0]).toContain("/projects/test-project/wt-fix-pr-42/sessions/session-123/chat")
     })
 
-    await user.click(issuesTab)
+    await user.click(issuesToggle)
 
-    const refreshedIssueTitle = await screen.findByText("#101 · Investigate flaky tests")
-    const refreshedIssueCard = refreshedIssueTitle.closest('[data-slot="card"]') as HTMLElement
-    const researchButton = within(refreshedIssueCard).getByRole("button", { name: /Research/i })
+    const refreshedIssueButton = await screen.findByRole("button", { name: /#101 · Investigate flaky tests/i })
+    const refreshedIssueRow = refreshedIssueButton.parentElement?.parentElement as HTMLElement
+    const researchButton = within(refreshedIssueRow).getByRole("button", { name: /Research/i })
     await user.click(researchButton)
 
     await waitFor(() => {

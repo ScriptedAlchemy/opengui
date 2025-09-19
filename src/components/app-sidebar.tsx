@@ -77,13 +77,19 @@ const projectSecondary: readonly ProjectLink[] = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const currentProject = useCurrentProject()
   const location = useLocation()
-  const match = /\/projects\/([^/]+)/.exec(location.pathname)
+  const match = React.useMemo(() => /\/projects\/([^/]+)/.exec(location.pathname), [location.pathname])
   const projectIdFromPath = match?.[1]
-  const projectId = currentProject?.id || projectIdFromPath
-  const worktreeMatch = /\/projects\/[^/]+\/([^/]+)/.exec(location.pathname)
+  const isProjectRoute = Boolean(projectIdFromPath)
+  const projectId = projectIdFromPath ?? currentProject?.id ?? null
+  const worktreeMatch = React.useMemo(
+    () => (/\/projects\/[^/]+\/([^/]+)/.exec(location.pathname) ?? null),
+    [location.pathname],
+  )
   const activeWorktreeId = worktreeMatch?.[1] || "default"
-  const hasProject = Boolean(projectId)
-  const instanceRunning = Boolean(currentProject?.instance && currentProject.instance.status === "running")
+  const hasProject = isProjectRoute && Boolean(projectId)
+  const instanceRunning = Boolean(
+    currentProject?.id === projectId && currentProject.instance?.status === "running",
+  )
 
   const mainItems = React.useMemo(() => {
     if (!hasProject || !projectId) return [...globalMainNav]

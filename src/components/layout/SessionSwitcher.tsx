@@ -16,6 +16,7 @@ import { useSessionsForProject, useCurrentSession, useSessionsStore } from "@/st
 import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
 import { useCurrentProject } from "@/stores/projects"
 import { useParams, useNavigate } from "react-router-dom"
+import { resolveDate } from "@/lib/utils"
 
 export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: { projectId?: string; navigateOverride?: (path: string) => void } = {}) {
   const params = useParams<{ projectId: string; worktreeId: string }>()
@@ -126,7 +127,7 @@ export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: 
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm">{session.title}</p>
                     <p className="text-muted-foreground text-xs">
-                      {new Date(session.time.updated * 1000).toLocaleDateString()}
+                      {resolveDate(session.time.updated).toLocaleDateString()}
                     </p>
                   </div>
                   {currentSession?.id === session.id && (

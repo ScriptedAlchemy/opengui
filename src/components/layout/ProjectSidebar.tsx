@@ -35,6 +35,7 @@ import {
   useWorktreesLoading,
   useWorktreesStore,
 } from "@/stores/worktrees"
+import { resolveDate } from "@/lib/utils"
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
@@ -399,7 +400,7 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
                     <div className="mt-1 flex items-center space-x-1">
                       <Clock className="h-3 w-3 text-gray-500" />
                       <span className="text-xs text-gray-500">
-                        {formatDistanceToNow(new Date(session.time.updated * 1000), {
+                        {formatDistanceToNow(resolveDate(session.time.updated), {
                           addSuffix: true,
                         })}
                       </span>
