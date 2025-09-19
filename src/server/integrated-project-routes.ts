@@ -25,6 +25,7 @@ import { promisify } from "node:util"
 import nodePath from "node:path"
 import * as nodeFs from "node:fs/promises"
 import nodeOs from "node:os"
+import { fetchGitHubContentBatch } from "./github/cache"
 
 const log = Log.create({ service: "integrated-project-routes" })
 
@@ -53,6 +54,28 @@ const normalizePath = (value: string) =>
 
 const HOME_DIRECTORY = normalizePath(process.env["HOME"] || nodeOs.homedir())
 const DIRECTORY_ENTRY_LIMIT = 200
+
+const GitHubRepoSchema = z.object({
+  owner: z.string().min(1, "Repository owner is required"),
+  repo: z.string().min(1, "Repository name is required"),
+})
+
+const GitHubContentItemSchema = z.object({
+  type: z.enum(["issue", "pull"]),
+  number: z.number().int().positive("Item number must be positive"),
+  updatedAt: z.string().optional(),
+})
+
+const GitHubContentRequestSchema = z.object({
+  repo: GitHubRepoSchema,
+  items: GitHubContentItemSchema.array().min(1, "At least one item is required").max(100),
+  cacheTtlMs: z.number().int().nonnegative().optional(),
+})
+
+const PackageJsonResponseSchema = z.object({
+  path: z.string(),
+  packageJson: z.record(z.unknown()),
+})
 
 const isWithinHomeDirectory = (target: string) => {
   const normalizedTarget = normalizePath(target)
@@ -439,6 +462,94 @@ export function addIntegratedProjectRoutes(app: Hono) {
         }),
         async (c) => {
           return c.json({ path: HOME_DIRECTORY })
+        }
+      )
+
+      .get(
+        "/api/system/package-json",
+        describeRoute({
+          description: "Read a package.json file within the user's home directory",
+          operationId: "system.packageJson",
+          responses: {
+            200: {
+              description: "package.json contents",
+              content: {
+                "application/json": {
+                  schema: resolver(PackageJsonResponseSchema),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator(
+          "query",
+          z.object({
+            path: z.string().min(1, "Path is required"),
+          })
+        ),
+        async (c) => {
+          const { path } = c.req.valid("query")
+          const requestedPath = path.trim()
+          if (!requestedPath) {
+            return c.json({ error: "Path is required" }, 400)
+          }
+
+          const normalizedInput = normalizePath(requestedPath)
+          if (!isWithinHomeDirectory(normalizedInput)) {
+            return c.json({ error: "Path must be within the home directory" }, 400)
+          }
+
+          let packageJsonPath = normalizedInput
+
+          try {
+            const stat = await nodeFs.stat(packageJsonPath)
+            if (stat.isDirectory()) {
+              packageJsonPath = normalizePath(nodePath.join(packageJsonPath, "package.json"))
+            } else if (!stat.isFile()) {
+              return c.json({ error: "Path must be a directory or package.json file" }, 400)
+            }
+          } catch (error) {
+            const nodeError = error as NodeJS.ErrnoException
+            if (nodeError?.code === "ENOENT") {
+              return c.json({ error: "Path not found" }, 404)
+            }
+            log.error("Failed to inspect path for package.json", { path: packageJsonPath, error })
+            return c.json({ error: "Unable to read path" }, 400)
+          }
+
+          if (!isWithinHomeDirectory(packageJsonPath)) {
+            return c.json({ error: "Path must be within the home directory" }, 400)
+          }
+
+          let fileContents: string
+          try {
+            fileContents = await nodeFs.readFile(packageJsonPath, "utf-8")
+          } catch (error) {
+            const nodeError = error as NodeJS.ErrnoException
+            if (nodeError?.code === "ENOENT") {
+              return c.json({ error: "package.json not found" }, 404)
+            }
+            log.error("Failed to read package.json", { path: packageJsonPath, error })
+            return c.json({ error: "Unable to read package.json" }, 400)
+          }
+
+          let parsed: unknown
+          try {
+            parsed = JSON.parse(fileContents)
+          } catch (error) {
+            log.error("Invalid package.json (parse error)", { path: packageJsonPath, error })
+            return c.json({ error: "Invalid package.json: unable to parse JSON" }, 400)
+          }
+
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            log.error("Invalid package.json (unexpected structure)", { path: packageJsonPath })
+            return c.json({ error: "Invalid package.json: expected an object" }, 400)
+          }
+
+          const packageJson = parsed as Record<string, unknown>
+
+          return c.json({ path: packageJsonPath, packageJson })
         }
       )
 
@@ -1689,10 +1800,73 @@ export function addIntegratedProjectRoutes(app: Hono) {
           if (!agent) return c.json({ success: false, error: "Agent not found" }, 404)
 
           // Minimal stubbed behavior
-          return c.json({
-            success: true,
-            response: `Agent ${agent.name} received: ${prompt}`,
+        return c.json({
+          success: true,
+          response: `Agent ${agent.name} received: ${prompt}`,
+        })
+      }
+    )
+      .post(
+        "/api/projects/:id/github/content",
+        describeRoute({
+          description: "Fetch GitHub issue and pull request content with caching",
+          operationId: "projects.github.content",
+          responses: {
+            200: {
+              description: "Cached GitHub content",
+              content: {
+                "application/json": {
+                  schema: resolver(
+                    z.object({
+                      items: z.array(z.unknown()),
+                      errors: z.array(z.unknown()),
+                    })
+                  ),
+                },
+              },
+            },
+            ...ERRORS,
+          },
+        }),
+        zValidator(
+          "param",
+          z.object({
+            id: z.string(),
           })
+        ),
+        zValidator("json", GitHubContentRequestSchema),
+        async (c) => {
+          const { id } = c.req.valid("param")
+          const { repo, items, cacheTtlMs } = c.req.valid("json")
+
+          if (!items.length) {
+            return c.json({ error: "No items requested" }, 400)
+          }
+
+          const resolved = resolveProjectRecord(id)
+          if (!resolved) {
+            return c.json({ error: "Project not found" }, 404)
+          }
+
+          const tokenHeader = c.req.header("x-github-token")?.trim()
+          const token = tokenHeader ? tokenHeader : undefined
+
+          try {
+            const payload = await fetchGitHubContentBatch({
+              repo,
+              items,
+              token,
+              cacheTtlMs,
+            })
+            return c.json(payload)
+          } catch (error) {
+            log.error("Failed to load GitHub content", {
+              projectId: id,
+              repo,
+              error,
+            })
+            return c.json({ error: "Unable to load GitHub content" }, 502)
+          }
         }
       )
       // GET /api/projects/:id/git/status - get git status

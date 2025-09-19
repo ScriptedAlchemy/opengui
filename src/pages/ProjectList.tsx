@@ -87,6 +87,7 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const [pathEdited, setPathEdited] = useState(false)
+  const [nameEdited, setNameEdited] = useState(false)
 
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null)
   const [currentDirectory, setCurrentDirectory] = useState<string | null>(null)
@@ -114,16 +115,79 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
     }
   }
 
-  // Auto-fill project name from path
+  const fallbackProjectName = useMemo(() => {
+    const trimmedPath = projectPath.trim()
+    if (!trimmedPath) {
+      return ""
+    }
+
+    const withoutTrailingSeparators = trimmedPath.replace(/[\\/]+$/, "")
+    if (!withoutTrailingSeparators) {
+      return ""
+    }
+
+    const segments = withoutTrailingSeparators.split(/[/\\]/).filter(Boolean)
+    return segments[segments.length - 1] ?? ""
+  }, [projectPath])
+
+  // Auto-fill project name using package.json when available
   useEffect(() => {
-    if (projectPath && !projectName) {
-      const pathParts = projectPath.split(/[/\\]/)
-      const folderName = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2]
-      if (folderName) {
-        setProjectName(folderName)
+    if (!open || nameEdited) {
+      return
+    }
+
+    const trimmedPath = projectPath.trim()
+    if (!trimmedPath) {
+      setProjectName("")
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    const suggestProjectName = async () => {
+      let suggestion = fallbackProjectName
+
+      if (isAbsolutePath(trimmedPath)) {
+        try {
+          const response = await fetch(
+            `/api/system/package-json?path=${encodeURIComponent(trimmedPath)}`,
+            { signal: controller.signal }
+          )
+
+          if (response.ok) {
+            const data = (await response.json()) as {
+              packageJson?: Record<string, unknown>
+            }
+            const packageName = data.packageJson?.name
+            if (typeof packageName === "string" && packageName.trim()) {
+              suggestion = packageName.trim()
+            }
+          }
+        } catch (fetchError) {
+          if (!controller.signal.aborted) {
+            console.debug(
+              "Failed to inspect package.json for project name suggestion:",
+              fetchError
+            )
+          }
+        }
+      }
+
+      if (!cancelled && suggestion) {
+        setProjectName((prev) => (prev === suggestion ? prev : suggestion))
+      } else if (!cancelled && !suggestion) {
+        setProjectName((prev) => (prev === "" ? prev : ""))
       }
     }
-  }, [projectPath, projectName])
+
+    void suggestProjectName()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [open, projectPath, nameEdited, fallbackProjectName])
 
   useEffect(() => {
     if (!open) return
@@ -282,6 +346,7 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
         onOpenChange(false)
         setProjectPath("")
         setProjectName("")
+        setNameEdited(false)
         setPathEdited(false)
         setCurrentDirectory(homeDirectory)
         setDirectoryParent(null)
@@ -300,21 +365,17 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
     setProjectName("")
     setError("")
     setPathEdited(false)
+    setNameEdited(false)
     setCurrentDirectory(homeDirectory)
     setDirectoryParent(null)
     setDirectoryError(null)
   }
 
-  const handleUseCurrentDirectory = () => {
-    if (currentDirectory) {
-      setProjectPath(currentDirectory)
-      setPathEdited(false)
-      setError("")
-    }
-  }
-
-  const handleNavigateDirectory = (target: string) => {
+  const handleDirectorySelect = (target: string) => {
     setCurrentDirectory(target)
+    setProjectPath(target)
+    setPathEdited(true)
+    setError("")
   }
 
   const handleParentNavigation = () => {
@@ -346,6 +407,7 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
                 onChange={(e) => {
                   setProjectPath(e.target.value)
                   setPathEdited(true)
+                  setError("")
                 }}
                 placeholder="/path/to/your/project"
                 className="border-border bg-background text-foreground placeholder:text-muted-foreground"
@@ -367,7 +429,10 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
             <Input
               data-testid="project-name-input"
               value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
+              onChange={(e) => {
+                setProjectName(e.target.value)
+                setNameEdited(true)
+              }}
               placeholder="My Project"
               className="border-border bg-background text-foreground placeholder:text-muted-foreground"
             />
@@ -394,14 +459,6 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
                 >
                   Up One Level
                 </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleUseCurrentDirectory}
-                  disabled={!currentDirectory}
-                >
-                  Use This Directory
-                </Button>
               </div>
             </div>
             <div className="space-y-2">
@@ -415,7 +472,7 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
               ) : (
                 <DynamicDirectoryCombobox
                   currentDirectory={currentDirectory || homeDirectory || '/'}
-                  onSelect={handleNavigateDirectory}
+                  onSelect={handleDirectorySelect}
                   placeholder="Search or select directories..."
                   emptyText="No directories found. Start typing to search..."
                   searchPlaceholder="Type to search (e.g. 'dev', 'projects')..."

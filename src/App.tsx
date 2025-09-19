@@ -16,6 +16,7 @@ import AgentManagement from "./pages/AgentManagement"
 import FileBrowser from "./pages/FileBrowser"
 import ProjectSettings from "./pages/ProjectSettings"
 import Terminal from "./pages/Terminal"
+import GitHubIntegration from "./pages/GitHubIntegration"
 // Create QueryClient instance with default options
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,6 +63,7 @@ function DashboardLayout() {
                     <Route path="sessions" element={<SessionList />} />
                     <Route path="sessions/:sessionId/chat" element={<ChatInterface />} />
                     <Route path="git" element={<GitOperations />} />
+                    <Route path="github" element={<GitHubIntegration />} />
                     <Route path="agents" element={<AgentManagement />} />
                     <Route path="files/*" element={<FileBrowser />} />
                     <Route path="terminal" element={<Terminal />} />

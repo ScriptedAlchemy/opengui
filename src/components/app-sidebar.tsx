@@ -4,6 +4,7 @@ import {
   CodeIcon,
   FolderIcon,
   GitBranchIcon,
+  GithubIcon,
   HelpCircleIcon,
   LayoutDashboardIcon,
   MessageSquareIcon,
@@ -59,6 +60,7 @@ const projectMainNav: readonly ProjectLink[] = [
   { title: "Dashboard", icon: LayoutDashboardIcon, path: (id, worktree) => `/projects/${id}/${worktree}` },
   { title: "Chat Sessions", icon: MessageSquareIcon, path: (id, worktree) => `/projects/${id}/${worktree}/sessions` },
   { title: "Git Operations", icon: GitBranchIcon, path: (id, worktree) => `/projects/${id}/${worktree}/git` },
+  { title: "GitHub", icon: GithubIcon, path: (id, worktree) => `/projects/${id}/${worktree}/github` },
   { title: "Agents", icon: BotIcon, path: (id, worktree) => `/projects/${id}/${worktree}/agents` },
 ]
 
