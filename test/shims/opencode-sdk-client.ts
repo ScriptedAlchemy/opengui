@@ -7,8 +7,8 @@ export function createOpencodeClient(_opts?: any): any {
         id: "anthropic",
         name: "Anthropic",
         models: {
-          "sonnet-4": { name: "Claude Sonnet 4" },
-          "claude-3-5-sonnet": { name: "Claude 3.5 Sonnet" },
+          "claude-sonnet-4-20250514": { name: "Claude Sonnet 4" },
+          "claude-3-5-sonnet-20241022": { name: "Claude 3.5 Sonnet v2" },
         },
       },
       {
@@ -20,7 +20,7 @@ export function createOpencodeClient(_opts?: any): any {
       },
     ],
     default: {
-      anthropic: "sonnet-4",
+      anthropic: "claude-sonnet-4-20250514",
       openai: "gpt-4o-mini",
     },
   }

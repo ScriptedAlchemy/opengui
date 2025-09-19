@@ -34,40 +34,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       }
     })
 
-    // Gate real model usage: mock assistant replies for CI
-    const useRealModels = process.env.TEST_REAL_MODELS === '1'
-    if (!useRealModels) {
-      await page.route('**/session/*/message', async (route) => {
-        if (route.request().method() !== 'POST') return route.continue()
-        const now = Math.floor(Date.now() / 1000)
-        const body = {
-          info: {
-            id: `mock-assistant-${now}`,
-            role: 'assistant',
-            sessionID: 'stub',
-            time: { created: now, completed: now },
-            system: [],
-            modelID: 'sonnet-4',
-            providerID: 'anthropic',
-            mode: 'test',
-            path: { cwd: '', root: '' },
-            summary: false,
-            cost: 0,
-            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-          },
-          parts: [
-            {
-              id: `mock-part-${now}`,
-              sessionID: 'stub',
-              messageID: `mock-assistant-${now}`,
-              type: 'text',
-              text: 'This is a mocked assistant reply.',
-            },
-          ],
-        }
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
-      })
-    }
+    // No stubs: select Anthropic + Sonnet 4 via UI before sending
 
     const projectId = await openFirstProjectAndGetId(page)
     await goToChat(page, projectId)
@@ -82,8 +49,22 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     
     // Use consistent data-testid for input (chat-input-textarea, not chat-input)
     expect(await chatInput.isVisible({ timeout: 10000 })).toBe(true)
-    
-    
+    // Ensure Anthropic provider and Sonnet 4 model are selected
+    const providerSelect = page.locator('[data-testid="provider-select"]')
+    await providerSelect.click()
+    const providerOption = page.locator('[data-radix-select-portal] [role="option"]', { hasText: 'Anthropic' })
+    await providerOption.click({ timeout: 10_000 })
+
+    const modelSelect = page.locator('[data-testid="model-select"]')
+    await modelSelect.click()
+    const modelOption = page.locator('[data-radix-select-portal] [role="option"]', { hasText: 'Claude Sonnet 4' })
+    const modelVisible = await modelOption.isVisible({ timeout: 10_000 }).catch(() => false)
+    if (modelVisible) {
+      await modelOption.click()
+    } else {
+      // Fallback: choose first model available
+      await page.locator('[data-radix-select-portal] [role="option"]').first().click()
+    }
     const sidebarVisible = await chatSidebar.isVisible()
     
 
@@ -94,8 +75,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     await textarea.press("Enter")
 
     // Wait for an assistant message with environment-based timeout
-    const assistantTimeout = useRealModels ? 45_000 : 5_000
-    await expect(page.locator('[data-testid="message-assistant"]').last()).toBeVisible({ timeout: assistantTimeout })
+    await expect(page.locator('[data-testid="message-assistant"]').last()).toBeVisible({ timeout: 60_000 })
     
     // Log API errors for debugging but don't fail tests
     if (apiErrors.length > 0) {

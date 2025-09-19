@@ -30,24 +30,21 @@ async function ensureProviderAndModel(page: Page) {
 
   await expect(chatHeader).toBeVisible({ timeout: 15_000 })
 
-  const providerSelect = page.locator("[data-testid=\"provider-select\"]")
+  // Explicitly choose Anthropic + Claude Sonnet 4
+  const providerSelect = page.locator('[data-testid="provider-select"]')
   await expect(providerSelect).toBeVisible({ timeout: 10_000 })
-  const providerDisplay = (await providerSelect.textContent().catch(() => "")).trim()
-  if (!providerDisplay || /select provider/i.test(providerDisplay)) {
-    await providerSelect.click()
-    const providerOption = page.locator('[data-radix-select-portal] [role="option"]').first()
-    await expect(providerOption).toBeVisible({ timeout: 10_000 })
-    await providerOption.click({ trial: false })
-  }
+  await providerSelect.click()
+  await page.locator('[data-radix-select-portal] [role="option"]', { hasText: 'Anthropic' }).click()
 
-  const modelSelect = page.locator("[data-testid=\"model-select\"]")
+  const modelSelect = page.locator('[data-testid="model-select"]')
   await expect(modelSelect).toBeVisible({ timeout: 10_000 })
-  const modelDisplay = (await modelSelect.textContent().catch(() => "")).trim()
-  if (!modelDisplay || /select model/i.test(modelDisplay)) {
-    await modelSelect.click()
-    const modelOption = page.locator('[data-radix-select-portal] [role="option"]').first()
-    await expect(modelOption).toBeVisible({ timeout: 10_000 })
-    await modelOption.click({ trial: false })
+  await modelSelect.click()
+  const sonnetOption = page.locator('[data-radix-select-portal] [role="option"]', { hasText: 'Claude Sonnet 4' })
+  const hasSonnet = await sonnetOption.isVisible({ timeout: 10_000 }).catch(() => false)
+  if (hasSonnet) {
+    await sonnetOption.click()
+  } else {
+    await page.locator('[data-radix-select-portal] [role="option"]').first().click()
   }
 }
 
@@ -68,45 +65,7 @@ test.describe("Chat Interface V2", () => {
 
     const networkIssues = collectNetworkIssues(page)
 
-    // For CI and local runs without real models, stub the prompt endpoint
-    // to return a deterministic assistant message quickly.
-    const useRealModels = process.env.TEST_REAL_MODELS === '1'
-    if (!useRealModels) {
-      await page.route('**/session/*/message', async (route) => {
-        if (route.request().method() !== 'POST') return route.continue()
-        const now = Math.floor(Date.now() / 1000)
-        const body = {
-          info: {
-            id: `mock-assistant-${now}`,
-            role: 'assistant',
-            sessionID: 'stub',
-            time: { created: now, completed: now },
-            system: [],
-            modelID: 'sonnet-4',
-            providerID: 'anthropic',
-            mode: 'test',
-            path: { cwd: '', root: '' },
-            summary: false,
-            cost: 0,
-            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-          },
-          parts: [
-            {
-              id: `mock-part-${now}`,
-              sessionID: 'stub',
-              messageID: `mock-assistant-${now}`,
-              type: 'text',
-              text: 'This is a mocked assistant reply.',
-            },
-          ],
-        }
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(body),
-        })
-      })
-    }
+    // No stubbing: rely on real Anthropic Sonnet 4
 
     await ensureProviderAndModel(page)
 
@@ -124,8 +83,7 @@ test.describe("Chat Interface V2", () => {
     await expect(userMessage).toBeVisible({ timeout: 10_000 })
 
     const assistantMessage = page.locator('[data-testid="message-assistant"]').last()
-    const assistantTimeout = process.env.TEST_REAL_MODELS === '1' ? 45_000 : 5_000
-    await expect(assistantMessage).toBeVisible({ timeout: assistantTimeout })
+    await expect(assistantMessage).toBeVisible({ timeout: 60_000 })
     const assistantText = (await assistantMessage.textContent())?.trim() ?? ""
     expect(assistantText.length).toBeGreaterThan(0)
 

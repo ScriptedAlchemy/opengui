@@ -87,12 +87,42 @@ export function useProvidersSDK(
           if (!provider) return ""
           const defaultModelId = (data.default || {})[providerId]
           const models = provider.models || []
-          // Try to find Sonnet 4 variants
-          const sonnet4 = models.find((m) => /sonnet\s*-?\s*4/i.test(m.id) || /sonnet\s*-?\s*4/i.test(m.name || ""))
+
+          // Canonical Sonnet identifiers across vendors
+          const sonnetPriority = [
+            // Anthropic direct
+            "claude-sonnet-4-20250514",
+            "claude-3-7-sonnet-20250219",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-sonnet-20240620",
+            "claude-3-sonnet-20240229",
+            // Common aliases across routers
+            "claude-4-sonnet",
+            "anthropic/claude-sonnet-4",
+            "anthropic/claude-3.7-sonnet",
+            // Vertex Anthropic
+            "claude-sonnet-4@20250514",
+            "claude-3-7-sonnet@20250219",
+          ]
+
+          // 1) Exact match by known IDs
+          for (const id of sonnetPriority) {
+            const hit = models.find((m) => m.id === id)
+            if (hit) return hit.id
+          }
+
+          // 2) Regex match for Sonnet 4, then any Sonnet
+          const sonnet4 = models.find(
+            (m) => /(^|[^a-z])sonnet\s*[-_\s]*4([^0-9]|$)/i.test(m.id) || /(^|[^a-z])sonnet\s*[-_\s]*4([^0-9]|$)/i.test(m.name || "")
+          )
           if (sonnet4) return sonnet4.id
-          const sonnet = models.find((m) => /sonnet/i.test(m.id) || /sonnet/i.test(m.name || ""))
-          if (sonnet) return sonnet.id
+          const anySonnet = models.find((m) => /(^|[^a-z])sonnet([^a-z]|$)/i.test(m.id) || /(^|[^a-z])sonnet([^a-z]|$)/i.test(m.name || ""))
+          if (anySonnet) return anySonnet.id
+
+          // 3) Backend default for provider
           if (defaultModelId && models.some((m) => m.id === defaultModelId)) return defaultModelId
+
+          // 4) Fallback to first available
           return models[0]?.id || ""
         }
 
