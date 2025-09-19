@@ -41,6 +41,8 @@ interface DynamicDirectoryComboboxProps {
   debounceDelay?: number
   // Function to fetch subdirectories for a given path
   fetchDirectories: (path: string) => Promise<DirectoryEntry[]>
+  // Show a quick item to navigate to parent directory when possible
+  showParentOption?: boolean
 }
 
 export function DynamicDirectoryCombobox({
@@ -53,6 +55,7 @@ export function DynamicDirectoryCombobox({
   disabled = false,
   debounceDelay = 150,
   fetchDirectories,
+  showParentOption = true,
 }: DynamicDirectoryComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState("")
@@ -174,6 +177,14 @@ export function DynamicDirectoryCombobox({
     setLoading(false)
   }, [currentDirectory, getCachedOrFetch])
 
+  // Compute parent path (POSIX-style). For Windows, server returns POSIX paths.
+  const parentPath = React.useMemo(() => {
+    if (!currentDirectory) return null
+    const idx = currentDirectory.lastIndexOf('/')
+    if (idx <= 0) return '/'
+    return currentDirectory.slice(0, idx) || '/'
+  }, [currentDirectory])
+
   // Debounced search - reduce delay for better responsiveness
   React.useEffect(() => {
     if (!open) return
@@ -262,6 +273,32 @@ export function DynamicDirectoryCombobox({
               <CommandEmpty>{emptyText}</CommandEmpty>
             ) : (
               <CommandGroup>
+                {/* Optional parent navigation when not searching */}
+                {showParentOption && (!search || search.length === 0) && parentPath && currentDirectory !== '/' && (
+                  <CommandItem
+                    key={`__parent__:${parentPath}`}
+                    value={parentPath}
+                    onSelect={() => {
+                      onSelect(parentPath)
+                      setOpen(false)
+                      setSearch("")
+                    }}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <FolderOpen className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className="truncate" title={parentPath}>
+                        Parent: {parentPath}
+                      </span>
+                    </div>
+                    <Check
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        currentDirectory === parentPath ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                  </CommandItem>
+                )}
                 {searchResults.map((result) => (
                   <CommandItem
                     key={result.path}

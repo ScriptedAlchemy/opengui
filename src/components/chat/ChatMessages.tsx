@@ -15,6 +15,29 @@ import { renderTool } from "@/lib/chat/toolRenderers"
 import { resolveDate } from "@/lib/utils"
 import { getFileIcon, isImageFile, isTextFile } from "@/util/file"
 
+const FALLBACK_ERROR_MESSAGE = "The assistant reported an error while generating a response."
+
+const extractErrorMessage = (error: unknown): string => {
+  if (!error || typeof error !== "object") {
+    return FALLBACK_ERROR_MESSAGE
+  }
+
+  const directMessage = (error as { message?: unknown }).message
+  if (typeof directMessage === "string" && directMessage.trim()) {
+    return directMessage
+  }
+
+  const nestedData = (error as { data?: unknown }).data
+  if (nestedData && typeof nestedData === "object") {
+    const nestedMessage = (nestedData as { message?: unknown }).message
+    if (typeof nestedMessage === "string" && nestedMessage.trim()) {
+      return nestedMessage
+    }
+  }
+
+  return FALLBACK_ERROR_MESSAGE
+}
+
 interface ChatMessagesProps {
   currentSession: SessionInfo | null
   messages: MessageResponse[]
@@ -53,6 +76,11 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
             </div>
           ) : (
             messages.map((message, index) => {
+              const assistantError =
+                message.role === "assistant"
+                  ? ((message as unknown as { error?: unknown; _error?: unknown }).error ?? message._error)
+                  : null
+
               return (
                 <div
                   key={message.id || index}
@@ -87,6 +115,17 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
 
                   <Card className="p-3 w-fit max-w-[720px]">
                     <div className="prose prose-sm dark:prose-invert max-w-none">
+                      {assistantError && (
+                        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                          <span className="font-medium">
+                            {(() => {
+                              const namedError = assistantError as { name?: unknown }
+                              return typeof namedError?.name === "string" ? `${namedError.name}: ` : ""
+                            })()}
+                          </span>
+                          {extractErrorMessage(assistantError)}
+                        </div>
+                      )}
                       {message.parts.map((part, partIndex) => {
                         if (part.type === "text") {
                           return (

@@ -4,23 +4,24 @@ export function createOpencodeClient(_opts?: any): any {
   const providerPayload = {
     providers: [
       {
-        id: "opencode",
-        name: "OpenCode",
+        id: "anthropic",
+        name: "Anthropic",
         models: {
-          "claude-sonnet-4": { name: "Claude Sonnet 4" },
+          "sonnet-4": { name: "Claude Sonnet 4" },
+          "claude-3-5-sonnet": { name: "Claude 3.5 Sonnet" },
         },
       },
       {
         id: "openai",
         name: "OpenAI",
         models: {
-          "gpt-5-nano": { name: "GPT-5 Nano" },
+          "gpt-4o-mini": { name: "GPT-4o mini" },
         },
       },
     ],
     default: {
-      opencode: "claude-sonnet-4",
-      openai: "gpt-5-nano",
+      anthropic: "sonnet-4",
+      openai: "gpt-4o-mini",
     },
   }
 

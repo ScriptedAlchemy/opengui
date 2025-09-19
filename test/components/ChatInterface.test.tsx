@@ -109,7 +109,19 @@ function createMockSdkClient() {
     config: {
       get: async () => ({ data: {} }),
       providers: async () => ({
-        data: { providers: [], default: {} },
+        data: {
+          providers: [
+            {
+              id: "anthropic",
+              name: "Anthropic",
+              models: {
+                "sonnet-4": { name: "Claude Sonnet 4" },
+                "claude-3-5-sonnet": { name: "Claude 3.5 Sonnet" },
+              },
+            },
+          ],
+          default: { anthropic: "sonnet-4" },
+        },
       }),
     },
   }

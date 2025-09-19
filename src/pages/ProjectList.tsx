@@ -46,14 +46,6 @@ import {
 } from "../stores/projects"
 import type { Project } from "../lib/api/project-manager"
 
-type DirectoryPickerResult = {
-  name: string
-}
-
-type DirectoryPickerWindow = Window & {
-  showDirectoryPicker?: () => Promise<DirectoryPickerResult>
-}
-
 const isAbsolutePath = (value: string) => {
   if (!value) return false
   const trimmed = value.trim()
@@ -91,8 +83,7 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
 
   const [homeDirectory, setHomeDirectory] = useState<string | null>(null)
   const [currentDirectory, setCurrentDirectory] = useState<string | null>(null)
-  const [directoryLoading, setDirectoryLoading] = useState(false)
-  const [directoryError, setDirectoryError] = useState<string | null>(null)
+  // Directory Explorer state removed
 
   const projects = useProjects()
   const { createProject } = useProjectsActions()
@@ -195,7 +186,6 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
 
     const loadHomeDirectory = async () => {
       try {
-        setDirectoryError(null)
 
         let basePath = homeDirectory
         if (!basePath) {
@@ -219,11 +209,7 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
       } catch (loadError) {
         console.error("Failed to load home directory:", loadError)
         if (!cancelled) {
-          setDirectoryError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Unable to determine home directory"
-          )
+          // Swallow home directory errors; combobox opens at '/'
         }
       }
     }
@@ -282,7 +268,6 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
         setNameEdited(false)
         setPathEdited(false)
         setCurrentDirectory(homeDirectory)
-        setDirectoryError(null)
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to create project")
@@ -299,8 +284,7 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
     setPathEdited(false)
     setNameEdited(false)
     setCurrentDirectory(homeDirectory)
-    setDirectoryParent(null)
-    setDirectoryError(null)
+    // Directory Explorer state cleared
   }
 
   const handleDirectorySelect = (target: string) => {
@@ -334,9 +318,11 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
               placeholder="Search or select directories..."
               emptyText="No directories found. Start typing to search..."
               searchPlaceholder="Type to search (e.g. 'dev', 'projects')..."
-              disabled={directoryLoading}
               fetchDirectories={fetchDirectoriesForPath}
             />
+            <p className="truncate text-xs text-muted-foreground" title={(projectPath || currentDirectory || undefined) as string | undefined}>
+              {projectPath ? `Selected: ${projectPath}` : currentDirectory ? `Current: ${currentDirectory}` : ""}
+            </p>
           </div>
 
           <div className="space-y-2">

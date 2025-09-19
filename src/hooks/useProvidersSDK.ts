@@ -53,6 +53,7 @@ export function useProvidersSDK(
         }
         const data = response.data as ProvidersResponsePayload
         const providersArray = data.providers ?? []
+        // Default models returned by backend (may be used as a fallback)
         const defaultModels = data.default ?? {}
 
         const formattedProviders: Provider[] = providersArray.map((provider) => {
@@ -71,14 +72,28 @@ export function useProvidersSDK(
 
         setProviders(formattedProviders)
 
-        // Prefer providers that work in local/test environments without external credentials.
+        // Prefer Anthropic (Sonnet 4) by default, then OpenAI, then Opencode
         const pickPreferredProvider = () => {
-          const priority = ["opencode", "openai", "anthropic"]
+          const priority = ["anthropic", "openai", "opencode"]
           for (const id of priority) {
             const match = formattedProviders.find((provider) => provider.id === id)
             if (match) return match
           }
           return formattedProviders[0]
+        }
+
+        const pickPreferredModel = (providerId: string) => {
+          const provider = formattedProviders.find((p) => p.id === providerId)
+          if (!provider) return ""
+          const defaultModelId = (data.default || {})[providerId]
+          const models = provider.models || []
+          // Try to find Sonnet 4 variants
+          const sonnet4 = models.find((m) => /sonnet\s*-?\s*4/i.test(m.id) || /sonnet\s*-?\s*4/i.test(m.name || ""))
+          if (sonnet4) return sonnet4.id
+          const sonnet = models.find((m) => /sonnet/i.test(m.id) || /sonnet/i.test(m.name || ""))
+          if (sonnet) return sonnet.id
+          if (defaultModelId && models.some((m) => m.id === defaultModelId)) return defaultModelId
+          return models[0]?.id || ""
         }
 
         const persistedProvider = selectedProvider
@@ -101,9 +116,7 @@ export function useProvidersSDK(
           formattedProviders.find((provider) => provider.id === activeProviderId)?.models ?? []
         const modelValid = modelsForActive.some((model) => model.id === selectedModel)
         if (!modelValid) {
-          const defaultModelId = (data.default || {})[activeProviderId]
-          const firstModel = modelsForActive[0]?.id
-          const resolved = defaultModelId || firstModel || ""
+          const resolved = pickPreferredModel(activeProviderId)
           if (resolved) setSelectedModel(resolved)
         }
 
@@ -111,9 +124,9 @@ export function useProvidersSDK(
           const fallback = pickPreferredProvider()
           if (fallback) {
             setSelectedProvider(fallback.id)
-            const defaultModelId = defaultModels[fallback.id]
-            const firstModel = fallback.models[0]?.id
-            const resolved = defaultModelId || firstModel || ""
+            // If backend suggests a default for this provider, allow it to win
+            const backendDefault = defaultModels[fallback.id]
+            const resolved = backendDefault || pickPreferredModel(fallback.id)
             if (resolved) setSelectedModel(resolved)
           }
         }

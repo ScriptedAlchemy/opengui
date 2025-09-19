@@ -127,7 +127,36 @@ describe("ChatInput", () => {
     await act(async () => {
       fireEvent.click(sendButton)
     })
-    expect(onSendMessage).toHaveBeenCalled()
+    expect(onSendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  test("pressing Enter submits exactly once", async () => {
+    const onSendMessage = rstest.fn(() => {})
+    const onStopStreaming = rstest.fn(() => {})
+    const setInputValue = rstest.fn(() => {})
+
+    let result: any
+    await act(async () => {
+      result = render(
+        <ChatInput 
+          inputValue="Hello"
+          setInputValue={setInputValue}
+          onSendMessage={onSendMessage}
+          onStopStreaming={onStopStreaming}
+          isLoading={false}
+          isStreaming={false}
+        />
+      )
+    })
+
+    const textarea = result.container.querySelector("textarea") as HTMLTextAreaElement
+
+    await act(async () => {
+      // Simulate Enter key without Shift to trigger form.requestSubmit()
+      fireEvent.keyDown(textarea, { key: "Enter" })
+    })
+
+    expect(onSendMessage).toHaveBeenCalledTimes(1)
   })
 
   test("respects disabled state", async () => {

@@ -28,6 +28,11 @@ export type SessionInfo = Session
 export type MessageResponse = Message & {
   parts: Part[]
   _isTemporary?: boolean
+  _error?: {
+    name?: string
+    message?: string
+    data?: unknown
+  }
 }
 
 export interface ChatState {
