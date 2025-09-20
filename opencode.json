@@ -129,10 +129,6 @@
       "type": "local",
       "command": ["pnpm", "dlx", "@assistant-ui/mcp-docs-server"]
     },
-    "codex": {
-      "type": "local",
-      "command": ["node", "/Users/bytedance/dev/codex/codex-mcp-manager/dist/index.js"]
-    },
     "shadcn": {
       "type": "remote",
       "url": "https://www.shadcn.io/api/mcp"

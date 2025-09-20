@@ -170,12 +170,18 @@ const PackageJsonResponseSchema = z.object({
   packageJson: z.record(z.unknown()),
 })
 
-const isWithinHomeDirectory = (target: string) => {
-  const normalizedTarget = normalizePath(target)
-  return (
-    normalizedTarget === HOME_DIRECTORY ||
-    normalizedTarget.startsWith(`${HOME_DIRECTORY}/`)
-  )
+/**
+ * Resolve a filesystem path to its realpath and ensure it remains within HOME.
+ * This prevents symlink escapes (e.g., $HOME/foo -> /etc) and enforces an
+ * absolute, normalized path for subsequent operations.
+ */
+const realpathWithinHome = async (inputPath: string): Promise<string> => {
+  const absolute = normalizePath(inputPath)
+  const resolved = normalizePath(await nodeFs.realpath(absolute))
+  if (!(resolved === HOME_DIRECTORY || resolved.startsWith(`${HOME_DIRECTORY}/`))) {
+    throw Object.assign(new Error("Path must be within the home directory"), { status: 400 })
+  }
+  return resolved
 }
 
 const getAgentStoreKey = (projectId: string, worktreePath?: string) => {
@@ -604,12 +610,12 @@ export function addIntegratedProjectRoutes(app: Hono) {
             return c.json({ error: "Path is required" }, 400)
           }
 
-          const normalizedInput = normalizePath(requestedPath)
-          if (!isWithinHomeDirectory(normalizedInput)) {
-            return c.json({ error: "Path must be within the home directory" }, 400)
+          let packageJsonPath: string
+          try {
+            packageJsonPath = await realpathWithinHome(requestedPath)
+          } catch (e) {
+            return c.json({ error: (e as Error).message }, 400)
           }
-
-          let packageJsonPath = normalizedInput
 
           try {
             const stat = await nodeFs.stat(packageJsonPath)
@@ -627,8 +633,11 @@ export function addIntegratedProjectRoutes(app: Hono) {
             return c.json({ error: "Unable to read path" }, 400)
           }
 
-          if (!isWithinHomeDirectory(packageJsonPath)) {
-            return c.json({ error: "Path must be within the home directory" }, 400)
+          // Re-validate after potential directory-to-file resolution
+          try {
+            packageJsonPath = await realpathWithinHome(packageJsonPath)
+          } catch (e) {
+            return c.json({ error: (e as Error).message }, 400)
           }
 
           let fileContents: string
@@ -687,10 +696,11 @@ export function addIntegratedProjectRoutes(app: Hono) {
         ),
         async (c) => {
           const { path } = c.req.valid("query")
-          const target = path && path.trim() ? normalizePath(path) : HOME_DIRECTORY
-
-          if (!isWithinHomeDirectory(target)) {
-            return c.json({ error: "Path must be within the home directory" }, 400)
+          let target = path && path.trim() ? path : HOME_DIRECTORY
+          try {
+            target = await realpathWithinHome(target)
+          } catch (e) {
+            return c.json({ error: (e as Error).message }, 400)
           }
 
           try {
@@ -1257,13 +1267,25 @@ export function addIntegratedProjectRoutes(app: Hono) {
               if (!body.branch) {
                 return c.json({ error: "Branch name required when creating a new branch" }, 400)
               }
+              if (body.branch.startsWith("-")) {
+                return c.json({ error: "Invalid branch name" }, 400)
+              }
               args.push("-b", body.branch)
             }
-            args.push(resolvedPath)
+            // Terminate options before path to avoid option-like path segments being parsed
+            args.push("--", resolvedPath)
             if (body.createBranch) {
-              args.push(body.baseRef || "HEAD")
+              const baseRef = body.baseRef || "HEAD"
+              if (baseRef.startsWith("-")) {
+                return c.json({ error: "Invalid base ref" }, 400)
+              }
+              // Separate commit-ish with another -- for safety
+              args.push("--", baseRef)
             } else if (body.branch) {
-              args.push(body.branch)
+              if (body.branch.startsWith("-")) {
+                return c.json({ error: "Invalid branch name" }, 400)
+              }
+              args.push("--", body.branch)
             }
 
             await execFileAsync("git", args, { cwd: project.path })

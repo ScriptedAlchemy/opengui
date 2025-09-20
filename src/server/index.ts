@@ -22,7 +22,8 @@ import { createOpencodeServer } from "@opencode-ai/sdk/server"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 // For controlling fetch timeouts and connection reuse with Node's undici
-import { Agent } from "undici"
+// Note: avoid static import of 'undici' Agent to prevent bundling/runtime issues
+// in certain environments. We'll require it dynamically when available.
 
 const log = Log.create({ service: "app-server" })
 
@@ -57,16 +58,24 @@ export function createServer(config: ServerConfig = {}) {
   // - bodyTimeout: 0 disables per-chunk inactivity timeout (important for LLM streams)
   // - headersTimeout: 0 disables header timeout for slow backends
   // - keepAlive improves reuse when many requests are made
+  // Create a streaming-friendly dispatcher if undici is available at runtime
+  // without forcing it into the bundle.
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  const streamingAgent: Agent = new Agent({
-    connect: { timeout: 30_000 },
-    // Disable per-chunk inactivity and header timeouts for long-lived streams
-    bodyTimeout: 0,
-    headersTimeout: 0,
-    // Keep connections alive longer for reuse (if supported)
-    keepAliveTimeout: 60_000,
-    keepAliveMaxTimeout: 60_000,
-  } as any)
+  let streamingAgent: any | undefined
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { Agent } = require("undici") as { Agent: new (...args: any[]) => any }
+    streamingAgent = new Agent({
+      connect: { timeout: 30_000 },
+      bodyTimeout: 0,
+      headersTimeout: 0,
+      keepAliveTimeout: 60_000,
+      keepAliveMaxTimeout: 60_000,
+    } as any)
+  } catch {
+    // undici not available; fetch will fall back to defaults
+    streamingAgent = undefined
+  }
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // Error handling middleware - must be first
@@ -147,16 +156,17 @@ export function createServer(config: ServerConfig = {}) {
       // Forward client aborts to the upstream request to prevent "terminated" errors
       const signal = c.req.raw.signal
 
-      const response = await fetch(targetUrl, {
+      const init: any = {
         method: c.req.method,
         headers,
         body: c.req.raw.body,
-        // enable streaming/SSE compatibility
         duplex: "half",
-        // use streaming-friendly agent (no body/header timeouts)
-        dispatcher: streamingAgent,
         signal,
-      } as RequestInit)
+      }
+      if (streamingAgent) {
+        init.dispatcher = streamingAgent
+      }
+      const response = await fetch(targetUrl, init as RequestInit)
 
       // Return the backend response as-is
       return new Response(response.body, {
