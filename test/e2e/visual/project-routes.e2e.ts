@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test"
+import { ensureDefaultProject } from "../helpers"
 
 const DEFAULT_WORKTREE = "default"
 
@@ -22,15 +23,10 @@ test("project route snapshots", async ({ page }) => {
     // @ts-ignore
     window.Date = FrozenDate
   }, fixedNow)
-  await page.goto("/")
-  await page.waitForSelector("#root", { state: "visible" })
-
-  const firstProject = page.locator('[data-testid="project-item"]').first()
-  await firstProject.locator('button:has-text("Open")').click()
-  await page.waitForTimeout(2000)
-  const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
-  expect(match).not.toBeNull()
-  const projectId = match![1]
+  // Ensure we use the deterministic demo project rather than any seeded default
+  const { id: projectId } = await ensureDefaultProject(page)
+  await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
+  await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 15_000 })
 
   const routes = [
     `/projects/${projectId}/${DEFAULT_WORKTREE}`,
