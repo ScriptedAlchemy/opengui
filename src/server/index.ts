@@ -57,7 +57,8 @@ export function createServer(config: ServerConfig = {}) {
   // - bodyTimeout: 0 disables per-chunk inactivity timeout (important for LLM streams)
   // - headersTimeout: 0 disables header timeout for slow backends
   // - keepAlive improves reuse when many requests are made
-  const streamingAgent = new Agent({
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const streamingAgent: Agent = new Agent({
     connect: { timeout: 30_000 },
     // Disable per-chunk inactivity and header timeouts for long-lived streams
     bodyTimeout: 0,
@@ -66,9 +67,10 @@ export function createServer(config: ServerConfig = {}) {
     keepAliveTimeout: 60_000,
     keepAliveMaxTimeout: 60_000,
   } as any)
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // Error handling middleware - must be first
-  app.onError((err, c) => {
+  app.onError((err: Error & { message?: string }, c: Context) => {
     log.error("Request error:", err)
 
     // Handle JSON parse errors
@@ -164,7 +166,7 @@ export function createServer(config: ServerConfig = {}) {
       })
     } catch (err: unknown) {
       // Map common undici errors to a quiet response; avoid noisy logs
-      const e = err as any
+      const e = err as { code?: string; cause?: { code?: string }; message?: string }
       const code = e?.code || e?.cause?.code
       const msg: string = e?.message || "fetch error"
 

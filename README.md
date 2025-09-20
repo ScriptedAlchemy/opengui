@@ -69,9 +69,8 @@ Browser → Hono Server (Port 3001)
 
 ### Development Mode
 
-- TypeScript/TSX files served via Rsbuild dev server with HMR
-- CSS is processed with Tailwind CSS v4
-- Hot reload enabled for rapid development
+- Current dev flow runs a local build then starts the Node server.
+- For live edits, re-run `pnpm run dev` or wire up `rsbuild dev` if desired.
 
 ### Production Mode
 
@@ -220,10 +219,10 @@ Tailwind CSS v4 runs via PostCSS during build and dev; no manual step required.
 
 ## Documentation
 
-- [Architecture](./docs/ARCHITECTURE.md) - System design and technical details
-- [Implementation Guide](./docs/IMPLEMENTATION.md) - Step-by-step setup instructions
-- [API Types](./src/lib/api/types.ts) - TypeScript type definitions
-- [Server Documentation](./src/server/README.md) - Server implementation details
+- API Types: `src/lib/api/types.ts`
+- Server entry: `src/server/index.ts`
+- Project routes: `src/server/integrated-project-routes.ts`
+- GitHub integration client: `src/server/github/gh-cli.ts`
 
 ## Contributing
 

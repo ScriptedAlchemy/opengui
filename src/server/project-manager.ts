@@ -1,6 +1,6 @@
 import { Log } from "../util/log"
 import { OpencodeClient, createOpencodeClient } from "@opencode-ai/sdk/client"
-import { execSync, exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
 import * as fs from "fs/promises"
 import * as crypto from "crypto"
@@ -146,7 +146,7 @@ export class ProjectManager {
 
   private async ensureConfigDirSync(): Promise<void> {
     try {
-      execSync(`mkdir -p ${this.configDir}`)
+      await fs.mkdir(this.configDir, { recursive: true })
     } catch {
       // Directory might already exist or other error, ignore
     }
@@ -248,9 +248,9 @@ export class ProjectManager {
 
   private async findGitRoot(startPath: string): Promise<string | null> {
     try {
-      const execAsync = promisify(exec)
-      const result = await execAsync(`cd ${startPath} && git rev-parse --show-toplevel`)
-      return result.stdout.trim()
+      const execFileAsync = promisify(execFile)
+      const { stdout } = await execFileAsync("git", ["-C", startPath, "rev-parse", "--show-toplevel"]) 
+      return stdout.toString().trim()
     } catch {
       return null
     }
@@ -258,9 +258,9 @@ export class ProjectManager {
 
   private async getInitialCommitHash(gitRoot: string): Promise<string | null> {
     try {
-      const execAsync = promisify(exec)
-      const result = await execAsync(`cd ${gitRoot} && git rev-list --max-parents=0 HEAD`)
-      const hash = result.stdout.trim().split("\n")[0]
+      const execFileAsync = promisify(execFile)
+      const { stdout } = await execFileAsync("git", ["-C", gitRoot, "rev-list", "--max-parents=0", "HEAD"]) 
+      const hash = stdout.toString().trim().split("\n")[0]
       return hash ? hash.substring(0, 16) : null
     } catch {
       return null
