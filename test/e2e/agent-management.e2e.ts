@@ -79,11 +79,26 @@ test.describe("Agent Management", () => {
 
     const responsePromise = page.waitForResponse((response) => response.url().includes("/agents") && response.request().method() === "POST")
     await page.locator('[data-testid="create-agent-submit"]').click()
-    await responsePromise
+    const createResponse = await responsePromise
 
-    await expect(
+    const createdLocator =
       page.locator('[data-testid="agent-item"]').filter({ hasText: /Test Agent E2E/i })
-    ).toBeVisible({ timeout: 10_000 })
+    await expect(createdLocator).toBeVisible({ timeout: 10_000 })
+
+    // Cleanup: delete the agent we just created to keep the suite deterministic for visual tests
+    try {
+      const payload = await createResponse.json().catch(() => null)
+      const createdId: string | undefined = payload?.id || undefined
+      if (createdId) {
+        const del = await page.request.delete(`/api/projects/${projectId}/agents/${createdId}`)
+        if (del.ok()) {
+          // Wait until the UI no longer shows the created agent
+          await expect(createdLocator).toHaveCount(0)
+        }
+      }
+    } catch (e) {
+      console.warn('[E2E] Failed to cleanup created agent:', e)
+    }
 
     expect(issues).toEqual([])
   })

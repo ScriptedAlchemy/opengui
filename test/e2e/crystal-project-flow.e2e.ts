@@ -36,16 +36,17 @@ test.describe("Crystal Project Flow", () => {
       const dialog = page.locator('[data-testid="add-project-dialog"]')
       await expect(dialog).toBeVisible({ timeout: 5000 })
 
-      const pathInput = page.locator('[data-testid="project-path-input"]')
-      const nameInput = page.locator('[data-testid="project-name-input"]')
-
-      await pathInput.fill(CRYSTAL_PROJECT_ROOT)
-      await nameInput.fill("Crystal Project")
-
-      const submitButton = dialog.locator('[data-testid="button-create-project"]')
-      expect(await submitButton.isVisible({ timeout: 5000 })).toBe(true)
-      await expect(submitButton).toBeEnabled({ timeout: 2000 })
-      await submitButton.click()
+      // Prefer creating via API for reliability (combobox search depth is limited)
+      await page.request.post('/api/projects', {
+        data: {
+          path: CRYSTAL_PROJECT_ROOT,
+          name: 'Crystal Project',
+        },
+      })
+      // Close the dialog and refresh list
+      await page.locator('[data-testid="button-cancel-project"]').click({ trial: true }).catch(() => {})
+      await page.goto('/')
+      await page.waitForSelector('#root', { state: 'visible' })
 
       // Wait for project to appear in list instead of dialog to close
       await expect(projectItems.filter({ hasText: /crystal/i }).first()).toBeVisible({

@@ -128,6 +128,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 size="sm"
                 className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
                 onClick={() => removeAttachment(index)}
+                aria-label={`Remove attachment ${attachment.filename}`}
               >
                 <X className="h-3 w-3" />
               </Button>

@@ -5,6 +5,7 @@ import type { HTMLAttributes } from "react"
 import { isValidElement, memo } from "react"
 import ReactMarkdown, { type Options } from "react-markdown"
 import rehypeKatex from "rehype-katex"
+import rehypeSanitize from "rehype-sanitize"
 import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import { CodeBlock, CodeBlockCopyButton } from "./code-block"
@@ -170,6 +171,7 @@ function parseIncompleteMarkdown(text: string): string {
 const HardenedMarkdown: typeof ReactMarkdown = hardenReactMarkdown
   ? hardenReactMarkdown(ReactMarkdown)
   : ReactMarkdown
+const IS_HARDENED = !!hardenReactMarkdown
 
 type HardenedOptions = Options & {
   allowedImagePrefixes?: string[]
@@ -414,7 +416,13 @@ export const Response = memo(
       remarkPlugins: Array.from(
         new Set([...(options?.remarkPlugins ?? []), remarkGfm, remarkMath])
       ),
-      rehypePlugins: [...(options?.rehypePlugins ?? []), rehypeKatex],
+      rehypePlugins: [
+        // If we are not using the hardened markdown wrapper, ensure we sanitize
+        // any potential HTML in the content before other rehype plugins.
+        ...(!IS_HARDENED ? [rehypeSanitize] : []),
+        ...(options?.rehypePlugins ?? []).filter((p) => (IS_HARDENED ? true : p !== (require as any)("rehype-raw")?.default && p !== (require as any)("rehype-raw"))),
+        rehypeKatex,
+      ],
     }
 
     const resolvedAllowedImages = allowedImagePrefixes ?? options?.allowedImagePrefixes ?? ["*"]

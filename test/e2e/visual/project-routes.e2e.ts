@@ -3,6 +3,25 @@ import { test, expect } from "@playwright/test"
 const DEFAULT_WORKTREE = "default"
 
 test("project route snapshots", async ({ page }) => {
+  // Freeze time for deterministic UI (e.g., relative timestamps)
+  const fixedNow = new Date("2025-09-18T12:00:00Z").valueOf()
+  await page.addInitScript((frozenNow) => {
+    const OriginalDate = Date
+    class FrozenDate extends OriginalDate {
+      constructor(...args: any[]) {
+        if (args.length === 0) {
+          super(frozenNow)
+        } else {
+          super(...args)
+        }
+      }
+      static now() {
+        return frozenNow
+      }
+    }
+    // @ts-ignore
+    window.Date = FrozenDate
+  }, fixedNow)
   await page.goto("/")
   await page.waitForSelector("#root", { state: "visible" })
 

@@ -24,6 +24,7 @@ import { fileURLToPath } from "node:url"
 // For controlling fetch timeouts and connection reuse with Node's undici
 // Note: avoid static import of 'undici' Agent to prevent bundling/runtime issues
 // in certain environments. We'll require it dynamically when available.
+let streamingAgentGlobal: { close: () => Promise<void> | void } | undefined
 
 const log = Log.create({ service: "app-server" })
 
@@ -76,6 +77,7 @@ export function createServer(config: ServerConfig = {}) {
     // undici not available; fetch will fall back to defaults
     streamingAgent = undefined
   }
+  streamingAgentGlobal = streamingAgent
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // Error handling middleware - must be first
@@ -105,7 +107,7 @@ export function createServer(config: ServerConfig = {}) {
   app.use(
     "*",
     cors({
-      origin: ["*"],
+      origin: (origin) => origin || "http://localhost",
       credentials: true,
     })
   )
@@ -150,7 +152,18 @@ export function createServer(config: ServerConfig = {}) {
 
     // Forward the request to the OpenCode backend
     const headers = new Headers(c.req.raw.headers)
-    headers.delete("host")
+    // Remove hop-by-hop headers; they are not end-to-end and may corrupt proxying
+    ;[
+      "host",
+      "connection",
+      "proxy-connection",
+      "transfer-encoding",
+      "te",
+      "trailer",
+      "upgrade",
+      "keep-alive",
+      "content-length",
+    ].forEach((h) => headers.delete(h))
 
     try {
       // Forward client aborts to the upstream request to prevent "terminated" errors
@@ -160,7 +173,7 @@ export function createServer(config: ServerConfig = {}) {
         method: c.req.method,
         headers,
         body: c.req.raw.body,
-        duplex: "half",
+        ...(c.req.raw.body ? { duplex: "half" } : {}),
         signal,
       }
       if (streamingAgent) {
@@ -299,6 +312,13 @@ export async function startServer(config: ServerConfig = {}) {
       log.info("Stopping OpenCode backend...")
       opencodeBackend.close()
     }
+    if (streamingAgentGlobal && typeof streamingAgentGlobal.close === "function") {
+      try {
+        await streamingAgentGlobal.close()
+      } catch (e) {
+        log.warn("Failed to close streaming agent", e)
+      }
+    }
     server.close()
     process.exit(0)
   })
@@ -309,6 +329,13 @@ export async function startServer(config: ServerConfig = {}) {
     if (opencodeBackend) {
       log.info("Stopping OpenCode backend...")
       opencodeBackend.close()
+    }
+    if (streamingAgentGlobal && typeof streamingAgentGlobal.close === "function") {
+      try {
+        await streamingAgentGlobal.close()
+      } catch (e) {
+        log.warn("Failed to close streaming agent", e)
+      }
     }
     server.close()
     process.exit(0)
