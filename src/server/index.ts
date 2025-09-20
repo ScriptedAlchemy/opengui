@@ -104,10 +104,11 @@ export function createServer(config: ServerConfig = {}) {
   })
 
   // Middleware - production CORS settings
+  // CORS: reflect the request Origin when present; otherwise use "*"
   app.use(
     "*",
     cors({
-      origin: (origin) => origin || "http://localhost",
+      origin: (origin) => (origin ? origin : "*"),
       credentials: true,
     })
   )

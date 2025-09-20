@@ -62,7 +62,7 @@ export function DynamicDirectoryCombobox({
   const [searchResults, setSearchResults] = React.useState<SearchResult[]>([])
   const [loading, setLoading] = React.useState(false)
   const [cache, setCache] = React.useState<Map<string, DirectoryEntry[]>>(new Map())
-  const searchTimeoutRef = React.useRef<NodeJS.Timeout>()
+  const searchTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>()
 
   // Fetch and cache directories for a path
   const getCachedOrFetch = React.useCallback(async (path: string): Promise<DirectoryEntry[]> => {

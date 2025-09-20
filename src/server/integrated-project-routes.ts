@@ -2238,8 +2238,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
             const metadata = resolveWorktreeMetadata(canonicalId, worktree)
             if (metadata?.path) {
               targetPath = metadata.path
-            } else if (worktree.includes("/")) {
-              targetPath = worktree
             } else {
               return c.json({ error: "Worktree not found" }, 404)
             }
@@ -2255,6 +2253,11 @@ export function addIntegratedProjectRoutes(app: Hono) {
           }
 
           const repoPath = normalizePath(targetPath)
+          // Enforce repoPath stays within the user's HOME to avoid arbitrary FS access
+          if (!(repoPath === HOME_DIRECTORY || repoPath.startsWith(`${HOME_DIRECTORY}/`))) {
+            log.warn("Rejected git status for path outside HOME", { repoPath })
+            return c.json(createEmptyGitStatus())
+          }
 
           try {
             await nodeFs.stat(repoPath)

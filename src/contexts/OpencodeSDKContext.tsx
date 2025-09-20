@@ -109,7 +109,7 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
         setClient(null)
       })
       .finally(() => setLoading(false))
-  }, [projectId, projectPath, getClient, error])
+  }, [projectId, projectPath, getClient])
 
   // Reset attempt flag when projectId or projectPath changes
   useEffect(() => {

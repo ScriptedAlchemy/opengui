@@ -173,6 +173,16 @@ const HardenedMarkdown: typeof ReactMarkdown = hardenReactMarkdown
   : ReactMarkdown
 const IS_HARDENED = !!hardenReactMarkdown
 
+// Safely resolve rehype-raw once (optional dependency)
+let REHYPE_RAW_PLUGIN: any | null = null
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const mod = require("rehype-raw")
+  REHYPE_RAW_PLUGIN = mod?.default ?? mod ?? null
+} catch {
+  REHYPE_RAW_PLUGIN = null
+}
+
 type HardenedOptions = Options & {
   allowedImagePrefixes?: string[]
   allowedLinkPrefixes?: string[]
@@ -420,7 +430,12 @@ export const Response = memo(
         // If we are not using the hardened markdown wrapper, ensure we sanitize
         // any potential HTML in the content before other rehype plugins.
         ...(!IS_HARDENED ? [rehypeSanitize] : []),
-        ...(options?.rehypePlugins ?? []).filter((p) => (IS_HARDENED ? true : p !== (require as any)("rehype-raw")?.default && p !== (require as any)("rehype-raw"))),
+        ...(options?.rehypePlugins ?? []).filter((entry) => {
+          if (IS_HARDENED) return true
+          if (!REHYPE_RAW_PLUGIN) return true
+          const pluginFn = Array.isArray(entry) ? entry[0] : entry
+          return pluginFn !== REHYPE_RAW_PLUGIN
+        }),
         rehypeKatex,
       ],
     }

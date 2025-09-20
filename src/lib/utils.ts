@@ -49,7 +49,7 @@ export function resolveDate(input: string | number | Date): Date {
   }
 
   const numeric = Number(input)
-  if (Number.isFinite(numeric) && input.trim() !== "") {
+  if (Number.isFinite(numeric) && typeof input === "string" && input.trim() !== "") {
     const value = numeric > 1e11 ? numeric : numeric * 1000
     return new Date(value)
   }

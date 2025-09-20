@@ -78,6 +78,7 @@ export const Combobox = ({
   defaultOpen = false,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
+  children,
   ...props
 }: ComboboxProps) => {
   const [value, onValueChange] = useControllableState({
@@ -108,7 +109,9 @@ export const Combobox = ({
         setInputValue,
       }}
     >
-      <Popover {...props} onOpenChange={onOpenChange} open={open} />
+      <Popover {...props} onOpenChange={onOpenChange} open={open}>
+        {children}
+      </Popover>
     </ComboboxContext.Provider>
   );
 };

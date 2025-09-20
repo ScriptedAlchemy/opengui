@@ -2,7 +2,16 @@ import { describe, it, expect, beforeAll, afterAll } from "@rstest/core"
 import { sleep } from "../utils/node-utils"
 import { createTestServer, type TestServer } from "./test-helpers"
 
-const withTimeout = (_ms: number): Record<string, never> => ({})
+const withTimeout = (ms: number) => {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), ms)
+  
+  return {
+    signal: controller.signal,
+    // Clean up timeout on successful request
+    onComplete: () => clearTimeout(timeoutId)
+  }
+}
 
 describe("Real Backend Integration", () => {
   let testServer: TestServer
@@ -17,7 +26,7 @@ describe("Real Backend Integration", () => {
     await testServer.cleanup()
   })
 
-  test("health endpoint returns correct structure", async () => {
+  it("health endpoint returns correct structure", async () => {
     const response = await fetch(`${testServer.baseUrl}/doc`, {
       ...withTimeout(10000),
     })

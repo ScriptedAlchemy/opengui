@@ -38,9 +38,10 @@ import {
   type GitHubContentItem,
 } from "@/lib/api/github-content"
 import { useCurrentProject } from "@/stores/projects"
+import rehypeRaw from "rehype-raw"
+import rehypeSanitize from "rehype-sanitize"
 import { useWorktreesStore } from "@/stores/worktrees"
 import { useSessionsStore } from "@/stores/sessions"
-import rehypeRaw from "rehype-raw"
 import { Response, type ResponseProps } from "@/components/ui/shadcn-io/ai/response"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNowStrict } from "date-fns"
@@ -55,7 +56,9 @@ const ISSUES_PAGE_DEFAULT = 10
 const ISSUES_PAGE_STEP = 10
 
 const GITHUB_MARKDOWN_OPTIONS: NonNullable<ResponseProps["options"]> = {
-  rehypePlugins: [rehypeRaw],
+  // Be permissive for GitHub content: allow raw HTML but sanitize after merge.
+  rehypePlugins: [rehypeRaw, rehypeSanitize],
+  // Allow all link and image URLs (the hardened renderer still blocks javascript:/data:).
   allowedLinkPrefixes: ["*"],
   allowedImagePrefixes: ["*"],
   defaultOrigin: "https://github.com",

@@ -224,7 +224,7 @@ export default function AgentManagement() {
     let cancelled = false
     const targetPath = activeWorktreePath || currentProject?.path || ""
     setSdkLoading(true)
-    void import("../../src/services/opencode-sdk-service")
+    void import("../services/opencode-sdk-service")
       .then((mod) => mod.opencodeSDKService.getClient(projectId, targetPath))
       .then((client) => {
         if (!cancelled) {

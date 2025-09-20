@@ -135,9 +135,17 @@ rstest.mock("react-router-dom", () => {
   })
   MockNavLink.displayName = "MockNavLink"
 
+  // Provide a default useParams that includes a worktreeId, but allow tests to override
+  const defaultUseParams = () => ({
+    projectId: "test-project",
+    worktreeId: "default",
+    sessionId: undefined,
+  })
+
   return {
     ...actual,
     NavLink: MockNavLink,
+    useParams: defaultUseParams,
   }
 })
 
@@ -266,25 +274,7 @@ try {
 // Import jest-dom matchers (provides toBeInTheDocument, toHaveClass, etc.)
 import "@testing-library/jest-dom"
 
-// Global mock for react-router-dom to provide default worktreeId
-rstest.mock("react-router-dom", () => {
-  const actual = require("react-router-dom")
-  return {
-    ...actual,
-    useParams: () => {
-      // If the test has already mocked this, use their mock
-      if (actual.useParams && actual.useParams.mockImplementation) {
-        return actual.useParams()
-      }
-      // Otherwise provide sensible defaults with worktreeId
-      return {
-        projectId: "test-project",
-        worktreeId: "default",
-        sessionId: undefined
-      }
-    }
-  }
-})
+// (merged duplicate react-router-dom mock above)
 
 // Mock localStorage and sessionStorage for Zustand persist
 const createMockStorage = (): Storage => {

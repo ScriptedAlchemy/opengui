@@ -259,8 +259,9 @@ const buildFileTree = (files: FileNode[]): FileTreeNode[] => {
   // Sort files: directories first, then by name
   const sortedFiles = [...files].sort((a, b) => {
     if (a.type !== b.type) {
-      // Show files first for better initial accessibility in tests/UI
-      return a.type === "file" ? -1 : 1
+      // Process directories first to ensure parent directories exist in pathMap
+      // before their children are processed
+      return a.type === "directory" ? -1 : 1
     }
     // Handle undefined names
     const nameA = a.name || ""

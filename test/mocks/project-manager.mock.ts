@@ -11,17 +11,6 @@ interface WorktreeMetadata {
   path: string
   title: string
 }
-interface WorktreeMetadata {
-  id: string
-  path: string
-  title: string
-}
-
-interface WorktreeMetadata {
-  id: string
-  path: string
-  title: string
-}
 
 interface ProjectInfo {
   id: string
@@ -400,8 +389,4 @@ export class MockProjectManager {
 
 // Export a singleton instance for import compatibility
 export const mockProjectManager = MockProjectManager.getInstance()
-interface WorktreeMetadata {
-  id: string
-  path: string
-  title: string
-}
+// (duplicate WorktreeMetadata declaration removed)

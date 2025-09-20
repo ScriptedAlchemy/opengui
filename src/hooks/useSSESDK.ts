@@ -80,7 +80,14 @@ export function useSSESDK(
           signal: abortController.signal,
         })
 
-        const stream = result.stream as AsyncGenerator<Event, void, unknown>
+        const stream = (result as any)?.stream as
+          | AsyncGenerator<Event, void, unknown>
+          | undefined
+
+        if (!stream) {
+          warn("[useSSESDK] SDK returned no stream; aborting subscribe")
+          return
+        }
 
         log("[useSSESDK] Successfully connected to SSE stream, starting to process events")
 
@@ -104,10 +111,13 @@ export function useSSESDK(
 
     const handleEvent = (event: Event) => {
       try {
-        log("[useSSESDK] Received event:", event.type, event.properties)
+        log("[useSSESDK] Received event:", event.type, (event as any)?.properties)
         switch (event.type) {
           case "message.updated": {
-            const { info } = event.properties
+            const info = (event as any)?.properties?.info as
+              | (MessageResponse & { sessionID: string; id?: string })
+              | undefined
+            if (!info) break
             if (info.sessionID === currentSession?.id && info.id) {
               setMessages((prev) => {
                 const existingIndex = prev.findIndex((message) => message.id === info.id)
@@ -160,7 +170,8 @@ export function useSSESDK(
           }
 
           case "message.part.updated": {
-            const { part } = event.properties
+            const part = (event as any)?.properties?.part as Part | undefined
+            if (!part) break
             log("[useSSESDK] message.part.updated event:", {
               part,
               currentSessionId: currentSession?.id,
@@ -214,11 +225,13 @@ export function useSSESDK(
           }
 
           case "session.error": {
-            const { sessionID, messageID, error: sessionError } = event.properties as {
-              sessionID: string
+            const { sessionID, messageID, error: sessionError } = ((event as any)
+              ?.properties ?? {}) as {
+              sessionID?: string
               messageID?: string
               error?: { name?: string; message?: string; data?: unknown }
             }
+            if (!sessionID) break
             if (sessionID === currentSession?.id) {
               console.error("Session error:", sessionError)
               setIsStreaming(false)
