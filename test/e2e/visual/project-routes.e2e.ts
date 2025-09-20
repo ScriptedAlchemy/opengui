@@ -26,6 +26,7 @@ test("project route snapshots", async ({ page }) => {
   // Ensure we use the deterministic demo project rather than any seeded default
   const { id: projectId } = await ensureDefaultProject(page)
   await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
+  await page.setViewportSize({ width: 1280, height: 1620 })
   await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 15_000 })
 
   const routes = [
@@ -43,19 +44,13 @@ test("project route snapshots", async ({ page }) => {
 
     const name = route.split("/").slice(-1)[0]
     if (name === "git") {
-      const panel = page.locator('[data-testid="git-operations-page"]')
-      await expect(panel).toBeVisible()
-      await expect(panel).toHaveScreenshot(`route-${name}.png`, {
-        animations: "disabled",
-        timeout: 15000,
-        maxDiffPixelRatio: 0.02,
-      })
-    } else {
-      await expect(page).toHaveScreenshot(`route-${name}.png`, {
-        animations: "disabled",
-        timeout: 15000,
-        maxDiffPixelRatio: 0.02,
-      })
+      // Verify the panel is visible, then take a viewport-level snapshot
+      await expect(page.locator('[data-testid="git-operations-page"]')).toBeVisible()
     }
+    await expect(page).toHaveScreenshot(`route-${name}.png`, {
+      animations: "disabled",
+      timeout: 15000,
+      maxDiffPixelRatio: 0.02,
+    })
   }
 })
