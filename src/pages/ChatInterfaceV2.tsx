@@ -146,6 +146,28 @@ function ChatInterfaceV2Inner() {
 
   useSSESDK(client, resolvedPath, currentSession, instanceStatus, setMessages, setIsStreaming)
 
+  // When selecting an existing session, prefer its previously used provider/model
+  const sessionDefaultsApplied = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    const sessionId = currentSession?.id
+    if (!sessionId) return
+    if (!messages || messages.length === 0) return
+    if (sessionDefaultsApplied.current === sessionId) return
+
+    // Find most recent assistant message carrying provider/model info
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const msg = messages[i]
+      const provider = (msg as unknown as { providerID?: string }).providerID
+      const model = (msg as unknown as { modelID?: string }).modelID
+      if (msg.role === 'assistant' && provider && model) {
+        if (selectedProvider !== provider) setSelectedProvider(provider)
+        if (selectedModel !== model) setSelectedModel(model)
+        sessionDefaultsApplied.current = sessionId
+        break
+      }
+    }
+  }, [currentSession?.id, messages, selectedProvider, selectedModel, setSelectedProvider, setSelectedModel])
+
   const handleSelectSession = React.useCallback(
     (session: SessionInfo) => {
       if (!projectId || !session.id) return
@@ -156,14 +178,14 @@ function ChatInterfaceV2Inner() {
 
   if (!projectId) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-full items-center justify-center">
         <p className="text-muted-foreground">No project selected</p>
       </div>
     )
   }
 
   return (
-    <div className="bg-background flex h-screen" data-testid="chat-interface-v2-container">
+    <div className="bg-background flex h-screen-minus-header min-h-0" data-testid="chat-interface-v2-container">
       <ChatSidebar
         project={project}
         sessions={sessions}
@@ -175,7 +197,7 @@ function ChatInterfaceV2Inner() {
         onDeleteSession={handleDeleteSession}
       />
 
-      <div className="flex flex-1 flex-col" data-testid="chat-main-area">
+      <div className="flex flex-1 min-h-0 flex-col overflow-hidden" data-testid="chat-main-area">
         <ChatHeader
           currentSession={currentSession}
           providers={providers}

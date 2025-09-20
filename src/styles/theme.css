@@ -238,3 +238,11 @@ body {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }
+
+/* Layout Utilities */
+/* Full viewport height minus fixed site header (48px) */
+.h-screen-minus-header {
+  height: calc(100vh - 48px);
+  /* Prefer dynamic viewport units on modern browsers */
+  height: calc(100dvh - 48px);
+}

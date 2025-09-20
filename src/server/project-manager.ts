@@ -44,10 +44,18 @@ export class ProjectManager {
   private projects = new Map<string, ProjectInstance>()
   private loaded = false
   private dirty = false
-  private configDir = 
-    process.env["NODE_ENV"] === "test"
-      ? "/tmp/.opencode-test"
-      : `${process.env["HOME"]}/.opencode`
+  private configDir = (() => {
+    const override = process.env["OPENCODE_CONFIG_DIR"]
+    if (override && override.trim()) return override.trim()
+    const testMode = process.env["OPENCODE_TEST_MODE"]
+    if (
+      process.env["NODE_ENV"] === "test" ||
+      (typeof testMode === "string" && /^(1|true)$/i.test(testMode))
+    ) {
+      return "/tmp/.opencode-test"
+    }
+    return `${process.env["HOME"]}/.opencode`
+  })()
   private configFile = `${this.configDir}/web-projects.json`
   private log = Log.create({ service: "project-manager" })
 

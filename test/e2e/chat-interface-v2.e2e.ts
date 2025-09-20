@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test"
-import { openFirstProjectAndGetId, goToChat } from "./helpers"
+import { openFirstProjectAndGetId, goToChat, ensureAnthropicSonnet } from "./helpers"
 
 async function ensureProviderAndModel(page: Page) {
   const chatHeader = page.locator('[data-testid="chat-header"]')
@@ -30,22 +30,7 @@ async function ensureProviderAndModel(page: Page) {
 
   await expect(chatHeader).toBeVisible({ timeout: 15_000 })
 
-  // Explicitly choose Anthropic + Claude Sonnet 4
-  const providerSelect = page.locator('[data-testid="provider-select"]')
-  await expect(providerSelect).toBeVisible({ timeout: 10_000 })
-  await providerSelect.click()
-  await page.locator('[data-radix-select-portal] [role="option"]', { hasText: 'Anthropic' }).click()
-
-  const modelSelect = page.locator('[data-testid="model-select"]')
-  await expect(modelSelect).toBeVisible({ timeout: 10_000 })
-  await modelSelect.click()
-  const sonnetOption = page.locator('[data-radix-select-portal] [role="option"]', { hasText: 'Claude Sonnet 4' })
-  const hasSonnet = await sonnetOption.isVisible({ timeout: 10_000 }).catch(() => false)
-  if (hasSonnet) {
-    await sonnetOption.click()
-  } else {
-    await page.locator('[data-radix-select-portal] [role="option"]').first().click()
-  }
+  await ensureAnthropicSonnet(page)
 }
 
 const collectNetworkIssues = (page: Page) => {

@@ -461,6 +461,12 @@ export default function ProjectDashboard() {
     )
   }, [recentSessions, projectId, resolvedWorktreeId, navigate, handleNewSession, isRunning])
 
+  // Ensure the select's value is always a valid id to avoid uncontrolled → controlled churn
+  const selectedProjectId = useMemo(() => {
+    if (!projectId) return ""
+    return projects.some((p) => p.id === projectId) ? projectId : (projects[0]?.id ?? "")
+  }, [projectId, projects])
+
   if (loading) {
     return (
       <div className="bg-background flex h-full items-center justify-center">
@@ -496,18 +502,33 @@ export default function ProjectDashboard() {
                   <h1 className="text-2xl font-bold tracking-tight">{currentProject.name}</h1>
                   {/* Project Switcher Dropdown */}
                   <Select
-                    value={projectId}
+                    value={selectedProjectId}
                     onValueChange={(id) => navigate(`/projects/${id}/default`)}
+                    disabled={projects.length <= 1}
+                    data-testid="project-select"
                   >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue />
+                    <SelectTrigger
+                      id="project-select-trigger"
+                      aria-label="Select project"
+                      className="w-[200px]"
+                      data-testid="project-select-trigger"
+                    >
+                      <div className="flex items-center gap-2">
+                        {/* <FolderOpen className="h-4 w-4" /> */}
+                        {/* Ensure the trigger only renders plain text for the value */}
+                        <SelectValue placeholder="Select project" />
+                      </div>
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" align="start">
                       {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
+                        <SelectItem
+                          key={project.id}
+                          value={project.id}
+                          textValue={project.name}
+                        >
                           <div className="flex items-center gap-2">
                             <FolderOpen className="h-4 w-4" />
-                            {project.name}
+                            <span>{project.name}</span>
                           </div>
                         </SelectItem>
                       ))}

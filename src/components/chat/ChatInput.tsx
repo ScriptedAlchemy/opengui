@@ -74,6 +74,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           'application/json',
           'application/javascript',
           'application/typescript',
+          'application/octet-stream', // Fallback for unknown browser MIME detection
         ]
       })
 

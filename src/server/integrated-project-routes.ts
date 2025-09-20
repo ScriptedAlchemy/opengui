@@ -448,6 +448,22 @@ const buildWorktreeResponses = async (projectId: string): Promise<WorktreeRespon
       throw new Error(`Unable to resolve metadata for worktree ${entry.path}`)
     }
 
+    // If this is the primary worktree (the project root), prefer showing the git branch
+    // as the title instead of a generic "(default)" suffix seeded at project creation.
+    // Only override when the existing title looks like a default placeholder.
+    if (entry.isPrimary) {
+      const desired = entry.branch || "main"
+      const looksDefault = !metadata.title || /\(default\)\s*$/i.test(metadata.title) || metadata.title.toLowerCase() === "default"
+      if (looksDefault && metadata.title !== desired) {
+        try {
+          projectManager.updateWorktreeTitle(projectId, metadata.id, desired)
+          metadata.title = desired
+        } catch {
+          // non-fatal; continue with existing title
+        }
+      }
+    }
+
     return {
       id: metadata.id,
       title: metadata.title,

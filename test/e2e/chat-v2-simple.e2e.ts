@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test"
  
-import { openFirstProjectAndGetId, goToChat } from "./helpers"
+import { openFirstProjectAndGetId, goToChat, ensureAnthropicSonnet } from "./helpers"
 
 // Updated for SDK-only architecture:
 // - No instance start/stop needed
@@ -49,22 +49,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     
     // Use consistent data-testid for input (chat-input-textarea, not chat-input)
     expect(await chatInput.isVisible({ timeout: 10000 })).toBe(true)
-    // Ensure Anthropic provider and Sonnet 4 model are selected
-    const providerSelect = page.locator('[data-testid="provider-select"]')
-    await providerSelect.click()
-    const providerOption = page.locator('[data-radix-select-portal] [role="option"]', { hasText: 'Anthropic' })
-    await providerOption.click({ timeout: 10_000 })
-
-    const modelSelect = page.locator('[data-testid="model-select"]')
-    await modelSelect.click()
-    const modelOption = page.locator('[data-radix-select-portal] [role="option"]', { hasText: 'Claude Sonnet 4' })
-    const modelVisible = await modelOption.isVisible({ timeout: 10_000 }).catch(() => false)
-    if (modelVisible) {
-      await modelOption.click()
-    } else {
-      // Fallback: choose first model available
-      await page.locator('[data-radix-select-portal] [role="option"]').first().click()
-    }
+    await ensureAnthropicSonnet(page)
     const sidebarVisible = await chatSidebar.isVisible()
     
 

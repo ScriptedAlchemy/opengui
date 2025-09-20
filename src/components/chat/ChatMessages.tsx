@@ -1,7 +1,6 @@
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ui/shadcn-io/ai/conversation"
 import { Card } from "@/components/ui/card"
 import { User, Bot, Loader2, Download } from "lucide-react"
-import { useEffect, useRef } from "react"
 import type { MessageResponse, SessionInfo } from "@/types/chat"
 import type { ToolPart } from "@opencode-ai/sdk/client"
 import {
@@ -45,13 +44,7 @@ interface ChatMessagesProps {
 }
 
 export function ChatMessages({ currentSession, messages, isStreaming }: ChatMessagesProps) {
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  // Conversation handles stick-to-bottom automatically; no manual ref needed
 
   if (!currentSession) {
     return (
@@ -66,9 +59,9 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-        <div className="mx-auto max-w-4xl space-y-4">
+    <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+      <Conversation className="flex-1 h-full">
+        <ConversationContent className="mx-auto max-w-4xl space-y-4">
           {messages.length === 0 ? (
             <div className="text-muted-foreground py-8 text-center">
               <Bot className="mx-auto mb-2 h-8 w-8 opacity-50" />
@@ -245,10 +238,10 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
             </div>
           )}
 
-          {/* Scroll anchor */}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+        </ConversationContent>
+        {/* Bottom scroll button when not at bottom */}
+        <ConversationScrollButton />
+      </Conversation>
     </div>
   )
 }

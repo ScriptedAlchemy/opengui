@@ -141,7 +141,20 @@ export async function goToChat(page: Page, projectId: string): Promise<void> {
   await page.waitForSelector('[data-testid="project-dashboard"]', { timeout: 15000 }).catch(() => {})
 
   // Prefer reusing an existing chat session so local backend storage is already initialized.
-  await page.goto(`${basePath}/sessions`)
+  try {
+    await page.goto(`${basePath}/sessions`)
+  } catch (err: any) {
+    const msg = String(err?.message || err)
+    if (/ERR_CONNECTION_REFUSED/.test(msg)) {
+      // Give the dev server a moment and retry via home, then deep link again
+      console.warn('[E2E] Connection refused navigating to sessions. Retrying after warm-up...')
+      await page.goto('/')
+      await page.waitForSelector('#root', { timeout: 10_000 }).catch(() => {})
+      await page.goto(`${basePath}/sessions`, { waitUntil: 'domcontentloaded' })
+    } else {
+      throw err
+    }
+  }
   await page.waitForTimeout(1000)
 
   const storageDir = path.join(
@@ -200,4 +213,54 @@ export async function goToChat(page: Page, projectId: string): Promise<void> {
 
   // Wait for chat interface to be ready
   await page.waitForSelector('[data-testid="chat-input-textarea"]', { timeout: 15000 })
+}
+
+// Ensure Anthropic provider + Claude Sonnet 4 model are selected in the chat header.
+export async function ensureAnthropicSonnet(page: Page): Promise<void> {
+  const providerSelect = page.locator('[data-testid="provider-select"]')
+  const modelSelect = page.locator('[data-testid="model-select"]')
+
+  await expect(providerSelect).toBeVisible({ timeout: 20_000 })
+  await expect(modelSelect).toBeVisible({ timeout: 20_000 })
+
+  // Provider: if already Anthropic, skip. Otherwise open and pick the option.
+  const providerCurrent = ((await providerSelect.textContent().catch(() => "")) || "").trim()
+  if (!/anthropic/i.test(providerCurrent)) {
+    await providerSelect.click({ timeout: 10_000 })
+    const optionLocator = page.locator('[data-radix-select-portal] [role="option"]')
+    await expect(optionLocator.first()).toBeVisible({ timeout: 10_000 })
+    const optionTexts = await optionLocator.allInnerTexts().catch(() => [])
+    const matchIndex = optionTexts.findIndex((t) => /anthropic/i.test(t))
+    if (matchIndex >= 0) {
+      await optionLocator.nth(matchIndex).click({ timeout: 10_000 })
+    } else {
+      // Fallback to first option if Anthropic not listed; log available options
+      console.warn('[E2E] Anthropic not found in provider options:', optionTexts)
+      await optionLocator.first().click({ timeout: 10_000 })
+    }
+  }
+
+  // Model: prefer "Claude Sonnet 4" exact; fallback to any Sonnet 4; fallback to any Sonnet; else first.
+  const modelCurrent = ((await modelSelect.textContent().catch(() => "")) || "").trim()
+  if (!/(claude\s*)?sonnet[^\d]*4/i.test(modelCurrent)) {
+    await modelSelect.click({ timeout: 10_000 })
+    const optionLocator = page.locator('[data-radix-select-portal] [role="option"]')
+    await expect(optionLocator.first()).toBeVisible({ timeout: 10_000 })
+    const texts = await optionLocator.allInnerTexts().catch(() => [])
+
+    const exactIndex = texts.findIndex((t) => /claude\s*sonnet\s*4/i.test(t))
+    const sonnet4Index = exactIndex >= 0 ? exactIndex : texts.findIndex((t) => /sonnet[^\d]*4/i.test(t))
+    const anySonnetIndex = sonnet4Index >= 0 ? sonnet4Index : texts.findIndex((t) => /sonnet/i.test(t))
+
+    const indexToClick = anySonnetIndex >= 0 ? anySonnetIndex : 0
+    if (anySonnetIndex < 0) {
+      console.warn('[E2E] Sonnet 4 not found in model options, falling back to first. Options:', texts)
+    }
+    await optionLocator.nth(indexToClick).click({ timeout: 10_000 })
+  }
+
+  // Post-checks for visibility of selections
+  await expect(providerSelect).toContainText(/anthropic/i, { timeout: 10_000 })
+  // Accept either exact Sonnet 4 or any Sonnet text
+  await expect(modelSelect).toContainText(/sonnet/i, { timeout: 10_000 })
 }
