@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { ThemeProvider } from "next-themes"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AppSidebar } from "./components/app-sidebar"
 import { SiteHeader } from "./components/site-header"
 import { SidebarProvider, SidebarInset } from "./components/ui/sidebar"
 import { OpencodeSDKProvider } from "./contexts/OpencodeSDKContext"
+import { Toaster } from "./components/ui/sonner"
 
 // Import page components directly (no lazy loading since we bundle everything)
 import ProjectList from "./pages/ProjectList"
@@ -48,9 +50,9 @@ function DashboardLayout() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col">
-            <main className="flex-1 overflow-auto">
+        <div className="flex flex-1 min-h-0 flex-col">
+          <div className="@container/main flex flex-1 min-h-0 flex-col">
+            <main className="flex-1 min-h-0 overflow-auto">
               <Routes>
                 {/* Root route - Project list */}
                 <Route index element={<ProjectList />} />
@@ -86,16 +88,20 @@ function App() {
   return (
     <OpencodeSDKProvider>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <div className="bg-background text-foreground min-h-screen">
-            <DashboardLayout />
-          </div>
-        </BrowserRouter>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <BrowserRouter
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true,
+            }}
+          >
+            <div className="bg-background text-foreground min-h-screen">
+              <DashboardLayout />
+              {/* Global toast notifications */}
+              <Toaster position="top-right" richColors />
+            </div>
+          </BrowserRouter>
+        </ThemeProvider>
       </QueryClientProvider>
     </OpencodeSDKProvider>
   )
