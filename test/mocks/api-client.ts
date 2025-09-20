@@ -119,6 +119,22 @@ export const createMockFetch = () => {
       })
     }
 
+    // Agents API
+    if (url.includes("/agents")) {
+      if (method === "GET") {
+        return new Response(JSON.stringify({ agents: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (method === "POST") {
+        return new Response(JSON.stringify({ id: "agent-1", name: "New Agent" }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+    }
+
     // Default success response
     return new Response(JSON.stringify({ success: true }), {
       status: 200,

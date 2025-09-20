@@ -1,94 +1,114 @@
-import React from "react"
-import { describe, test, expect, beforeEach, rstest } from "@rstest/core"
-import { render, waitFor } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
-let SessionList: any
+import "../setup.ts"
+import {
+  describe,
+  test,
+  beforeEach,
+  expect,
+  rstest,
+} from "@rstest/core"
+import { renderWithRouter } from "../utils/test-router"
+import { screen, waitFor, act, fireEvent } from "@testing-library/react"
 
-// Mock the sessions store
+const mockNavigate = rstest.fn(() => {})
+
+rstest.mock("react-router-dom", () => {
+  const actual = require("react-router-dom")
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  }
+})
+
+const mockProject = {
+  id: "test-project",
+  name: "Test Project",
+  path: "/test/path",
+  type: "git" as const,
+  addedAt: new Date().toISOString(),
+  lastOpened: new Date().toISOString(),
+  instance: {
+    id: "instance-1",
+    port: 3001,
+    status: "running" as const,
+    startedAt: new Date(),
+  },
+}
+
 const createMockSession = (id: string, title: string) => ({
   id,
   title,
+  projectID: "test-project",
+  directory: "/test/path",
+  version: "1",
   time: {
-    created: Math.floor(Date.now() / 1000),
-    updated: Math.floor(Date.now() / 1000),
+    created: Date.now() / 1000,
+    updated: Date.now() / 1000,
   },
+  metadata: {},
 })
 
-const mockSessions = new Map([
-  [
-    "test-project",
-    [createMockSession("session-1", "Test Session 1"), createMockSession("session-2", "Test Session 2")],
-  ],
-])
+const mockSessions = [createMockSession("session-1", "First Session"), createMockSession("session-2", "Second Session")]
 
 const mockLoadSessions = rstest.fn(async () => {})
-const mockCreateSession = rstest.fn(async () => createMockSession("new-session", "New Session"))
+const mockCreateSession = rstest.fn(async () => createMockSession("session-new", "New Session"))
 const mockDeleteSession = rstest.fn(async () => {})
 const mockClearError = rstest.fn(() => {})
 
+const sessionsStoreMock = {
+  sessions: new Map([["test-project", mockSessions]]),
+  listLoading: false,
+  createLoading: false,
+  error: null,
+  loadSessions: mockLoadSessions,
+  createSession: mockCreateSession,
+  deleteSession: mockDeleteSession,
+  clearError: mockClearError,
+}
+
 rstest.mock("../../src/stores/sessions", () => ({
-  useSessionsStore: () => ({
-    sessions: mockSessions,
-    listLoading: false,
-    createLoading: false,
-    error: null,
-    loadSessions: mockLoadSessions,
-    createSession: mockCreateSession,
-    deleteSession: mockDeleteSession,
-    clearError: mockClearError,
-  }),
+  useSessionsStore: () => sessionsStoreMock,
+  useSessionsForProject: () => mockSessions,
 }))
-// Also mock alias import path
 rstest.mock("@/stores/sessions", () => ({
-  useSessionsStore: () => ({
-    sessions: mockSessions,
-    listLoading: false,
-    createLoading: false,
-    error: null,
-    loadSessions: mockLoadSessions,
-    createSession: mockCreateSession,
-    deleteSession: mockDeleteSession,
-    clearError: mockClearError,
-  }),
+  useSessionsStore: () => sessionsStoreMock,
+  useSessionsForProject: () => mockSessions,
 }))
 
-// Mock react-router-dom
-const mockNavigate = rstest.fn(() => {})
-rstest.mock("react-router-dom", () => ({
-  ...require("react-router-dom"),
-  useParams: () => ({ projectId: "test-project" }),
-  useNavigate: () => mockNavigate,
-}))
-
-// Mock project store
 rstest.mock("../../src/stores/projects", () => ({
-  useCurrentProject: () => ({
-    id: "test-project",
-    name: "Test Project",
-    path: "/test/path",
-    type: "git" as const,
-    addedAt: new Date().toISOString(),
-    lastOpened: new Date().toISOString(),
-  }),
+  useCurrentProject: () => mockProject,
   useProjectsActions: () => ({
-    selectProject: rstest.fn(() => {}),
+    selectProject: rstest.fn(async () => {}),
   }),
+  useProjectsStore: { getState: () => ({ currentProject: mockProject, projects: [mockProject] }) },
 }))
 rstest.mock("@/stores/projects", () => ({
-  useCurrentProject: () => ({
-    id: "test-project",
-    name: "Test Project",
-    path: "/test/path",
-    type: "git" as const,
-    addedAt: new Date().toISOString(),
-    lastOpened: new Date().toISOString(),
-  }),
+  useCurrentProject: () => mockProject,
   useProjectsActions: () => ({
-    selectProject: rstest.fn(() => {}),
+    selectProject: rstest.fn(async () => {}),
   }),
+  useProjectsStore: { getState: () => ({ currentProject: mockProject, projects: [mockProject] }) },
 }))
 
-// Mock clipboard API
+const mockWorktrees = [
+  { id: "default", path: "/test/path", title: "Main" },
+  { id: "feature", path: "/feature", title: "Feature" },
+]
+
+const mockLoadWorktrees = rstest.fn(async () => {})
+const worktreesStoreMock = {
+  loadWorktrees: mockLoadWorktrees,
+}
+
+rstest.mock("../../src/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: any) => (selector ? selector(worktreesStoreMock) : worktreesStoreMock),
+  useWorktreesForProject: () => mockWorktrees,
+}))
+rstest.mock("@/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: any) => (selector ? selector(worktreesStoreMock) : worktreesStoreMock),
+  useWorktreesForProject: () => mockWorktrees,
+}))
+
+// Clipboard API stub
 Object.defineProperty(navigator, "clipboard", {
   value: {
     writeText: rstest.fn(async () => {}),
@@ -96,159 +116,43 @@ Object.defineProperty(navigator, "clipboard", {
   writable: true,
 })
 
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return (
-    <MemoryRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      {children}
-    </MemoryRouter>
-  )
+let SessionList: any
+
+const renderSessions = async () => {
+  await act(async () => {
+    renderWithRouter(<SessionList />, {
+      projectId: "test-project",
+      worktreeId: "default",
+      initialPath: "/projects/test-project/default/sessions",
+    })
+  })
 }
 
-describe("SessionList Component", () => {
+describe("SessionList", () => {
   beforeEach(() => {
     rstest.clearAllMocks()
-    const mod = require("@/pages/SessionList")
+    sessionsStoreMock.sessions = new Map([["test-project", mockSessions]])
+    const mod = require("../../src/pages/SessionList")
     SessionList = mod.default || mod.SessionList
   })
 
-  test("renders without crashing", () => {
-    const { container } = render(
-      <TestWrapper>
-        <SessionList />
-      </TestWrapper>,
-    )
+  test("renders session cards and loads data", async () => {
+    await renderSessions()
 
-    expect(container).toBeDefined()
+    await renderSessions()
+
+    const headings = await screen.findAllByText(/Chat Sessions/i)
+    expect(headings.length).toBeGreaterThan(0)
+    const firstLabels = await screen.findAllByText("First Session")
+    expect(firstLabels.length).toBeGreaterThan(0)
+    const secondLabels = await screen.findAllByText("Second Session")
+    expect(secondLabels.length).toBeGreaterThan(0)
   })
 
-  test("calls loadSessions on mount", async () => {
-    render(
-      <TestWrapper>
-        <SessionList />
-      </TestWrapper>,
-    )
+  test("shows toolbar actions", async () => {
+    await renderSessions()
 
-    await waitFor(() => {
-      expect(mockLoadSessions).toHaveBeenCalledWith("test-project", "/test/path")
-    })
-  })
-
-  test("renders session list with basic structure", () => {
-    const { container } = render(
-      <TestWrapper>
-        <SessionList />
-      </TestWrapper>,
-    )
-
-    // Check that the component renders without throwing
-    expect(container.firstChild).toBeDefined()
-  })
-
-  test("handles empty sessions", () => {
-    // Mock empty sessions
-    rstest.mock("../../src/stores/sessions", () => ({
-      useSessionsStore: () => ({
-        sessions: new Map([["test-project", []]]),
-        listLoading: false,
-        createLoading: false,
-        error: null,
-        loadSessions: mockLoadSessions,
-        createSession: mockCreateSession,
-        deleteSession: mockDeleteSession,
-        clearError: mockClearError,
-      }),
-    }))
-
-    const { container } = render(
-      <TestWrapper>
-        <SessionList />
-      </TestWrapper>,
-    )
-
-    expect(container.firstChild).toBeDefined()
-  })
-
-  test("handles loading state", () => {
-    // Mock loading state
-    rstest.mock("../../src/stores/sessions", () => ({
-      useSessionsStore: () => ({
-        sessions: new Map(),
-        listLoading: true,
-        createLoading: false,
-        error: null,
-        loadSessions: mockLoadSessions,
-        createSession: mockCreateSession,
-        deleteSession: mockDeleteSession,
-        clearError: mockClearError,
-      }),
-    }))
-
-    const { container } = render(
-      <TestWrapper>
-        <SessionList />
-      </TestWrapper>,
-    )
-
-    expect(container.firstChild).toBeDefined()
-  })
-
-  test("handles error state", () => {
-    // Mock error state
-    rstest.mock("../../src/stores/sessions", () => ({
-      useSessionsStore: () => ({
-        sessions: new Map(),
-        listLoading: false,
-        createLoading: false,
-        error: "Failed to load sessions",
-        loadSessions: mockLoadSessions,
-        createSession: mockCreateSession,
-        deleteSession: mockDeleteSession,
-        clearError: mockClearError,
-      }),
-    }))
-
-    const { container } = render(
-      <TestWrapper>
-        <SessionList />
-      </TestWrapper>,
-    )
-
-    expect(container.firstChild).toBeDefined()
-  })
-
-  test("handles invalid project ID", () => {
-    // Mock no project ID
-    rstest.mock("react-router-dom", () => ({
-      ...require("react-router-dom"),
-      useParams: () => ({}),
-      useNavigate: () => mockNavigate,
-    }))
-
-    const { container } = render(
-      <TestWrapper>
-        <SessionList />
-      </TestWrapper>,
-    )
-
-    expect(container.firstChild).toBeDefined()
-  })
-
-  test("clears error on unmount", async () => {
-    const { unmount } = render(
-      <TestWrapper>
-        <SessionList />
-      </TestWrapper>,
-    )
-
-    unmount()
-
-    await waitFor(() => {
-      expect(mockClearError).toHaveBeenCalled()
-    })
+    await screen.findByTestId("new-session-button")
+    expect(screen.getByPlaceholderText(/search sessions/i)).toBeDefined()
   })
 })

@@ -15,8 +15,10 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react"
-import { useSessionsStore } from "@/stores/sessions"
+import { useSessionsStore, useSessionsForProject } from "@/stores/sessions"
+import type { Session } from "@opencode-ai/sdk/client"
 import { useCurrentProject, useProjectsActions, useProjectsStore } from "@/stores/projects"
+import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import {
@@ -27,6 +29,8 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu"
 import { cn, formatDateTime, formatRelativeTime } from "../lib/utils"
+
+const DEFAULT_WORKTREE = "default"
 
 interface SessionItemProps {
   session: {
@@ -41,6 +45,7 @@ interface SessionItemProps {
     }
   }
   projectId: string
+  basePath: string
   onSelect: () => void
   onDelete: () => void
   onShare: () => void
@@ -48,7 +53,7 @@ interface SessionItemProps {
 
 const SessionItem: React.FC<SessionItemProps> = ({
   session,
-  projectId,
+  basePath,
   onSelect,
   onDelete,
   onShare,
@@ -80,7 +85,7 @@ const SessionItem: React.FC<SessionItemProps> = ({
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation()
     // Navigate to chat interface for editing
-    navigate(`/projects/${projectId}/sessions/${session.id}/chat`)
+    navigate(`${basePath}/sessions/${session.id}/chat`)
   }
 
   return (
@@ -266,14 +271,17 @@ const ErrorState: React.FC<{ error: string; onRetry: () => void }> = ({ error, o
 type SortOption = "recent" | "alphabetical" | "created"
 
 export default function SessionList() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const params = useParams<{ projectId: string; worktreeId: string }>()
+  const projectIdParam = params.projectId ?? ""
+  const activeWorktreeId = params.worktreeId ?? "default"
   const navigate = useNavigate()
   const currentProject = useCurrentProject()
   const { selectProject } = useProjectsActions()
-  const effectiveProjectId = projectId || currentProject?.id
+  const effectiveProjectId = projectIdParam || currentProject?.id || ""
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const worktrees = useWorktreesForProject(effectiveProjectId)
 
   const {
-    sessions,
     listLoading,
     createLoading,
     error,
@@ -288,12 +296,30 @@ export default function SessionList() {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc")
   const [projectLoading, setProjectLoading] = useState(false)
 
-  const projectSessions = sessions.get(effectiveProjectId || "") || []
+  const activeWorktree = useMemo(() => {
+    if (activeWorktreeId === "default") {
+      if (currentProject?.path) {
+        return { id: "default", path: currentProject.path }
+      }
+      return worktrees.find((worktree) => worktree.id === "default")
+    }
+    return worktrees.find((worktree) => worktree.id === activeWorktreeId)
+  }, [activeWorktreeId, worktrees, currentProject?.path])
+
+  const activeWorktreePath = activeWorktree?.path || currentProject?.path
+
+  const projectSessions = useSessionsForProject(effectiveProjectId, activeWorktreePath)
+
+  useEffect(() => {
+    if (effectiveProjectId) {
+      void loadWorktrees(effectiveProjectId)
+    }
+  }, [effectiveProjectId, loadWorktrees])
 
   // Ensure project is loaded and then load sessions
   useEffect(() => {
     const loadProjectAndSessions = async () => {
-      if (!effectiveProjectId) return
+      if (!effectiveProjectId || !activeWorktreePath) return
       
       // If currentProject is not loaded, try to load it
       if (!currentProject || currentProject.id !== effectiveProjectId) {
@@ -303,22 +329,44 @@ export default function SessionList() {
           // After selection, get the current project from the store
           const storeState = useProjectsStore.getState()
           const updatedProject = storeState.currentProject
-          if (updatedProject?.path) {
-            await loadSessions(effectiveProjectId, updatedProject.path)
+          await loadWorktrees(effectiveProjectId)
+          const worktreeState = useWorktreesStore.getState().worktreesByProject.get(effectiveProjectId) || []
+          const selectedWorktree =
+            activeWorktreeId === "default"
+              ? undefined
+              : worktreeState.find((worktree) => worktree.id === activeWorktreeId)
+          const targetPath = selectedWorktree?.path || updatedProject?.path
+          if (targetPath) {
+            await loadSessions(effectiveProjectId, targetPath)
           }
         } catch (err) {
           console.error("Failed to load project:", err)
         } finally {
           setProjectLoading(false)
         }
-      } else if (currentProject?.path) {
+      } else if (activeWorktreePath) {
         // Project is already loaded, just load sessions
-        loadSessions(effectiveProjectId, currentProject.path)
+        loadSessions(effectiveProjectId, activeWorktreePath)
       }
     }
     
     loadProjectAndSessions()
-  }, [effectiveProjectId, currentProject, selectProject, loadSessions])
+  }, [
+    effectiveProjectId,
+    currentProject,
+    selectProject,
+    loadSessions,
+    loadWorktrees,
+    activeWorktreeId,
+    activeWorktreePath,
+  ])
+
+  useEffect(() => {
+    if (!effectiveProjectId) return
+    if (activeWorktreeId !== DEFAULT_WORKTREE && !activeWorktreePath) {
+      navigate(`/projects/${effectiveProjectId}/${DEFAULT_WORKTREE}/sessions`, { replace: true })
+    }
+  }, [effectiveProjectId, activeWorktreeId, activeWorktreePath, navigate])
 
   // Clear error when component unmounts
   useEffect(() => {
@@ -359,9 +407,16 @@ export default function SessionList() {
     return sorted
   }, [projectSessions, searchQuery, sortBy, sortOrder])
 
+  const basePath = effectiveProjectId
+    ? `/projects/${effectiveProjectId}/${activeWorktreeId}`
+    : undefined
+
   const handleCreateSession = async () => {
-    if (!effectiveProjectId || !currentProject?.path) {
-      console.error("Cannot create session: missing projectId or currentProject.path", { projectId, currentProject })
+    if (!effectiveProjectId || !activeWorktreePath) {
+      console.error("Cannot create session: missing project or worktree path", {
+        effectiveProjectId,
+        activeWorktreePath,
+      })
       return
     }
 
@@ -372,8 +427,11 @@ export default function SessionList() {
     }
 
     try {
-      console.log("Creating session for project:", { projectId, path: currentProject.path })
-      const session = await createSession(effectiveProjectId, currentProject.path)
+      console.log("Creating session for project:", {
+        projectId: effectiveProjectId,
+        path: activeWorktreePath,
+      })
+      const session = await createSession(effectiveProjectId, activeWorktreePath)
       console.log("Session created successfully:", session)
       
       if (!session || !session.id) {
@@ -389,7 +447,11 @@ export default function SessionList() {
         return
       }
       
-      const targetUrl = `/projects/${effectiveProjectId}/sessions/${session.id}/chat`
+      if (!basePath) {
+        console.warn("Missing base path for navigation")
+        return
+      }
+      const targetUrl = `${basePath}/sessions/${session.id}/chat`
       console.log("Navigating to:", targetUrl)
       
       // Add a small delay to ensure the session is properly created before navigation
@@ -415,15 +477,16 @@ export default function SessionList() {
   }
 
   const handleSelectSession = (sessionId: string) => {
-    navigate(`/projects/${effectiveProjectId}/sessions/${sessionId}/chat`)
+    if (!basePath) return
+    navigate(`${basePath}/sessions/${sessionId}/chat`)
   }
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!effectiveProjectId || !currentProject?.path) return
-    await deleteSession(effectiveProjectId, currentProject.path, sessionId)
+    if (!effectiveProjectId || !activeWorktreePath) return
+    await deleteSession(effectiveProjectId, activeWorktreePath, sessionId)
   }
 
-  const handleShareSession = (session: any) => {
+  const handleShareSession = (session: Session) => {
     if (session.share?.url) {
       navigator.clipboard.writeText(session.share.url)
       // You might want to show a toast notification here
@@ -431,8 +494,8 @@ export default function SessionList() {
   }
 
   const handleRetry = () => {
-    if (effectiveProjectId && currentProject?.path) {
-      loadSessions(effectiveProjectId, currentProject.path)
+    if (effectiveProjectId && activeWorktreePath) {
+      loadSessions(effectiveProjectId, activeWorktreePath)
     }
   }
 
@@ -502,8 +565,8 @@ export default function SessionList() {
               <DropdownMenuItem
                 onClick={() => setSortBy("recent")}
                 className={cn(
-                  "text-foreground hover:bg-[#262626]",
-                  sortBy === "recent" && "bg-[#262626]"
+                  "text-foreground hover:bg-accent",
+                  sortBy === "recent" && "bg-accent"
                 )}
               >
                 Recent Activity
@@ -511,8 +574,8 @@ export default function SessionList() {
               <DropdownMenuItem
                 onClick={() => setSortBy("created")}
                 className={cn(
-                  "text-foreground hover:bg-[#262626]",
-                  sortBy === "created" && "bg-[#262626]"
+                  "text-foreground hover:bg-accent",
+                  sortBy === "created" && "bg-accent"
                 )}
               >
                 Date Created
@@ -520,14 +583,14 @@ export default function SessionList() {
               <DropdownMenuItem
                 onClick={() => setSortBy("alphabetical")}
                 className={cn(
-                  "text-foreground hover:bg-[#262626]",
-                  sortBy === "alphabetical" && "bg-[#262626]"
+                  "text-foreground hover:bg-accent",
+                  sortBy === "alphabetical" && "bg-accent"
                 )}
               >
                 Alphabetical
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-[#262626]" />
-              <DropdownMenuItem onClick={toggleSortOrder} className="text-foreground hover:bg-[#262626]">
+              <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem onClick={toggleSortOrder} className="text-foreground hover:bg-accent">
                 {sortOrder === "asc" ? (
                   <>
                     <SortDesc className="mr-2 h-4 w-4" />
@@ -567,7 +630,8 @@ export default function SessionList() {
               <SessionItem
                 key={session.id}
                 session={session}
-                projectId={(effectiveProjectId || "") as string}
+                projectId={effectiveProjectId}
+                basePath={basePath ?? `#`}
                 onSelect={() => handleSelectSession(session.id)}
                 onDelete={() => handleDeleteSession(session.id)}
                 onShare={() => handleShareSession(session)}

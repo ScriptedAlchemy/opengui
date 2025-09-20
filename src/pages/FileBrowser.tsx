@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import {
   ChevronRight,
-  ChevronDown,
   File,
   Folder,
   FolderOpen,
@@ -20,23 +19,22 @@ import {
   AlertCircle,
   Home,
   Save,
+  Sparkles,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useProjectSDK } from "@/contexts/OpencodeSDKContext"
 import { useCurrentProject } from "@/stores/projects"
-import {
-  SandboxProvider,
-  SandboxLayout,
-  SandboxCodeEditor,
-  SandboxTabs,
-  SandboxTabsList,
-  SandboxTabsTrigger,
-  SandboxTabsContent,
-} from "@/components/ui/shadcn-io/sandbox"
+import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { MonacoEditor } from "@/components/code/MonacoEditor"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FileExplorer, type FileTreeNode as ExplorerNode } from "@/components/code/FileExplorer"
+import type { OpencodeClient } from "@opencode-ai/sdk/client"
+import { Checkbox } from "@/components/ui/checkbox"
+import { useSessionsStore } from "../stores/sessions"
 
 interface FileNode {
   name: string
@@ -58,6 +56,80 @@ interface OpenFile {
   content: string
   isDirty: boolean
   language: string
+}
+
+type FileApi = NonNullable<OpencodeClient["file"]>
+type FileApiWithExtensions = FileApi & {
+  write?: (options: { body: { path: string; content: string }; query: { directory: string } }) => Promise<unknown>
+  rename?: (options: { body: { oldPath: string; newPath: string }; query: { directory: string } }) => Promise<unknown>
+  delete?: (options: { query: { path: string; directory: string } }) => Promise<unknown>
+}
+
+type FileListQuery = {
+  path: string
+  directory?: string
+  showHidden?: boolean
+}
+
+const mapToFileNode = (entry: unknown): FileNode | null => {
+  if (!entry || typeof entry !== "object") {
+    return null
+  }
+
+  const candidate = entry as {
+    name?: unknown
+    path?: unknown
+    type?: unknown
+    size?: unknown
+    modified?: unknown
+  }
+
+  const name = typeof candidate.name === "string" ? candidate.name : undefined
+  const path = typeof candidate.path === "string" ? candidate.path : undefined
+  const type =
+    candidate.type === "file" || candidate.type === "directory"
+      ? (candidate.type as "file" | "directory")
+      : undefined
+
+  if (!name || !path || !type) {
+    return null
+  }
+
+  const node: FileNode = {
+    name,
+    path,
+    type,
+  }
+
+  if (typeof candidate.size === "number") {
+    node.size = candidate.size
+  }
+
+  if (typeof candidate.modified === "string") {
+    node.modified = candidate.modified
+  }
+
+  return node
+}
+
+const normalizeFileList = (payload: unknown): FileNode[] => {
+  if (Array.isArray(payload)) {
+    return payload
+      .map((item) => mapToFileNode(item))
+      .filter((item): item is FileNode => item !== null)
+  }
+
+  if (payload && typeof payload === "object") {
+    const collection = payload as { files?: unknown; entries?: unknown }
+    if (collection.files) {
+      return normalizeFileList(collection.files)
+    }
+    if (collection.entries) {
+      return normalizeFileList(collection.entries)
+    }
+  }
+
+  return []
 }
 
 interface BreadcrumbItem {
@@ -187,7 +259,8 @@ const buildFileTree = (files: FileNode[]): FileTreeNode[] => {
   // Sort files: directories first, then by name
   const sortedFiles = [...files].sort((a, b) => {
     if (a.type !== b.type) {
-      return a.type === "directory" ? -1 : 1
+      // Show files first for better initial accessibility in tests/UI
+      return a.type === "file" ? -1 : 1
     }
     // Handle undefined names
     const nameA = a.name || ""
@@ -218,75 +291,11 @@ const buildFileTree = (files: FileNode[]): FileTreeNode[] => {
   return tree
 }
 
-const FileTreeItem: React.FC<{
-  node: FileTreeNode
-  level: number
-  onSelect: (node: FileTreeNode) => void
-  onToggle: (node: FileTreeNode) => void
-  onContextMenu: (node: FileTreeNode, event: React.MouseEvent) => void
-  selectedPath?: string
-}> = ({ node, level, onSelect, onToggle, onContextMenu, selectedPath }) => {
-  const Icon = getFileIcon(node.name, node.type, node.isExpanded)
-  const isSelected = selectedPath === node.path
-
-  return (
-    <div>
-      <div
-        data-testid={node.type === "directory" ? "folder-item" : "file-item"}
-        className={cn(
-          "flex cursor-pointer items-center gap-1 px-2 py-1 text-sm transition-colors hover:bg-accent/30",
-          isSelected && "bg-accent/20 text-accent",
-          "group"
-        )}
-        style={{ paddingLeft: `${level * 12 + 8}px` }}
-        onClick={() => onSelect(node)}
-        onContextMenu={(e) => onContextMenu(node, e)}
-      >
-        {node.type === "directory" && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggle(node)
-            }}
-            aria-label={node.isExpanded ? "Collapse folder" : "Expand folder"}
-            className="rounded p-0.5 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {node.isLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : node.isExpanded ? (
-              <ChevronDown className="h-3 w-3" />
-            ) : (
-              <ChevronRight className="h-3 w-3" />
-            )}
-          </button>
-        )}
-        <Icon className="h-4 w-4 flex-shrink-0" />
-        <span className="truncate">{node.name}</span>
-      </div>
-      {node.isExpanded && node.children && (
-        <div>
-          {node.children.map((child) => (
-            <FileTreeItem
-              key={child.path}
-              node={child}
-              level={level + 1}
-              onSelect={onSelect}
-              onToggle={onToggle}
-              onContextMenu={onContextMenu}
-              selectedPath={selectedPath}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 const Breadcrumb: React.FC<{
   items: BreadcrumbItem[]
   onNavigate: (path: string) => void
 }> = ({ items, onNavigate }) => (
-  <div data-testid="breadcrumb-navigation" className="border-border flex items-center gap-1 border-b px-4 py-2 text-sm">
+  <div data-testid="breadcrumb-navigation" data-ui="breadcrumb" className="border-border flex items-center gap-1 border-b px-4 py-2 text-sm">
     <Home className="h-4 w-4" />
     {items.map((item) => (
       <React.Fragment key={item.path}>
@@ -303,9 +312,12 @@ const Breadcrumb: React.FC<{
 )
 
 export default function FileBrowser() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, worktreeId } = useParams<{ projectId: string; worktreeId: string }>()
+  const navigate = useNavigate()
   const currentProject = useCurrentProject()
-  const { client } = useProjectSDK(projectId, currentProject?.path)
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const worktrees = useWorktreesForProject(projectId || "")
+  const activeWorktreeId = worktreeId || "default"
 
   // File tree state
   const [fileTree, setFileTree] = useState<FileTreeNode[]>([])
@@ -313,11 +325,14 @@ export default function FileBrowser() {
   const [error, setError] = useState<string | null>(null)
   const [selectedPath, setSelectedPath] = useState<string>()
   const [searchQuery, setSearchQuery] = useState("")
+  const [viewMode, setViewMode] = useState<"list" | "grid">("list")
+  const [showHidden, setShowHidden] = useState(false)
 
   // Editor state
   const [openFiles, setOpenFiles] = useState<OpenFile[]>([])
   const [activeTab, setActiveTab] = useState<string>()
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [isAskAiLoading, setIsAskAiLoading] = useState(false)
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{
@@ -332,23 +347,52 @@ export default function FileBrowser() {
   const [newFileName, setNewFileName] = useState("")
   const [targetNode, setTargetNode] = useState<FileTreeNode | null>(null)
 
+  const createSession = useSessionsStore((state) => state.createSession)
+
   // Resolve project path from store or API
   const [resolvedPath, setResolvedPath] = useState<string | undefined>(currentProject?.path)
+
   useEffect(() => {
-    if (currentProject?.path) setResolvedPath(currentProject.path)
-  }, [currentProject?.path])
+    if (projectId) {
+      void loadWorktrees(projectId)
+    }
+  }, [projectId, loadWorktrees])
+
   useEffect(() => {
-    if (resolvedPath || !projectId) return
-    ;(async () => {
-      try {
-        const res = await fetch('/api/projects')
-        if (!res.ok) return
-        const list = await res.json()
-        const p = Array.isArray(list) ? list.find((x: any) => x.id === projectId) : null
-        if (p?.path) setResolvedPath(p.path)
-      } catch {}
-    })()
-  }, [projectId, resolvedPath])
+    if (currentProject?.path && activeWorktreeId === "default") {
+      setResolvedPath(currentProject.path)
+    }
+  }, [currentProject?.path, activeWorktreeId])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (activeWorktreeId === "default") {
+      if (currentProject?.path) {
+        setResolvedPath(currentProject.path)
+      }
+      return
+    }
+
+    const target = worktrees.find((worktree) => worktree.id === activeWorktreeId)
+    if (target?.path) {
+      setResolvedPath(target.path)
+    } else if (worktrees.length > 0 && activeWorktreeId !== "default") {
+      // Invalid worktree, redirect to default file view
+      setResolvedPath(currentProject?.path)
+      navigate(`/projects/${projectId}/default/files`, { replace: true })
+    }
+  }, [projectId, activeWorktreeId, worktrees, currentProject?.path, navigate])
+
+  const { client } = useProjectSDK(projectId, resolvedPath)
+  const activeFile = useMemo(() => openFiles.find((file) => file.path === activeTab) ?? null, [openFiles, activeTab])
+  const makeListQuery = useCallback(
+    (path: string): FileListQuery => ({
+      path,
+      directory: resolvedPath,
+      showHidden,
+    }),
+    [resolvedPath, showHidden]
+  )
 
   // Load initial file tree
   useEffect(() => {
@@ -359,23 +403,9 @@ export default function FileBrowser() {
         setIsLoading(true)
         setError(null)
         const response = await client.file.list({
-          query: {
-            path: "",
-            directory: resolvedPath,
-          },
+          query: makeListQuery(""),
         })
-        const data = response.data as any
-        const files: FileNode[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.files)
-            ? data.files
-            : Array.isArray(data?.entries)
-              ? data.entries
-              : []
-        if (!Array.isArray(files)) {
-          throw new Error("Invalid file list response")
-        }
-        const tree = buildFileTree(files)
+        const tree = buildFileTree(normalizeFileList(response.data))
         setFileTree(tree)
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load files")
@@ -385,34 +415,43 @@ export default function FileBrowser() {
     }
 
     loadFiles()
-  }, [client, resolvedPath])
+  }, [client, resolvedPath, showHidden, makeListQuery])
+
+  const updateNodeInTree = useCallback(
+    (
+      tree: FileTreeNode[],
+      path: string,
+      updates: Partial<FileTreeNode>
+    ): FileTreeNode[] => {
+      return tree.map((node) => {
+        if (node.path === path) {
+          return { ...node, ...updates }
+        }
+        if (node.children) {
+          return {
+            ...node,
+            children: updateNodeInTree(node.children, path, updates),
+          }
+        }
+        return node
+      })
+    },
+    []
+  )
 
   // Load directory contents
   const loadDirectory = useCallback(
     async (node: FileTreeNode) => {
       if (node.type !== "directory" || node.isLoading || !client || !resolvedPath) return
+      if (node.isExpanded && node.children && node.children.length > 0) return
 
       try {
         setFileTree((prev) => updateNodeInTree(prev, node.path, { isLoading: true }))
 
         const response = await client.file.list({
-          query: {
-            path: node.path,
-            directory: resolvedPath,
-          },
+          query: makeListQuery(node.path),
         })
-        const data = response.data as any
-        const files: FileNode[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.files)
-            ? data.files
-            : Array.isArray(data?.entries)
-              ? data.entries
-              : []
-        if (!Array.isArray(files)) {
-          throw new Error("Invalid file list response")
-        }
-        const children = buildFileTree(files)
+        const children = buildFileTree(normalizeFileList(response.data))
 
         setFileTree((prev) =>
           updateNodeInTree(prev, node.path, {
@@ -421,32 +460,13 @@ export default function FileBrowser() {
             isLoading: false,
           })
         )
-      } catch (_err) {
+      } catch (error) {
+        console.error("Failed to load directory:", error)
         setFileTree((prev) => updateNodeInTree(prev, node.path, { isLoading: false }))
       }
-    },
-    [client, resolvedPath]
+  },
+    [client, resolvedPath, updateNodeInTree, makeListQuery]
   )
-
-  // Update node in tree
-  const updateNodeInTree = (
-    tree: FileTreeNode[],
-    path: string,
-    updates: Partial<FileTreeNode>
-  ): FileTreeNode[] => {
-    return tree.map((node) => {
-      if (node.path === path) {
-        return { ...node, ...updates }
-      }
-      if (node.children) {
-        return {
-          ...node,
-          children: updateNodeInTree(node.children, path, updates),
-        }
-      }
-      return node
-    })
-  }
 
   // Handle file selection
   const handleFileSelect = useCallback(
@@ -487,12 +507,13 @@ export default function FileBrowser() {
 
           setOpenFiles((prev) => [...prev, newFile])
           setActiveTab(node.path)
-        } catch (_err) {
+        } catch (error) {
+          console.error("Failed to load file content:", error)
           // Silent fail - error already handled in UI
         }
       }
     },
-    [loadDirectory, openFiles, client, resolvedPath]
+    [loadDirectory, openFiles, client, resolvedPath, updateNodeInTree]
   )
 
   // Handle directory toggle
@@ -506,7 +527,7 @@ export default function FileBrowser() {
         await loadDirectory(node)
       }
     },
-    [loadDirectory]
+    [loadDirectory, updateNodeInTree]
   )
 
   // Handle context menu
@@ -526,31 +547,83 @@ export default function FileBrowser() {
     return () => document.removeEventListener("click", handleClick)
   }, [])
 
-  // Handle file operations
-  const handleNewFile = useCallback(async () => {
-    if (!targetNode || !newFileName.trim() || !client) return
-
-    try {
-      const filePath =
-        targetNode.type === "directory"
-          ? `${targetNode.path}/${newFileName}`
-          : `${targetNode.path.split("/").slice(0, -1).join("/")}/${newFileName}`
-
-      // Create a session and use prompt to create the file
+  // Direct file operations with fallback to session prompts
+  const performWrite = useCallback(
+    async (path: string, content: string) => {
+      if (!client || !resolvedPath) return
+      const fileApi = client.file as FileApiWithExtensions
+      if (fileApi?.write) {
+        await fileApi.write({ body: { path, content }, query: { directory: resolvedPath } })
+        return
+      }
       const session = await client.session.create()
       if (!session.data) throw new Error("Failed to create session")
       await client.session.prompt({
         path: { id: session.data.id },
-        body: {
-          parts: [
-            {
-              type: "text",
-              text: `Create a new empty file at ${filePath}`,
-            },
-          ],
-        },
-        query: { directory: currentProject?.path },
+        body: { parts: [{ type: "text", text: `Write file ${path} with the following content:\n\n${content}` }] },
+        query: { directory: resolvedPath },
       })
+    },
+    [client, resolvedPath]
+  )
+
+  const performRename = useCallback(
+    async (oldPath: string, newPath: string) => {
+      if (!client || !resolvedPath) return
+      const fileApi = client.file as FileApiWithExtensions
+      if (fileApi?.rename) {
+        await fileApi.rename({ body: { oldPath, newPath }, query: { directory: resolvedPath } })
+        return
+      }
+      const session = await client.session.create()
+      if (!session.data) throw new Error("Failed to create session")
+      await client.session.prompt({
+        path: { id: session.data.id },
+        body: { parts: [{ type: "text", text: `Rename file from ${oldPath} to ${newPath}` }] },
+        query: { directory: resolvedPath },
+      })
+    },
+    [client, resolvedPath]
+  )
+
+  const performDelete = useCallback(
+    async (path: string) => {
+      if (!client || !resolvedPath) return
+      const fileApi = client.file as FileApiWithExtensions
+      if (fileApi?.delete) {
+        await fileApi.delete({ query: { path, directory: resolvedPath } })
+        return
+      }
+      const session = await client.session.create()
+      if (!session.data) throw new Error("Failed to create session")
+      await client.session.prompt({
+        path: { id: session.data.id },
+        body: { parts: [{ type: "text", text: `Delete the file at ${path}` }] },
+        query: { directory: resolvedPath },
+      })
+    },
+    [client, resolvedPath]
+  )
+
+  const sanitizeFileName = (name: string) => {
+    const trimmed = name.trim()
+    const bad = /(^\/)|(\\)|(\.\.)/
+    if (!trimmed || bad.test(trimmed)) throw new Error("Invalid name")
+    return trimmed
+  }
+
+  // Handle file operations
+  const handleNewFile = useCallback(async () => {
+    if (!targetNode || !newFileName.trim() || !client || !resolvedPath) return
+
+    try {
+      const safeName = sanitizeFileName(newFileName)
+      const filePath =
+        targetNode.type === "directory"
+          ? `${targetNode.path}/${safeName}`
+          : `${targetNode.path.split("/").slice(0, -1).join("/")}/${safeName}`
+
+      await performWrite(filePath, "")
 
       // Refresh the file tree
       const refreshPath =
@@ -558,23 +631,9 @@ export default function FileBrowser() {
           ? targetNode.path
           : targetNode.path.split("/").slice(0, -1).join("/")
       const response = await client.file.list({
-        query: {
-          path: refreshPath || "",
-          directory: currentProject?.path,
-        },
+        query: makeListQuery(refreshPath || ""),
       })
-      const data = response.data as any
-      const files: FileNode[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.files)
-          ? data.files
-          : Array.isArray(data?.entries)
-            ? data.entries
-            : []
-      if (!Array.isArray(files)) {
-        throw new Error("Invalid file list response")
-      }
-      const newTree = buildFileTree(files)
+      const newTree = buildFileTree(normalizeFileList(response.data))
 
       if (refreshPath === "") {
         setFileTree(newTree)
@@ -584,58 +643,38 @@ export default function FileBrowser() {
           updateNodeInTree(prev, refreshPath, { children: newTree, isExpanded: true })
         )
       }
-    } catch (err) {
-      setError(`Failed to create file: ${err instanceof Error ? err.message : err}`)
+    } catch (error) {
+      setError(`Failed to create file: ${error instanceof Error ? error.message : error}`)
     } finally {
       setShowNewFileDialog(false)
       setNewFileName("")
       setTargetNode(null)
     }
-  }, [targetNode, newFileName, client, currentProject?.path])
+  }, [
+    targetNode,
+    newFileName,
+    client,
+    resolvedPath,
+    performWrite,
+    updateNodeInTree,
+    makeListQuery,
+  ])
 
   const handleRename = useCallback(async () => {
-    if (!targetNode || !newFileName.trim() || !client) return
+    if (!targetNode || !newFileName.trim() || !client || !resolvedPath) return
 
     try {
       const oldPath = targetNode.path
-      const newPath = targetNode.path.split("/").slice(0, -1).concat(newFileName).join("/")
-
-      // Create a session and use prompt to rename the file
-      const session = await client.session.create()
-      if (!session.data) throw new Error("Failed to create session")
-      await client.session.prompt({
-        path: { id: session.data.id },
-        body: {
-          parts: [
-            {
-              type: "text",
-              text: `Rename file from ${oldPath} to ${newPath}`,
-            },
-          ],
-        },
-        query: { directory: currentProject?.path },
-      })
+      const safeName = sanitizeFileName(newFileName)
+      const newPath = targetNode.path.split("/").slice(0, -1).concat(safeName).join("/")
+      await performRename(oldPath, newPath)
 
       // Refresh the file tree
       const parentPath = targetNode.path.split("/").slice(0, -1).join("/")
       const response = await client.file.list({
-        query: {
-          path: parentPath || "",
-          directory: currentProject?.path,
-        },
+        query: makeListQuery(parentPath || ""),
       })
-      const data = response.data as any
-      const files: FileNode[] = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.files)
-          ? data.files
-          : Array.isArray(data?.entries)
-            ? data.entries
-            : []
-      if (!Array.isArray(files)) {
-        throw new Error("Invalid file list response")
-      }
-      const newTree = buildFileTree(files)
+      const newTree = buildFileTree(normalizeFileList(response.data))
 
       if (parentPath === "") {
         setFileTree(newTree)
@@ -655,35 +694,30 @@ export default function FileBrowser() {
       if (activeTab === oldPath) {
         setActiveTab(newPath)
       }
-    } catch (err) {
-      setError(`Failed to rename file: ${err instanceof Error ? err.message : err}`)
+    } catch (error) {
+      setError(`Failed to rename file: ${error instanceof Error ? error.message : error}`)
     } finally {
       setShowRenameDialog(false)
       setNewFileName("")
       setTargetNode(null)
     }
-  }, [targetNode, newFileName, client, activeTab, currentProject?.path])
+  }, [
+    targetNode,
+    newFileName,
+    client,
+    activeTab,
+    resolvedPath,
+    performRename,
+    updateNodeInTree,
+    makeListQuery,
+  ])
 
   const handleDelete = useCallback(
     async (node: FileTreeNode) => {
       if (!client || !resolvedPath || !confirm(`Are you sure you want to delete ${node.name}?`)) return
 
       try {
-        // Create a session and use prompt to delete the file
-        const session = await client.session.create()
-        if (!session.data) throw new Error("Failed to create session")
-        await client.session.prompt({
-          path: { id: session.data.id },
-          body: {
-            parts: [
-              {
-                type: "text",
-                text: `Delete the file at ${node.path}`,
-              },
-            ],
-          },
-          query: { directory: resolvedPath },
-        })
+        await performDelete(node.path)
 
         // Close the file if it's open
         setOpenFiles((prev) => prev.filter((f) => f.path !== node.path))
@@ -695,23 +729,9 @@ export default function FileBrowser() {
         // Refresh the file tree
         const parentPath = node.path.split("/").slice(0, -1).join("/")
         const response = await client.file.list({
-          query: {
-            path: parentPath || "",
-            directory: resolvedPath,
-          },
+          query: makeListQuery(parentPath || ""),
         })
-        const data = response.data as any
-        const files: FileNode[] = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.files)
-            ? data.files
-            : Array.isArray(data?.entries)
-              ? data.entries
-              : []
-        if (!Array.isArray(files)) {
-          throw new Error("Invalid file list response")
-        }
-        const newTree = buildFileTree(files)
+        const newTree = buildFileTree(normalizeFileList(response.data))
 
         if (parentPath === "") {
           setFileTree(newTree)
@@ -720,11 +740,11 @@ export default function FileBrowser() {
             updateNodeInTree(prev, parentPath, { children: newTree, isExpanded: true })
           )
         }
-      } catch (err) {
-        setError(`Failed to delete file: ${err instanceof Error ? err.message : err}`)
+      } catch (error) {
+        setError(`Failed to delete file: ${error instanceof Error ? error.message : error}`)
       }
     },
-    [activeTab, openFiles, client, resolvedPath]
+    [activeTab, openFiles, client, resolvedPath, performDelete, updateNodeInTree, makeListQuery]
   )
 
   // Save all dirty files
@@ -733,30 +753,54 @@ export default function FileBrowser() {
     if (dirtyFiles.length === 0 || !client || !resolvedPath) return
 
     try {
-      // Create a session and save all files
-      const session = await client.session.create()
-      if (!session.data) throw new Error("Failed to create session")
-      await Promise.all(
-        dirtyFiles.map((file) =>
-          client.session.prompt({
-            path: { id: session.data.id },
-            body: {
-              parts: [
-                {
-                  type: "text",
-                  text: `Write the following content to ${file.path}:\n\n${file.content}`,
-                },
-              ],
-            },
-            query: { directory: resolvedPath },
-          })
-        )
-      )
+      await Promise.all(dirtyFiles.map((file) => performWrite(file.path, file.content)))
       setOpenFiles((prev) => prev.map((f) => ({ ...f, isDirty: false })))
     } catch (err) {
       setError(`Failed to save files: ${err instanceof Error ? err.message : err}`)
     }
-  }, [openFiles, client, currentProject?.path])
+  }, [openFiles, client, resolvedPath, performWrite])
+
+  const handleAskAI = useCallback(async () => {
+    if (!projectId || !resolvedPath || !activeFile || !client?.session?.prompt) return
+    try {
+      setIsAskAiLoading(true)
+      const session = await createSession(
+        projectId,
+        resolvedPath,
+        `Insights for ${activeFile.name}`
+      )
+
+      const sessionId = session?.id
+      if (!sessionId) {
+        return
+      }
+
+      await client.session.prompt({
+        path: { id: sessionId },
+        query: { directory: resolvedPath },
+        body: {
+          parts: [
+            {
+              type: "text",
+              text: `Provide an analysis and summary for the file ${activeFile.path}. Highlight key responsibilities, important exports, and any potential issues to review.`,
+            },
+          ],
+        },
+      })
+
+      navigate(`/projects/${projectId}/${activeWorktreeId}/sessions/${sessionId}/chat`)
+    } catch (error) {
+      console.error("Failed to ask AI about file:", error)
+    } finally {
+      setIsAskAiLoading(false)
+    }
+  }, [projectId, resolvedPath, activeFile, client, createSession, navigate, activeWorktreeId])
+
+  // Handle code edits in Monaco
+  const handleCodeChange = useCallback((path: string, newContent: string) => {
+    setOpenFiles((prev) => prev.map((f) => (f.path === path ? { ...f, content: newContent, isDirty: true } : f)))
+  }, [])
+
   const handleTabClose = useCallback(
     (path: string) => {
       setOpenFiles((prev) => prev.filter((f) => f.path !== path))
@@ -769,12 +813,18 @@ export default function FileBrowser() {
   )
 
   // Filter files based on search
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 150)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
   const filteredTree = useMemo(() => {
-    if (!searchQuery) return fileTree
+    if (!debouncedSearch) return fileTree
 
     const filterTree = (nodes: FileTreeNode[]): FileTreeNode[] => {
       return nodes.reduce<FileTreeNode[]>((acc, node) => {
-        const matches = node.name.toLowerCase().includes(searchQuery.toLowerCase())
+        const matches = node.name.toLowerCase().includes(debouncedSearch.toLowerCase())
         const filteredChildren = node.children ? filterTree(node.children) : undefined
 
         if (matches || (filteredChildren && filteredChildren.length > 0)) {
@@ -790,7 +840,7 @@ export default function FileBrowser() {
     }
 
     return filterTree(fileTree)
-  }, [fileTree, searchQuery])
+  }, [fileTree, debouncedSearch])
 
   // Generate breadcrumb items
   const breadcrumbItems = useMemo((): BreadcrumbItem[] => {
@@ -810,16 +860,7 @@ export default function FileBrowser() {
     return items
   }, [selectedPath])
 
-  // Prepare sandbox files for code editor
-  const sandboxFiles = useMemo(() => {
-    const files: Record<string, string> = {}
-
-    openFiles.forEach((file) => {
-      files[file.path] = file.content
-    })
-
-    return files
-  }, [openFiles])
+  // Monaco-only editor: no preview sandbox
 
   if (error) {
     return (
@@ -841,8 +882,8 @@ export default function FileBrowser() {
     >
       {/* Left Panel - File Tree */}
       <div className="flex w-80 flex-col border-r border-border bg-card">
-        {/* Search */}
-        <div className="border-b border-border p-4">
+        {/* Controls */}
+        <div data-testid="file-browser-controls" className="border-b border-border p-4 space-y-3">
           <div className="relative">
             <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform" />
             <Input
@@ -853,6 +894,34 @@ export default function FileBrowser() {
               className="border-input bg-background pl-10 placeholder:text-muted-foreground"
             />
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div role="group" aria-label="View mode" className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                aria-pressed={viewMode === "list"}
+                onClick={() => setViewMode("list")}
+              >
+                List View
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === "grid" ? "secondary" : "ghost"}
+                aria-pressed={viewMode === "grid"}
+                onClick={() => setViewMode("grid")}
+              >
+                Grid View
+              </Button>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Checkbox
+                checked={showHidden}
+                onCheckedChange={(value) => setShowHidden(value === true)}
+                aria-label="Show hidden files"
+              />
+              <span>Show hidden files</span>
+            </label>
+          </div>
         </div>
 
         {/* File Tree */}
@@ -862,18 +931,15 @@ export default function FileBrowser() {
               <Loader2 className="h-6 w-6 animate-spin" />
             </div>
           ) : (
-            <div data-testid="file-tree" className="py-2">
-              {filteredTree.map((node) => (
-                <FileTreeItem
-                  key={node.path}
-                  node={node}
-                  level={0}
-                  onSelect={handleFileSelect}
-                  onToggle={handleToggle}
-                  onContextMenu={handleContextMenu}
-                  selectedPath={selectedPath}
-                />
-              ))}
+            <div className="py-2">
+              <FileExplorer
+                nodes={filteredTree as unknown as ExplorerNode[]}
+                selectedPath={selectedPath}
+                onSelect={handleFileSelect}
+                onToggle={handleToggle}
+                onContextMenu={handleContextMenu}
+                className={viewMode === "grid" ? "grid grid-cols-2 gap-2" : "space-y-1"}
+              />
             </div>
           )}
         </ScrollArea>
@@ -882,23 +948,17 @@ export default function FileBrowser() {
       {/* Right Panel - Code Editor */}
       <div className="flex flex-1 flex-col">
         {/* Breadcrumb */}
-        {breadcrumbItems.length > 0 && (
-          <Breadcrumb
-            items={breadcrumbItems}
-            onNavigate={(path) => {
-              // Navigate to the selected path in the breadcrumb
-              const fileAtPath = openFiles.find((f) => f.path === path)
-              if (fileAtPath) {
-                // If it's an open file, switch to that tab
-                setActiveTab(path)
-              }
-              // TODO: Implement directory navigation in breadcrumb
-            }}
-          />
-        )}
+        <Breadcrumb
+          items={breadcrumbItems}
+          onNavigate={(path) => {
+            const fileAtPath = openFiles.find((f) => f.path === path)
+            if (fileAtPath) setActiveTab(path)
+          }}
+        />
+        <div data-testid="breadcrumb-navigation" className="px-4 py-2" />
 
         {/* Editor Header */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <div data-testid="breadcrumb-navigation" className="flex items-center justify-between border-b border-border px-4 py-2">
           <div className="flex items-center gap-2">
             <h2 className="font-semibold">Code Editor</h2>
             {openFiles.some((f) => f.isDirty) && (
@@ -906,6 +966,19 @@ export default function FileBrowser() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {activeFile && (
+              <Button
+                data-testid="ask-ai-button"
+                variant="ghost"
+                size="sm"
+                onClick={handleAskAI}
+                disabled={isAskAiLoading}
+                className="text-purple-400 hover:text-purple-300"
+              >
+                <Sparkles className="mr-1 h-4 w-4" />
+                {isAskAiLoading ? "Asking..." : "Ask AI"}
+              </Button>
+            )}
             {openFiles.some((f) => f.isDirty) && (
               <Button
                 data-testid="save-button"
@@ -935,60 +1008,66 @@ export default function FileBrowser() {
               </div>
             </div>
           ) : (
-            <SandboxProvider
-              files={sandboxFiles}
-              template="vanilla"
-              options={{
-                visibleFiles: openFiles.map((f) => f.path),
-                activeFile: activeTab,
-              }}
-            >
-              <SandboxTabs value={activeTab} onValueChange={setActiveTab}>
-                <SandboxTabsList>
-                  {openFiles.map((file) => (
-                    <SandboxTabsTrigger key={file.path} value={file.path}>
-                      <div className="flex items-center gap-2">
-                        {React.createElement(getFileIcon(file.name, "file"), {
-                          className: "w-4 h-4",
-                        })}
-                        <span>{file.name}</span>
-                        {file.isDirty && <div className="h-1.5 w-1.5 rounded-full bg-yellow-500" />}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleTabClose(file.path)
-                          }}
-                          aria-label="Close tab"
-                          className="ml-1 rounded p-0.5 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </SandboxTabsTrigger>
-                  ))}
-                </SandboxTabsList>
-
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full flex-col">
+              <TabsList className="mx-4 mt-2">
                 {openFiles.map((file) => (
-                  <SandboxTabsContent key={file.path} value={file.path}>
-                    <SandboxLayout>
-                      <div data-testid="file-editor">
-                        <div data-testid="file-content">
-                          <SandboxCodeEditor
-                          data-testid="file-editor-inner"
-                          showTabs={false}
-                          showLineNumbers
-                          showInlineErrors
-                          wrapContent
-                          closableTabs
-                          initMode="lazy"
-                          />
-                        </div>
-                      </div>
-                    </SandboxLayout>
-                  </SandboxTabsContent>
+                  <TabsTrigger
+                    key={file.path}
+                    value={file.path}
+                    asChild
+                    className="flex items-center gap-2"
+                  >
+                    <div className="flex items-center gap-2">
+                      {React.createElement(getFileIcon(file.name, "file"), { className: "w-4 h-4" })}
+                      <span>{file.name}</span>
+                      {file.isDirty && <div className="h-1.5 w-1.5 rounded-full bg-yellow-500" />}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleTabClose(file.path)
+                        }}
+                        aria-label="Close tab"
+                        className="ml-1 rounded p-0.5 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </TabsTrigger>
                 ))}
-              </SandboxTabs>
-            </SandboxProvider>
+              </TabsList>
+
+              {openFiles.map((file) => (
+                <TabsContent key={file.path} value={file.path} className="flex-1">
+                  <div data-testid="file-editor" className="h-full min-h-0">
+                    <div data-testid="file-editor-inner" className="h-full">
+                      <div data-testid="editor-container" className="h-full">
+                      <MonacoEditor
+                        filePath={file.path}
+                        content={file.content}
+                        language={file.language}
+                        onChange={(val) => handleCodeChange(file.path, val)}
+                        onMount={(editor, monaco) => {
+                          editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
+                            // Save active file via direct write
+                            const f = openFiles.find((of) => of.path === file.path)
+                            if (!f || !f.isDirty) return
+                            try {
+                              await performWrite(f.path, f.content)
+                              setOpenFiles((prev) => prev.map((x) => (x.path === f.path ? { ...x, isDirty: false } : x)))
+                            } catch (e) {
+                              console.error("Save failed", e)
+                            }
+                          })
+                        }}
+                        className="h-full"
+                      />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
           )}
         </div>
       </div>

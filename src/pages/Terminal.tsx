@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useParams } from "react-router-dom"
+import { useParams, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { X as StopIcon, RotateCcw as ResetIcon, Search as SearchIcon, ArrowDown, ArrowUp } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { useCurrentProject } from "@/stores/projects"
+import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
 import { useProjectSDK } from "@/contexts/OpencodeSDKContext"
 import type { Event, Part, ToolState } from "@opencode-ai/sdk/client"
 import { cn } from "@/lib/utils"
@@ -11,6 +12,7 @@ import { Card } from "@/components/ui/card"
 import { useProjectsActions, useCurrentProject as useCurrentProjectFromStore } from "@/stores/projects"
 // xterm runtime import; CSS is provided by the package at runtime
 import type { Terminal as XTerm } from "xterm"
+import type { SearchAddon } from "xterm-addon-search"
 import "xterm/css/xterm.css"
 
 type Entry = {
@@ -42,12 +44,61 @@ function joinPath(base: string, next: string): string {
 }
 
 export default function Terminal() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const params = useParams<{ projectId: string; worktreeId: string }>()
+  const projectId = params.projectId ?? ""
+  const activeWorktreeId = params.worktreeId ?? "default"
+  const navigate = useNavigate()
   const project = useCurrentProject()
-  const { client } = useProjectSDK(projectId, project?.path)
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const worktrees = useWorktreesForProject(projectId)
 
-  const initialDir = useMemo(() => project?.path ?? "" , [project?.path])
-  const [cwd, setCwd] = useState<string>(initialDir)
+  const [workingPath, setWorkingPath] = useState<string | undefined>(project?.path)
+  const [cwd, setCwd] = useState<string>(workingPath ?? "")
+
+  useEffect(() => {
+    if (projectId) {
+      void loadWorktrees(projectId)
+    }
+  }, [projectId, loadWorktrees])
+
+  useEffect(() => {
+    if (activeWorktreeId === "default") {
+      if (project?.path) {
+        setWorkingPath(project.path)
+      }
+      return
+    }
+    const target = worktrees.find((worktree) => worktree.id === activeWorktreeId)
+    if (target?.path) {
+      setWorkingPath(target.path)
+    } else if (worktrees.length > 0 && activeWorktreeId !== "default") {
+      setWorkingPath(project?.path)
+      if (projectId) {
+        navigate(`/projects/${projectId}/default/terminal`, { replace: true })
+      }
+    }
+  }, [activeWorktreeId, worktrees, project?.path, navigate, projectId])
+
+  useEffect(() => {
+    if (project?.path && activeWorktreeId === "default") {
+      setWorkingPath(project.path)
+    }
+  }, [project?.path, activeWorktreeId])
+
+  useEffect(() => {
+    if (workingPath) {
+      setCwd(workingPath)
+    }
+  }, [workingPath])
+
+  const worktreeTitle = useMemo(() => {
+    if (activeWorktreeId === "default") {
+      return `${project?.name ?? "Project"} (default)`
+    }
+    return worktrees.find((worktree) => worktree.id === activeWorktreeId)?.title ?? activeWorktreeId
+  }, [activeWorktreeId, worktrees, project?.name])
+
+  const { client } = useProjectSDK(projectId, workingPath)
   // Legacy input state removed; typing is handled inside xterm
   const [history, setHistory] = useState<Entry[]>([])
   const [cursor, setCursor] = useState<number>(-1)
@@ -62,19 +113,15 @@ export default function Terminal() {
   const sseAbortRef = useRef<AbortController | null>(null)
   const termInputRef = useRef<string>("")
   const promptRef = useRef<string>("")
-  const searchAddonRef = useRef<any>(null)
+  const searchAddonRef = useRef<SearchAddon | null>(null)
   const [showSearch, setShowSearch] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
-
-  useEffect(() => {
-    if (project?.path) setCwd(project.path)
-  }, [project?.path])
 
   // Initialize xterm
   useEffect(() => {
     let disposed = false
     let resizeObserver: ResizeObserver | null = null
-    let onResize: ((this: Window, ev: UIEvent) => any) | null = null
+    let onResize: ((this: Window, ev: UIEvent) => void) | null = null
     async function initTerm() {
       if (termRef.current || !termElRef.current) return
       // Dynamic import to avoid SSR/tooling issues
@@ -99,8 +146,9 @@ export default function Terminal() {
       t.write("OpenCode Terminal\r\n")
       {
         const name = project?.name ?? "project"
-        const base = (cwd || project?.path || "") as string
-        const cwdDisplay = base.replace(project?.path ?? "", "") || "/"
+        const basePath = workingPath ?? ""
+        const base = (cwd || basePath || "") as string
+        const cwdDisplay = basePath ? base.replace(basePath, "") || "/" : base || "/"
         t.write(`${name}:${cwdDisplay}$ `)
       }
 
@@ -121,8 +169,8 @@ export default function Terminal() {
         }
         onResize = () => fitAddon.fit()
         window.addEventListener("resize", onResize)
-      } catch (_e) {
-        // Fit addon not available; skip
+      } catch (error) {
+        console.warn("Fit or link addons unavailable:", error)
       }
       // Optional WebGL addon
       try {
@@ -150,13 +198,13 @@ export default function Terminal() {
       termRef.current?.dispose()
       termRef.current = null
     }
-  }, [])
+  }, [cwd, project?.name, workingPath])
 
   const ensureSession = useCallback(async (): Promise<string | null> => {
-    if (!client || !project?.path) return null
+    if (!client || !workingPath) return null
     if (sessionId) return sessionId
     try {
-      const created = await client.session.create({ query: { directory: project.path } })
+      const created = await client.session.create({ query: { directory: workingPath } })
       const id = created.data?.id ?? null
       setSessionId(id)
       return id
@@ -164,7 +212,7 @@ export default function Terminal() {
       console.error("Failed to create terminal session:", e)
       return null
     }
-  }, [client, project?.path, sessionId])
+  }, [client, workingPath, sessionId])
 
   const startEventStream = useCallback(async (sessId: string) => {
     if (!client) return
@@ -180,10 +228,10 @@ export default function Terminal() {
           if (ev.type !== "message.part.updated") return
           const part = ev.properties.part as Part
           if (part.type !== "tool") return
-          if ((part as any).tool !== "bash") return
+          if (part.tool !== "bash") return
           if (part.sessionID !== sessId) return
 
-          const toolPart = part as Extract<Part, { type: "tool" }>
+          const toolPart = part
           const state = toolPart.state
           const term = termRef.current
           if (!term) return
@@ -221,13 +269,13 @@ export default function Terminal() {
         },
       })
     } catch (e) {
-      if ((e as any)?.name === "AbortError") return
+      if (e instanceof Error && e.name === "AbortError") return
       console.error("Terminal SSE error:", e)
     }
   }, [client])
 
   const runShell = useCallback(async (command: string) => {
-    if (!client || !project?.path) return { output: "", error: "SDK not ready" }
+    if (!client || !workingPath) return { output: "", error: "SDK not ready" }
     try {
       const sessId = await ensureSession()
       if (!sessId) return { output: "", error: "No session" }
@@ -239,7 +287,7 @@ export default function Terminal() {
       const resp = await client.session.shell({
         path: { id: sessId },
         body: { command, agent: "shell" },
-        query: { directory: cwd || project.path },
+        query: { directory: cwd || workingPath },
       })
       void resp // response not used; stream handles output
       const end = performance.now()
@@ -249,12 +297,12 @@ export default function Terminal() {
     } catch (e) {
       return { output: "", error: e instanceof Error ? e.message : String(e) }
     }
-  }, [client, project?.path, cwd, ensureSession, startEventStream])
+  }, [client, workingPath, cwd, ensureSession, startEventStream])
 
   const abortSession = useCallback(async () => {
     try {
-      if (client && sessionId) {
-        await client.session.abort({ path: { id: sessionId }, query: { directory: project?.path } })
+      if (client && sessionId && workingPath) {
+        await client.session.abort({ path: { id: sessionId }, query: { directory: workingPath } })
       }
     } catch {
       // ignore
@@ -263,13 +311,13 @@ export default function Terminal() {
       termRef.current?.write("^C\r\n")
       termRef.current?.write(`${promptRef.current} `)
     }
-  }, [client, sessionId, project?.path])
+  }, [client, sessionId, workingPath])
 
   const resetSession = useCallback(async () => {
     await abortSession()
-    if (client && sessionId) {
+    if (client && sessionId && workingPath) {
       try {
-        await client.session.delete({ path: { id: sessionId }, query: { directory: project?.path } })
+        await client.session.delete({ path: { id: sessionId }, query: { directory: workingPath } })
       } catch {
         // ignore
       }
@@ -283,7 +331,7 @@ export default function Terminal() {
     termRef.current?.clear()
     termRef.current?.write("OpenCode Terminal\r\n")
     termRef.current?.write(`${promptRef.current} `)
-  }, [abortSession, client, sessionId, project?.path])
+  }, [abortSession, client, sessionId, workingPath])
 
   const executeCommand = useCallback(
     async (cmd: string, echoInTerm: boolean) => {
@@ -301,14 +349,18 @@ export default function Terminal() {
         return
       }
       if (command.startsWith("cd ") || command === "cd") {
-        const target = command.slice(2).trim() || project?.path || cwd
-        const next = joinPath(cwd || project?.path || "", target)
+        const base = workingPath || cwd || ""
+        const target = command.slice(2).trim() || base
+        const next = joinPath(cwd || base, target)
         if (echoInTerm) termRef.current?.write(`${promptRef.current} ${command}\r\n`)
         setHistory((h) => [...h, { id: crypto.randomUUID(), command, output: "" }])
         setCwd(next)
         // input bar removed
         termInputRef.current = ""
         setCursor(-1)
+        const basePath = workingPath ?? ""
+        const cwdDisplay = basePath ? next.replace(basePath, "") || "/" : next || "/"
+        promptRef.current = `${project?.name ?? "project"}:${cwdDisplay}$`
         termRef.current?.write(`\r\n${promptRef.current} `)
         return
       }
@@ -323,7 +375,7 @@ export default function Terminal() {
       const result = await runShell(command)
       setHistory((h) => h.map((e) => (e.id === entryId ? { ...e, ...result } : e)))
     },
-    [cwd, project?.path, runShell],
+    [cwd, workingPath, runShell, project?.name],
   )
 
   // Input bar removed; executeCommand is triggered from xterm handlers.
@@ -336,13 +388,11 @@ export default function Terminal() {
       // Attempt to clean up the ephemeral session
       const sid = sessionId
       const sdk = client
-      if (sid && sdk) {
-        sdk.session
-          .delete({ path: { id: sid }, query: { directory: project?.path } })
-          .catch(() => {})
+      if (sid && sdk && workingPath) {
+        sdk.session.delete({ path: { id: sid }, query: { directory: workingPath } }).catch(() => {})
       }
     }
-  }, [client, project?.path, sessionId])
+  }, [client, workingPath, sessionId])
 
   // Removed input bar keyboard handler; input is captured directly in xterm.
 
@@ -431,9 +481,10 @@ export default function Terminal() {
 
   const prompt = useMemo(() => {
     const name = project?.name ?? "project"
-    const cwdDisplay = cwd?.replace(project?.path ?? "", "") || "/"
+    const basePath = workingPath ?? ""
+    const cwdDisplay = basePath ? cwd?.replace(basePath, "") || "/" : cwd || "/"
     return `${name}:${cwdDisplay}$`
-  }, [project?.name, project?.path, cwd])
+  }, [project?.name, workingPath, cwd])
   useEffect(() => {
     promptRef.current = prompt
   }, [prompt])
@@ -475,9 +526,13 @@ export default function Terminal() {
 
   return (
     <div className={cn("p-4", containerClass)}>
-      <div className="mb-3">
+      <div className="mb-3 space-y-1">
         <h1 className="text-lg font-semibold">Terminal</h1>
         <p className="text-muted-foreground text-sm">Type directly in the terminal. Use Ctrl+C to kill.</p>
+        <p className="text-muted-foreground text-xs">
+          Worktree: <span className="font-medium">{worktreeTitle}</span>
+        </p>
+        <p className="text-muted-foreground text-xs font-mono">{workingPath ?? "(path unavailable)"}</p>
       </div>
       <Card className="border rounded-md bg-black">
         <div className="flex items-center justify-between border-b p-2">
@@ -547,9 +602,14 @@ export default function Terminal() {
           <div ref={termElRef} className="h-full w-full" />
         </div>
       </Card>
-      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span>Directory:</span>
-        <code className="font-mono">{cwd || project?.path || ""}</code>
+        <code className="font-mono">
+          {workingPath ? (cwd.replace(workingPath, "") || "/") : cwd || ""}
+        </code>
+        <span className="text-muted-foreground/70">
+          ({workingPath || ""})
+        </span>
         <span className="ml-auto">Commands: cd, clear</span>
       </div>
     </div>

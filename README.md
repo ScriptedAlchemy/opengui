@@ -38,12 +38,23 @@ pnpm run test:components  # Component tests only
 
 - 🚀 **Multi-Project Management** - Add and manage multiple projects/repositories
 - 💬 **AI Chat Interface** - Powered by assistant-ui with streaming responses
-- 🔧 **Git Integration** - Visual git operations, commits, branches, and worktrees
+- 🔧 **Git Integration** - Visual git operations, commits, branches, and per-worktree views
 - 🤖 **Agent Management** - Create, edit, and test AI agents
 - 📁 **File Browser** - Navigate and manage project files
 - ⚡ **Real-time Updates** - Server-Sent Events for live streaming
 - 🎨 **Modern UI** - Built with shadcn/ui and Tailwind CSS
 - 💾 **Persistent Projects** - Your project list is saved and restored
+- 🌳 **Worktree Aware** - Switch between Git worktrees and run isolated agent/chat sessions per worktree
+
+## Worktrees
+
+Each project exposes its primary checkout as the `default` worktree. Creating additional worktrees lets you:
+
+- Launch isolated chat sessions tied to feature branches.
+- Run terminal/git/file operations against a separate working directory.
+- Manage worktree-specific agents and settings.
+
+You can switch worktrees from the project sidebar or the dashboard. URLs now take the form `/projects/:projectId/:worktreeId/...`, so deep links remain stable per worktree.
 
 ## Architecture
 
@@ -80,8 +91,8 @@ app/
 ├── src/
 │   ├── server/        # Hono API server
 │   │   ├── index.ts   # Main server entry
-│   │   ├── project-manager.ts  # Project instance management
-│   │   └── project-routes.ts   # API route handlers
+│   │   ├── project-manager.ts        # Project & worktree metadata
+│   │   └── integrated-project-routes.ts   # API route handlers (projects, worktrees, agents)
 │   ├── lib/           # Core libraries
 │   │   ├── api/       # API clients and types
 │   │   └── chat/      # assistant-ui runtime
@@ -90,8 +101,8 @@ app/
 │   │   ├── ui/        # shadcn/ui components
 │   │   └── layout/    # Layout components
 │   ├── pages/         # Route pages
-│   ├── stores/        # Zustand state management
-│   └── App.tsx        # Main app with routing
+│   ├── stores/        # Zustand state management (projects, worktrees, sessions, etc.)
+│   └── App.tsx        # Main app with worktree-aware routing
 ├── scripts/           # Build and dev scripts
 │   ├── dev.ts         # Development server
 │   ├── build.ts       # Production build
@@ -107,25 +118,29 @@ app/
 ## Routes
 
 - `/` - Project list/dashboard
-- `/projects/:projectId` - Project overview
-- `/projects/:projectId/sessions` - Session management
-- `/projects/:projectId/sessions/:sessionId/chat` - AI chat interface
-- `/projects/:projectId/git` - Git operations
-- `/projects/:projectId/agents` - Agent management
-- `/projects/:projectId/files` - File browser
-- `/projects/:projectId/settings` - Project settings
+- `/projects/:projectId/:worktreeId` - Project overview (default worktree id: `default`)
+- `/projects/:projectId/:worktreeId/sessions` - Session management
+- `/projects/:projectId/:worktreeId/sessions/:sessionId/chat` - AI chat interface
+- `/projects/:projectId/:worktreeId/git` - Git operations
+- `/projects/:projectId/:worktreeId/agents` - Agent management
+- `/projects/:projectId/:worktreeId/files` - File browser
+- `/projects/:projectId/:worktreeId/settings` - Project & worktree settings
 
 ## API Endpoints
 
 - `GET /api/health` - Health check
 - `GET /api/projects` - List all projects
 - `POST /api/projects` - Create new project
-- `GET /api/projects/:id` - Get project details
+- `GET /api/projects/:id` - Get project details (includes worktree metadata)
 - `PUT /api/projects/:id` - Update project
 - `DELETE /api/projects/:id` - Remove project
 - `POST /api/projects/:id/start` - Start project instance
 - `POST /api/projects/:id/stop` - Stop project instance
 - `GET /api/projects/:id/status` - Get instance status
+- `GET /api/projects/:id/worktrees` - List git worktrees for a project
+- `POST /api/projects/:id/worktrees` - Create a new worktree (title + directory)
+- `PATCH /api/projects/:id/worktrees/:worktreeId` - Update worktree metadata
+- `DELETE /api/projects/:id/worktrees/:worktreeId` - Remove a non-default worktree
 
 ## Technology Stack
 
@@ -154,6 +169,13 @@ pnpm run test:stores          # Store tests
 
 # E2E tests (requires Playwright)
 pnpm run test:e2e             # Run all E2E tests
+
+# CI E2E run (real models)
+pnpm run test:e2e:ci          # Runs Playwright against real providers/models
+
+Notes:
+- E2E tests select Anthropic as provider and Claude Sonnet 4 as model.
+- Ensure ANTHROPIC_API_KEY is set in your environment before running E2E.
 ```
 
 ## Environment Variables

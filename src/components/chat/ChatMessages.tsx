@@ -1,8 +1,6 @@
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ui/shadcn-io/ai/conversation"
 import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { User, Bot, Loader2, Download } from "lucide-react"
-import { useEffect, useRef } from "react"
 import type { MessageResponse, SessionInfo } from "@/types/chat"
 import type { ToolPart } from "@opencode-ai/sdk/client"
 import {
@@ -13,7 +11,31 @@ import {
 import { Image } from "@/components/ui/shadcn-io/ai/image"
 import { Button } from "@/components/ui/button"
 import { renderTool } from "@/lib/chat/toolRenderers"
+import { resolveDate } from "@/lib/utils"
 import { getFileIcon, isImageFile, isTextFile } from "@/util/file"
+
+const FALLBACK_ERROR_MESSAGE = "The assistant reported an error while generating a response."
+
+const extractErrorMessage = (error: unknown): string => {
+  if (!error || typeof error !== "object") {
+    return FALLBACK_ERROR_MESSAGE
+  }
+
+  const directMessage = (error as { message?: unknown }).message
+  if (typeof directMessage === "string" && directMessage.trim()) {
+    return directMessage
+  }
+
+  const nestedData = (error as { data?: unknown }).data
+  if (nestedData && typeof nestedData === "object") {
+    const nestedMessage = (nestedData as { message?: unknown }).message
+    if (typeof nestedMessage === "string" && nestedMessage.trim()) {
+      return nestedMessage
+    }
+  }
+
+  return FALLBACK_ERROR_MESSAGE
+}
 
 interface ChatMessagesProps {
   currentSession: SessionInfo | null
@@ -22,13 +44,7 @@ interface ChatMessagesProps {
 }
 
 export function ChatMessages({ currentSession, messages, isStreaming }: ChatMessagesProps) {
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  // Conversation handles stick-to-bottom automatically; no manual ref needed
 
   if (!currentSession) {
     return (
@@ -43,9 +59,9 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
-        <div className="mx-auto max-w-4xl space-y-4">
+    <div className="flex flex-1 min-h-0 flex-col overflow-hidden">
+      <Conversation className="flex-1 h-full">
+        <ConversationContent className="mx-auto max-w-4xl space-y-4">
           {messages.length === 0 ? (
             <div className="text-muted-foreground py-8 text-center">
               <Bot className="mx-auto mb-2 h-8 w-8 opacity-50" />
@@ -53,6 +69,11 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
             </div>
           ) : (
             messages.map((message, index) => {
+              const assistantError =
+                message.role === "assistant"
+                  ? ((message as unknown as { error?: unknown; _error?: unknown }).error ?? message._error)
+                  : null
+
               return (
                 <div
                   key={message.id || index}
@@ -73,24 +94,35 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
                 </div>
 
                 {/* Message Content */}
-                <div className="flex-1 space-y-2">
+                <div className="min-w-0 max-w-[720px] space-y-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">
                       {message.role === "user" ? "You" : "Assistant"}
                     </span>
                     {message.time && (
                       <span className="text-muted-foreground text-xs">
-                        {new Date(message.time.created * 1000).toLocaleTimeString()}
+                        {resolveDate(message.time.created).toLocaleTimeString()}
                       </span>
                     )}
                   </div>
 
-                  <Card className="p-3">
+                  <Card className="p-3 w-fit max-w-[720px]">
                     <div className="prose prose-sm dark:prose-invert max-w-none">
+                      {assistantError && (
+                        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                          <span className="font-medium">
+                            {(() => {
+                              const namedError = assistantError as { name?: unknown }
+                              return typeof namedError?.name === "string" ? `${namedError.name}: ` : ""
+                            })()}
+                          </span>
+                          {extractErrorMessage(assistantError)}
+                        </div>
+                      )}
                       {message.parts.map((part, partIndex) => {
                         if (part.type === "text") {
                           return (
-                            <div key={partIndex} className="whitespace-pre-wrap">
+                            <div key={partIndex} className="whitespace-pre-wrap break-words break-anywhere">
                               {part.text}
                             </div>
                           )
@@ -196,14 +228,7 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
                 </div>
               </div>
               <div className="flex-1">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="text-sm font-medium">Assistant</span>
-                  <Badge variant="secondary" className="text-xs">
-                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    Thinking...
-                  </Badge>
-                </div>
-                <Card className="p-3">
+                <Card className="p-3 w-fit max-w-[720px]">
                   <div className="text-muted-foreground flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm">Generating response...</span>
@@ -213,10 +238,10 @@ export function ChatMessages({ currentSession, messages, isStreaming }: ChatMess
             </div>
           )}
 
-          {/* Scroll anchor */}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+        </ConversationContent>
+        {/* Bottom scroll button when not at bottom */}
+        <ConversationScrollButton />
+      </Conversation>
     </div>
   )
 }

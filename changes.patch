@@ -1,0 +1,73 @@
+diff --git a/projects/mfe1/src/app/flights/flights-search/flights-search.component.html b/projects/mfe1/src/app/flights/flights-search/flights-search.component.html
+index fc3589e..0a926ef 100644
+--- a/projects/mfe1/src/app/flights/flights-search/flights-search.component.html
++++ b/projects/mfe1/src/app/flights/flights-search/flights-search.component.html
+@@ -31,14 +31,26 @@
+         border: 2px darkred dashed;
+         padding: 20px;
+     }
++
++    .bg-angular {
++        width: 300px;
++        height: 300px;
++        background-image: url('../../../assets/angular-2.png');
++        background-size: cover;
++        background-position: center;
++    }
+ </style>
+ 
+ <div id="container">
+-  
++
+     <div>
+         <img src="../../../assets/angular.png" width="50">
+     </div>
+     <h1>Flights</h1>
++    <div>
++        <div class="bg-angular"></div>
++        <p>bg with angular icon via css</p>
++    </div>
+     <div>
+         <input type="text" placeholder="From">
+     </div>
+diff --git a/projects/mfe1/webpack.config.js b/projects/mfe1/webpack.config.js
+index 6b20744..e903d23 100644
+--- a/projects/mfe1/webpack.config.js
++++ b/projects/mfe1/webpack.config.js
+@@ -1,15 +1,24 @@
+-const { shareAll, withModuleFederationPlugin } = require('@angular-architects/module-federation/webpack');
++const {
++  shareAll,
++  withModuleFederationPlugin,
++} = require("@angular-architects/module-federation/webpack");
+ 
+-module.exports = withModuleFederationPlugin({
+-
+-  name: 'mfe1',
+-
+-  exposes: {
+-    './Module': './projects/mfe1/src/app/flights/flights.module.ts',
+-  },
+-
+-  shared: {
+-    ...shareAll({ singleton: true, strictVersion: true, requiredVersion: 'auto' }),
++module.exports = {
++  output: {
++    publicPath: "http://localhost:3000/",
+   },
++  ...withModuleFederationPlugin({
++    name: "mfe1",
++    exposes: {
++      "./Module": "./projects/mfe1/src/app/flights/flights.module.ts",
++    },
+ 
+-});
++    shared: {
++      ...shareAll({
++        singleton: true,
++        strictVersion: true,
++        requiredVersion: "auto",
++      }),
++    },
++  }),
++};
