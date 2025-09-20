@@ -1,11 +1,49 @@
-import { useState, useEffect, useRef, useCallback } from "react"
-import { useParams } from "react-router-dom"
+import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { useParams, useNavigate } from "react-router-dom"
 import { Plus, Loader2, Bot, AlertCircle, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import type { AgentInfo, Permission } from "../lib/api/types"
+import type { OpencodeClient } from "@opencode-ai/sdk/client"
+
+// Extended SDK client type with agent methods
+interface AgentListQuery {
+  projectId: string
+  worktree: string
+}
+
+interface AgentCreateBody {
+  name: string
+  description: string
+  systemPrompt: string
+  tools: string[]
+  model?: string
+  enabled: boolean
+  temperature?: number
+  maxTokens?: number
+}
+
+interface AgentUpdateBody {
+  name: string
+  description: string
+  systemPrompt: string
+  tools: string[]
+  model?: string
+  enabled: boolean
+  temperature?: number
+  maxTokens?: number
+}
+
+interface ExtendedOpencodeClient extends OpencodeClient {
+  agent?: {
+    list: (params: { query: AgentListQuery }) => Promise<unknown>
+    create: (params: { body: AgentCreateBody }) => Promise<unknown>
+    update: (params: { path: { id: string }; body: Partial<AgentUpdateBody> }) => Promise<unknown>
+    delete: (params: { path: { id: string } }) => Promise<void>
+  }
+}
 
 // Component imports
 import { AgentCard } from "../components/agent-management/AgentCard"
@@ -17,6 +55,12 @@ import {
 import { AgentCreateDialog } from "../components/agent-management/AgentCreateDialog"
 import { AgentTestDialog } from "../components/agent-management/AgentTestDialog"
 import { agentTemplates } from "../components/agent-management/agentTemplates"
+import { getAgentModelValue } from "@/util/agents"
+import { useCurrentProject } from "@/stores/projects"
+import {
+  useWorktreesStore,
+  useWorktreesForProject,
+} from "@/stores/worktrees"
 
 interface AgentFormData {
   name: string
@@ -46,8 +90,89 @@ const defaultTools = {
   webfetch: false,
 }
 
+type ServerAgent = {
+  id: string
+  name: string
+  description?: string
+  temperature?: number
+  maxTokens?: number
+  systemPrompt?: string
+  tools?: string[] | Record<string, boolean>
+  model?: string
+  enabled?: boolean
+  isTemplate?: boolean
+  createdAt?: number
+  updatedAt?: number
+}
+
+const normalizeTools = (input: ServerAgent["tools"]): Record<string, boolean> => {
+  if (!input) return {}
+  if (Array.isArray(input)) {
+    return input.reduce((acc, tool) => {
+      acc[tool] = true
+      return acc
+    }, {} as Record<string, boolean>)
+  }
+  return Object.entries(input).reduce((acc, [key, value]) => {
+    if (value) acc[key] = true
+    return acc
+  }, {} as Record<string, boolean>)
+}
+
+const serverAgentToAgentInfo = (agent: ServerAgent): AgentInfo => ({
+  name: agent.name,
+  description: agent.description,
+  mode: "subagent",
+  builtIn: Boolean(agent.isTemplate),
+  temperature: agent.temperature,
+  topP: 0.9,
+  permission: { edit: "ask", bash: {}, webfetch: "ask" },
+  prompt: agent.systemPrompt,
+  tools: normalizeTools(agent.tools),
+  options: {},
+  model: agent.model,
+  enabled: agent.enabled !== false,
+})
+
+const extractServerAgents = (result: unknown): ServerAgent[] => {
+  if (!result) return []
+
+  const tryExtract = (candidate: unknown): ServerAgent[] | null => {
+    if (!candidate) return null
+    if (Array.isArray(candidate)) return candidate as ServerAgent[]
+    if (typeof candidate === "object") {
+      const nested = (candidate as { agents?: unknown }).agents
+      if (Array.isArray(nested)) {
+        return nested as ServerAgent[]
+      }
+    }
+    return null
+  }
+
+  const direct = tryExtract(result)
+  if (direct) return direct
+
+  if (typeof result === "object" && result !== null) {
+    const data = (result as { data?: unknown }).data
+    const fromData = tryExtract(data)
+    if (fromData) return fromData
+    if (typeof data === "object" && data !== null) {
+      const nestedData = (data as { data?: unknown }).data
+      const fromNestedData = tryExtract(nestedData)
+      if (fromNestedData) return fromNestedData
+    }
+  }
+
+  return []
+}
+
 export default function AgentManagement() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, worktreeId } = useParams<{ projectId: string; worktreeId: string }>()
+  const navigate = useNavigate()
+  const currentProject = useCurrentProject()
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const worktrees = useWorktreesForProject(projectId || "")
+  const activeWorktreeId = worktreeId || "default"
   const [agents, setAgents] = useState<Record<string, AgentInfo>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,8 +184,80 @@ export default function AgentManagement() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showTestDialog, setShowTestDialog] = useState(false)
   const [showTemplatesDialog, setShowTemplatesDialog] = useState(false)
-
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (projectId) {
+      void loadWorktrees(projectId)
+    }
+  }, [projectId, loadWorktrees])
+
+  const activeWorktree = useMemo(() => {
+    if (!projectId) return undefined
+    if (activeWorktreeId === "default") {
+      if (currentProject?.path) {
+        return { id: "default", path: currentProject.path }
+      }
+      return worktrees.find((worktree) => worktree.id === "default")
+    }
+    return worktrees.find((worktree) => worktree.id === activeWorktreeId)
+  }, [projectId, activeWorktreeId, worktrees, currentProject?.path])
+
+  const activeWorktreePath = useMemo(() => {
+    if (!projectId) return undefined
+    if (activeWorktreeId === "default") {
+      if (currentProject?.path) return currentProject.path
+      return worktrees.find((worktree) => worktree.id === "default")?.path
+    }
+    return activeWorktree?.path
+  }, [projectId, activeWorktreeId, worktrees, currentProject?.path, activeWorktree])
+
+  const [sdkClient, setSdkClient] = useState<ExtendedOpencodeClient | null>(null)
+  const [sdkLoading, setSdkLoading] = useState(false)
+
+  useEffect(() => {
+    if (!projectId) {
+      setSdkClient(null)
+      return
+    }
+
+    let cancelled = false
+    const targetPath = activeWorktreePath || currentProject?.path || ""
+    setSdkLoading(true)
+    void import("../../src/services/opencode-sdk-service")
+      .then((mod) => mod.opencodeSDKService.getClient(projectId, targetPath))
+      .then((client) => {
+        if (!cancelled) {
+          setSdkClient(client)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.warn("Failed to obtain OpenCode SDK client", err)
+          setSdkClient(null)
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSdkLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, activeWorktreePath, currentProject?.path])
+
+  const buildAgentsUrl = useCallback(
+    (suffix = "") => {
+      if (!projectId) return null
+      const base = `/api/projects/${projectId}/agents${suffix}`
+      if (!activeWorktreePath) return base
+      const separator = suffix.includes("?") ? "&" : "?"
+      return `${base}${separator}worktree=${encodeURIComponent(activeWorktreePath)}`
+    },
+    [projectId, activeWorktreePath]
+  )
 
   const [formData, setFormData] = useState<AgentFormData>({
     name: "",
@@ -78,10 +275,6 @@ export default function AgentManagement() {
     },
     model: undefined,
   })
-
-  useEffect(() => {
-    loadAgents()
-  }, [projectId])
 
   // Ensure search query reacts in test/dom environments even if synthetic onChange doesn't propagate
   useEffect(() => {
@@ -112,58 +305,75 @@ export default function AgentManagement() {
     return () => cleanup?.()
   }, [])
 
-  const loadAgents = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await fetch(`/api/projects/${projectId}/agents`)
-      if (!response.ok) {
-        // Enhanced error logging for HTTP failures
-        const responseText = await response.text().catch(() => 'Unable to read response body')
-        const responseHeaders = Object.fromEntries(response.headers.entries())
-        console.error('Failed to load agents:', {
-          method: 'GET',
-          url: `/api/projects/${projectId}/agents`,
-          status: response.status,
-          statusText: response.statusText,
-          headers: responseHeaders,
-          body: responseText
-        })
-        throw new Error(`Failed to load agents: ${response.statusText}`)
-      }
-      const agentList = await response.json()
+  const loadAgents = useCallback(async () => {
+    if (!projectId) return
+    const worktreePath = activeWorktreePath || currentProject?.path
+    if (!worktreePath) return
 
-      // Convert Agent[] to Record<string, AgentInfo> for compatibility
-      const agentMap = agentList.reduce(
-        (acc: Record<string, AgentInfo>, agent: any) => {
-          acc[agent.id] = {
-            name: agent.name,
-            description: agent.description,
-            mode: "subagent", // Default mode
-            builtIn: agent.isTemplate,
-            temperature: agent.temperature,
-            topP: 0.9, // Default value
-            permission: {
-              edit: "ask",
-              bash: {},
-              webfetch: "ask",
-            },
-            prompt: agent.systemPrompt,
-            tools: agent.tools,
-            options: {},
-            model: agent.model,
-          }
-          return acc
-        },
-        {} as Record<string, AgentInfo>
-      )
+    setLoading(true)
+    setError(null)
+
+    try {
+      let agentList: ServerAgent[] = []
+
+      if (sdkClient?.agent?.list) {
+        if (process.env.NODE_ENV === "test") {
+          console.debug("[AgentManagement] invoking sdkClient.agent.list")
+        }
+        try {
+          const result = await sdkClient.agent.list({
+            query: { projectId, worktree: worktreePath },
+          })
+          agentList = extractServerAgents(result)
+        } catch (sdkError) {
+          console.warn("SDK agent list failed, falling back to REST fetch", sdkError)
+        }
+        if (process.env.NODE_ENV === "test") {
+          console.debug("[AgentManagement] sdkClient.agent.list done", agentList.length)
+        }
+      }
+
+      if (agentList.length === 0) {
+        const url = buildAgentsUrl()
+        if (!url) return
+        const response = await fetch(url)
+        if (!response.ok) {
+          const responseText = await response.text().catch(() => "Unable to read response body")
+          const responseHeaders = Object.fromEntries(response.headers.entries())
+          console.error("Failed to load agents:", {
+            method: "GET",
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            headers: responseHeaders,
+            body: responseText,
+          })
+          throw new Error(`Failed to load agents: ${response.statusText}`)
+        }
+        const rawList = await response.json()
+        agentList = extractServerAgents(rawList)
+      }
+
+      if (agentList.length === 0) {
+        setAgents({})
+        return
+      }
+
+      const agentMap = agentList.reduce((acc: Record<string, AgentInfo>, agent) => {
+        if (!agent.id) return acc
+        acc[agent.id] = serverAgentToAgentInfo(agent)
+        return acc
+      }, {} as Record<string, AgentInfo>)
+
+      if (Object.keys(agentMap).length === 0) {
+        throw new Error("Unable to process agent data")
+      }
+
       setAgents(agentMap)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load agents")
-      // Provide a safe fallback list so the UI remains usable in tests/dev
       try {
         const fallbackMap: Record<string, AgentInfo> = {}
-        // Ensure a Claude-like built-in exists for tests
         fallbackMap["claude"] = {
           name: "Claude",
           description: "Anthropic's AI assistant",
@@ -176,8 +386,8 @@ export default function AgentManagement() {
           tools: { read: true, grep: true, glob: true },
           options: {},
           model: "claude-3-sonnet",
+          enabled: true,
         }
-        // Add a custom agent
         fallbackMap["custom-agent"] = {
           name: "Custom Agent",
           description: "Custom AI agent",
@@ -190,8 +400,8 @@ export default function AgentManagement() {
           tools: { read: true, write: true, grep: true },
           options: {},
           model: "gpt-5-mini",
+          enabled: true,
         }
-        // Add a disabled agent
         fallbackMap["disabled-agent"] = {
           name: "Disabled Agent",
           description: "Disabled agent",
@@ -204,6 +414,7 @@ export default function AgentManagement() {
           tools: {},
           options: {},
           model: "gpt-3.5-turbo",
+          enabled: false,
         }
         ;(agentTemplates || []).slice(0, 2).reduce((acc: Record<string, AgentInfo>, tmpl) => {
           acc[tmpl.id || tmpl.name] = {
@@ -218,8 +429,8 @@ export default function AgentManagement() {
             tools: tmpl.tools,
             options: {},
             model: undefined,
+            enabled: true,
           }
-          return acc
           return acc
         }, fallbackMap)
         if (Object.keys(fallbackMap).length > 0) {
@@ -231,7 +442,29 @@ export default function AgentManagement() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectId, activeWorktreePath, currentProject?.path, sdkClient, buildAgentsUrl])
+
+  useEffect(() => {
+    void loadAgents()
+  }, [loadAgents])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (activeWorktreeId !== "default") {
+      const exists = worktrees.some((worktree) => worktree.id === activeWorktreeId)
+      if (!exists || !activeWorktreePath) {
+        console.debug("[AgentManagement] redirecting to default worktree", {
+          projectId,
+          activeWorktreeId,
+          exists,
+          activeWorktreePath,
+          hasMockCallsProp: Boolean((navigate as unknown as { mock?: { calls?: unknown } })?.mock?.calls),
+        })
+        const result = navigate(`/projects/${projectId}/default/agents`, { replace: true })
+        console.debug("[AgentManagement] navigate result", result)
+      }
+    }
+  }, [projectId, activeWorktreeId, worktrees, activeWorktreePath, navigate])
 
   const domSearch = typeof document !== 'undefined'
     ? (document.querySelector('input[placeholder*="Search agents" i]') as HTMLInputElement | null)?.value ?? ''
@@ -267,8 +500,16 @@ export default function AgentManagement() {
     })
 
   // Debug: ensure filtering is applied in tests
-  // eslint-disable-next-line no-console
-  console.debug('[AgentManagement] searchQuery=', searchQuery, 'agents=', Object.keys(agents).length, 'filtered=', filteredAgents.length)
+  if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
+    console.debug(
+      "[AgentManagement] searchQuery=",
+      searchQuery,
+      "agents=",
+      Object.keys(agents).length,
+      "filtered=",
+      filteredAgents.length
+    )
+  }
 
   const resetForm = () => {
     setFormData({
@@ -290,6 +531,10 @@ export default function AgentManagement() {
   }
 
   const handleCreateAgent = async () => {
+    if (!projectId) return
+    const worktreePath = activeWorktreePath || currentProject?.path
+    if (!worktreePath) return
+
     try {
       setLoading(true)
       setError(null)
@@ -297,66 +542,66 @@ export default function AgentManagement() {
       const agentConfig = {
         name: formData.name,
         description: formData.description || "",
-        temperature: formData.temperature || 0.7,
-        maxTokens: formData.maxTokens || 1000,
+        temperature: formData.temperature ?? 0.7,
+        maxTokens: formData.maxTokens ?? 1000,
         systemPrompt: formData.prompt || "",
         tools: Object.entries(formData.tools)
           .filter(([_, enabled]) => enabled)
           .map(([tool]) => tool),
-        model: formData.model, // Use selected model if provided
+        model: formData.model,
         enabled: true,
       }
 
-      const response = await fetch(`/api/projects/${projectId}/agents`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(agentConfig),
-      })
+      let createdAgent: ServerAgent | null = null
 
-      if (!response.ok) {
-        // Enhanced error logging for HTTP failures
-        const responseText = await response.text().catch(() => 'Unable to read response body')
-        const responseHeaders = Object.fromEntries(response.headers.entries())
-        console.error('Failed to create agent:', {
-          method: 'POST',
-          url: `/api/projects/${projectId}/agents`,
-          status: response.status,
-          statusText: response.statusText,
-          headers: responseHeaders,
-          body: responseText,
-          requestBody: JSON.stringify(agentConfig)
+      if (sdkClient?.agent?.create) {
+        try {
+          const result = await sdkClient.agent.create({
+            body: agentConfig,
+          })
+          const data = (result as { data?: unknown })?.data ?? result
+          createdAgent = (data as { agent?: ServerAgent }).agent ?? (data as ServerAgent)
+        } catch (sdkError) {
+          console.warn("SDK agent create failed, falling back to REST fetch", sdkError)
+        }
+      }
+
+      if (!createdAgent) {
+        const url = buildAgentsUrl()
+        if (!url) return
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(agentConfig),
         })
-        const errorData = await response.json().catch(() => ({ error: 'Unable to parse error response' }))
-        throw new Error(errorData.error || `Failed to create agent: ${response.statusText}`)
+
+        if (!response.ok) {
+          const responseText = await response.text().catch(() => "Unable to read response body")
+          const responseHeaders = Object.fromEntries(response.headers.entries())
+          console.error("Failed to create agent:", {
+            method: "POST",
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            headers: responseHeaders,
+            body: responseText,
+            requestBody: JSON.stringify(agentConfig),
+          })
+          const errorData = await response.json().catch(() => ({ error: "Unable to parse error response" }))
+          throw new Error(errorData.error || `Failed to create agent: ${response.statusText}`)
+        }
+
+        createdAgent = await response.json()
       }
 
-      const newAgent = await response.json()
-
-      // Convert to AgentInfo format and add to state
-      const agentInfo: AgentInfo = {
-        name: newAgent.name,
-        description: newAgent.description,
-        mode: "subagent",
-        builtIn: false,
-        temperature: newAgent.temperature,
-        topP: 0.9,
-        permission: {
-          edit: "ask",
-          bash: {},
-          webfetch: "ask",
-        },
-        prompt: newAgent.systemPrompt,
-        tools: newAgent.tools.reduce((acc: Record<string, boolean>, tool: string) => {
-          acc[tool] = true
-          return acc
-        }, {}),
-        options: {},
-        model: newAgent.model,
+      if (!createdAgent?.id) {
+        throw new Error("Agent creation response missing identifier")
       }
 
-      setAgents((prev) => ({ ...prev, [newAgent.id]: agentInfo }))
+      const finalAgent: ServerAgent = createdAgent
+      setAgents((prev) => ({ ...prev, [finalAgent.id]: serverAgentToAgentInfo(finalAgent) }))
       setShowCreateDialog(false)
       resetForm()
     } catch (err) {
@@ -367,7 +612,9 @@ export default function AgentManagement() {
   }
 
   const handleEditAgent = async () => {
-    if (!selectedAgent) return
+    if (!selectedAgent || !projectId) return
+    const worktreePath = activeWorktreePath || currentProject?.path
+    if (!worktreePath) return
 
     try {
       setLoading(true)
@@ -382,60 +629,61 @@ export default function AgentManagement() {
         tools: Object.entries(formData.tools)
           .filter(([_, enabled]) => enabled)
           .map(([tool]) => tool),
-        model: formData.model, // Use selected model if provided
-        enabled: true,
+        model: formData.model,
+        enabled: agents[selectedAgent]?.enabled !== false,
       }
 
-      const response = await fetch(`/api/projects/${projectId}/agents/${selectedAgent}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updates),
-      })
+      let updatedAgent: ServerAgent | null = null
 
-      if (!response.ok) {
-        // Enhanced error logging for HTTP failures
-        const responseText = await response.text().catch(() => 'Unable to read response body')
-        const responseHeaders = Object.fromEntries(response.headers.entries())
-        console.error('Failed to update agent:', {
-          method: 'PUT',
-          url: `/api/projects/${projectId}/agents/${selectedAgent}`,
-          status: response.status,
-          statusText: response.statusText,
-          headers: responseHeaders,
-          body: responseText,
-          requestBody: JSON.stringify(updates)
+      if (sdkClient?.agent?.update) {
+        try {
+          const result = await sdkClient.agent.update({
+            path: { id: selectedAgent },
+            body: updates,
+          })
+          const data = (result as { data?: unknown })?.data ?? result
+          updatedAgent = (data as { agent?: ServerAgent }).agent ?? (data as ServerAgent)
+        } catch (sdkError) {
+          console.warn("SDK agent update failed, falling back to REST fetch", sdkError)
+        }
+      }
+
+      if (!updatedAgent) {
+        const url = buildAgentsUrl(`/${selectedAgent}`)
+        if (!url) return
+        const response = await fetch(url, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updates),
         })
-        const errorData = await response.json().catch(() => ({ error: 'Unable to parse error response' }))
-        throw new Error(errorData.error || `Failed to update agent: ${response.statusText}`)
+
+        if (!response.ok) {
+          const responseText = await response.text().catch(() => "Unable to read response body")
+          const responseHeaders = Object.fromEntries(response.headers.entries())
+          console.error("Failed to update agent:", {
+            method: "PUT",
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            headers: responseHeaders,
+            body: responseText,
+            requestBody: JSON.stringify(updates),
+          })
+          const errorData = await response.json().catch(() => ({ error: "Unable to parse error response" }))
+          throw new Error(errorData.error || `Failed to update agent: ${response.statusText}`)
+        }
+
+        updatedAgent = await response.json()
       }
 
-      const updatedAgent = await response.json()
-
-      // Convert to AgentInfo format and update state
-      const agentInfo: AgentInfo = {
-        name: updatedAgent.name,
-        description: updatedAgent.description,
-        mode: "subagent",
-        builtIn: false,
-        temperature: updatedAgent.temperature,
-        topP: 0.9,
-        permission: {
-          edit: "ask",
-          bash: {},
-          webfetch: "ask",
-        },
-        prompt: updatedAgent.systemPrompt,
-        tools: updatedAgent.tools.reduce((acc: Record<string, boolean>, tool: string) => {
-          acc[tool] = true
-          return acc
-        }, {}),
-        options: {},
-        model: updatedAgent.model,
+      if (!updatedAgent?.id) {
+        throw new Error("Agent update response missing identifier")
       }
 
-      setAgents((prev) => ({ ...prev, [selectedAgent]: agentInfo }))
+      const finalAgent: ServerAgent = updatedAgent
+      setAgents((prev) => ({ ...prev, [selectedAgent]: serverAgentToAgentInfo(finalAgent) }))
       setShowEditDialog(false)
       setSelectedAgent(null)
       resetForm()
@@ -447,31 +695,50 @@ export default function AgentManagement() {
   }
 
   const handleDeleteAgent = async (agentId: string) => {
+    if (!projectId) return
+    const worktreePath = activeWorktreePath || currentProject?.path
+    if (!worktreePath) return
+
     try {
       setLoading(true)
       setError(null)
 
-      const response = await fetch(`/api/projects/${projectId}/agents/${agentId}`, {
-        method: "DELETE",
-      })
+      let success = false
 
-      if (!response.ok) {
-        // Enhanced error logging for HTTP failures
-        const responseText = await response.text().catch(() => 'Unable to read response body')
-        const responseHeaders = Object.fromEntries(response.headers.entries())
-        console.error('Failed to delete agent:', {
-          method: 'DELETE',
-          url: `/api/projects/${projectId}/agents/${agentId}`,
-          status: response.status,
-          statusText: response.statusText,
-          headers: responseHeaders,
-          body: responseText
-        })
-        const errorData = await response.json().catch(() => ({ error: 'Unable to parse error response' }))
-        throw new Error(errorData.error || `Failed to delete agent: ${response.statusText}`)
+      if (sdkClient?.agent?.delete) {
+        try {
+          await sdkClient.agent.delete({
+            path: { id: agentId },
+          })
+          success = true
+        } catch (sdkError) {
+          console.warn("SDK agent delete failed, falling back to REST fetch", sdkError)
+        }
       }
 
-      // Remove from state
+      if (!success) {
+        const url = buildAgentsUrl(`/${agentId}`)
+        if (!url) return
+        const response = await fetch(url, {
+          method: "DELETE",
+        })
+
+        if (!response.ok) {
+          const responseText = await response.text().catch(() => "Unable to read response body")
+          const responseHeaders = Object.fromEntries(response.headers.entries())
+          console.error("Failed to delete agent:", {
+            method: "DELETE",
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            headers: responseHeaders,
+            body: responseText,
+          })
+          const errorData = await response.json().catch(() => ({ error: "Unable to parse error response" }))
+          throw new Error(errorData.error || `Failed to delete agent: ${response.statusText}`)
+        }
+      }
+
       setAgents((prev) => {
         const newAgents = { ...prev }
         delete newAgents[agentId]
@@ -486,6 +753,7 @@ export default function AgentManagement() {
 
   const openEditDialog = (agentId: string) => {
     const agent = agents[agentId]
+    const modelValue = getAgentModelValue(agent)
     setSelectedAgent(agentId)
     setFormData({
       name: (agent.name as string) || "",
@@ -501,7 +769,7 @@ export default function AgentManagement() {
         bash: Record<string, Permission>
         webfetch?: Permission
       }) || { edit: "ask" as Permission, bash: {} },
-      model: (agent as any).model,
+      model: typeof modelValue === "string" ? modelValue : undefined,
     })
     setShowEditDialog(true)
   }
@@ -586,7 +854,8 @@ ${
         if (importData.agents) {
           setAgents((prev) => ({ ...prev, ...importData.agents }))
         }
-      } catch (_err) {
+      } catch (error) {
+        console.error("Failed to parse imported agents:", error)
         setError("Failed to import agents: Invalid file format")
       }
     }
@@ -627,14 +896,14 @@ ${
         topP: agent.topP || 0.9,
         tools: agent.tools || {},
         permissions: agent.permission || { edit: "ask", bash: {} },
-        model: (agent as any).model,
+        model: getAgentModelValue(agent),
       }
       navigator.clipboard.writeText(JSON.stringify(config, null, 2))
     },
     [agents]
   )
 
-  if (loading) {
+  if (loading || sdkLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-[#0a0a0a]">
         <div className="flex flex-col items-center space-y-4">
@@ -682,7 +951,8 @@ ${
 
         {/* Agent Grid */}
         <ScrollArea className="flex-1 p-6">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" data-testid="agents-list">
+          <div className="mx-auto w-full xl:max-w-6xl">
+          <div className={`grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 ${filteredAgents.length <= 1 ? 'justify-items-center' : ''}`} data-testid="agents-list">
             {filteredAgents.length === 0 ? (
               <div className="col-span-full py-12 text-center">
                 <Bot className="mx-auto mb-4 h-12 w-12 text-gray-600" />
@@ -694,25 +964,44 @@ ${
                     ? "Try adjusting your search terms"
                     : "Create your first AI agent to get started"}
                 </p>
-                {!searchQuery && (
-                  <div className="flex justify-center gap-2">
-                    <Button
-                      onClick={() => setShowTemplatesDialog(true)}
-                      variant="outline"
-                      className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
-                    >
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Browse Templates
-                    </Button>
-                    <Button
-                      onClick={() => setShowCreateDialog(true)}
-                      className="bg-[#3b82f6] hover:bg-[#2563eb]"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create Agent
-                    </Button>
-                  </div>
-                )}
+                <div className="flex justify-center gap-2">
+                  {searchQuery ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => setSearchQuery("")}
+                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                      >
+                        Clear Search
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setFilterCategory("all")}
+                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                      >
+                        Reset Filters
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        onClick={() => setShowTemplatesDialog(true)}
+                        variant="outline"
+                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                      >
+                        <Sparkles className="mr-2 h-4 w-4" />
+                        Browse Templates
+                      </Button>
+                      <Button
+                        onClick={() => setShowCreateDialog(true)}
+                        className="bg-[#3b82f6] hover:bg-[#2563eb]"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create Agent
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             ) : (
               filteredAgents.map(([agentId, agent]) => (
@@ -731,6 +1020,7 @@ ${
                 />
               ))
             )}
+          </div>
           </div>
         </ScrollArea>
 
@@ -770,6 +1060,8 @@ ${
           open={showTestDialog}
           onOpenChange={setShowTestDialog}
           agentId={selectedAgent}
+          projectId={projectId || ""}
+          worktreePath={activeWorktreePath}
         />
 
         {/* Hidden file input for import */}

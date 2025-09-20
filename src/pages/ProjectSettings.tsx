@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react"
-import { useParams } from "react-router-dom"
+import React, { useState, useEffect, useMemo } from "react"
+import { useParams, useNavigate } from "react-router-dom"
 import {
   Settings,
   Folder,
@@ -24,6 +24,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useProjectsActions, useCurrentProject } from "@/stores/projects"
+import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -90,13 +91,15 @@ interface SwitchProps {
   onCheckedChange: (checked: boolean) => void
   disabled?: boolean
   className?: string
+  ariaLabel?: string
 }
 
-const Switch: React.FC<SwitchProps> = ({ checked, onCheckedChange, disabled, className }) => (
+const Switch: React.FC<SwitchProps> = ({ checked, onCheckedChange, disabled, className, ariaLabel }) => (
   <button
     type="button"
     role="switch"
     aria-checked={checked}
+    aria-label={ariaLabel}
     disabled={disabled}
     onClick={() => onCheckedChange(!checked)}
     className={cn(
@@ -189,11 +192,40 @@ const IconPicker: React.FC<{ value: string; onChange: (icon: string) => void }> 
 }
 
 export default function ProjectSettings() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const params = useParams<{ projectId: string; worktreeId: string }>()
+  const projectIdParam = params.projectId ?? ""
+  const activeWorktreeId = params.worktreeId ?? "default"
+  const navigate = useNavigate()
   const currentProject = useCurrentProject()
   const { updateProject, removeProject } = useProjectsActions()
-  const effectiveProjectId = projectId || currentProject?.id
-  const projectPath = currentProject?.path
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const worktrees = useWorktreesForProject(projectIdParam)
+  const effectiveProjectId = projectIdParam || currentProject?.id || ""
+
+  useEffect(() => {
+    if (projectIdParam) {
+      void loadWorktrees(projectIdParam)
+    }
+  }, [projectIdParam, loadWorktrees])
+
+  const activeWorktree = useMemo(() => {
+    if (activeWorktreeId === "default") {
+      if (currentProject?.path) {
+        return { id: "default", path: currentProject.path, title: `${currentProject.name} (default)` }
+      }
+      return worktrees.find((worktree) => worktree.id === "default")
+    }
+    return worktrees.find((worktree) => worktree.id === activeWorktreeId)
+  }, [activeWorktreeId, worktrees, currentProject?.path, currentProject?.name])
+
+  useEffect(() => {
+    if (!effectiveProjectId) return
+    if (activeWorktreeId !== "default" && !activeWorktree) {
+      navigate(`/projects/${effectiveProjectId}/default/settings`, { replace: true })
+    }
+  }, [activeWorktreeId, activeWorktree, effectiveProjectId, navigate])
+
+  const projectPath = activeWorktree?.path || currentProject?.path
 
   // Load providers/models dynamically from OpenCode SDK
   const { instanceStatus } = useProjectSDK(effectiveProjectId, projectPath)
@@ -271,16 +303,20 @@ export default function ProjectSettings() {
   }, [settings])
 
   // Keep local settings in sync with SDK-driven selection
+  const providerSetting = settings.ai.provider
+  const modelSetting = settings.ai.defaultModel
+
   useEffect(() => {
-    if (selectedProvider && settings.ai.provider !== selectedProvider) {
+    if (selectedProvider && providerSetting !== selectedProvider) {
       setSettings((prev) => ({ ...prev, ai: { ...prev.ai, provider: selectedProvider } }))
     }
-  }, [selectedProvider])
+  }, [selectedProvider, providerSetting])
+
   useEffect(() => {
-    if (selectedModel && settings.ai.defaultModel !== selectedModel) {
+    if (selectedModel && modelSetting !== selectedModel) {
       setSettings((prev) => ({ ...prev, ai: { ...prev.ai, defaultModel: selectedModel } }))
     }
-  }, [selectedModel])
+  }, [selectedModel, modelSetting])
 
   const handleSave = async () => {
     if (!effectiveProjectId || !currentProject) return
@@ -431,6 +467,8 @@ export default function ProjectSettings() {
     )
   }
 
+  const worktreeName = activeWorktreeId === "default" ? `${currentProject.name} (default)` : activeWorktree?.title ?? "Unknown"
+
   return (
     <div className="h-full bg-background text-foreground">
       {/* Header */}
@@ -441,7 +479,16 @@ export default function ProjectSettings() {
               <Settings className="h-6 w-6" />
               Project Settings
             </h1>
-            <p className="mt-1 text-muted-foreground">{currentProject.name}</p>
+            <p className="mt-1 text-muted-foreground">Project: {currentProject.name}</p>
+            <p className="text-muted-foreground text-sm">
+              Worktree: <span className="font-medium">{worktreeName}</span>
+              {projectPath && (
+                <>
+                  <br />
+                  Path: <span className="font-mono">{projectPath}</span>
+                </>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             {hasUnsavedChanges && (
@@ -505,9 +552,12 @@ export default function ProjectSettings() {
 
                 <div className="grid grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Project Name</label>
+                    <label className="text-sm font-medium" htmlFor="project-name-input">
+                      Project Name
+                    </label>
                     <Input
                       data-testid="project-name-input"
+                      id="project-name-input"
                       value={settings.general.name}
                       onChange={(e) =>
                         setSettings((prev) => ({
@@ -520,15 +570,25 @@ export default function ProjectSettings() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Project Path</label>
-                    <Input value={currentProject.path} disabled className="bg-muted" />
+                    <label className="text-sm font-medium" htmlFor="project-path-input">
+                      Project Path
+                    </label>
+                    <Input
+                      id="project-path-input"
+                      value={projectPath ?? ""}
+                      disabled
+                      className="bg-muted font-mono"
+                    />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Project Description</label>
+                  <label className="text-sm font-medium" htmlFor="project-description-input">
+                    Project Description
+                  </label>
                   <textarea
                     data-testid="project-description-input"
+                    id="project-description-input"
                     className="w-full rounded border border-border bg-muted p-2 text-sm"
                     placeholder="Describe your project..."
                     rows={3}
@@ -609,8 +669,12 @@ export default function ProjectSettings() {
                         setSettings((prev) => ({ ...prev, ai: { ...prev.ai, provider: value } }))
                       }}
                     >
-                      <SelectTrigger id="provider-select">
-                        <SelectValue placeholder={providers.length ? "Select provider" : "Loading..."} />
+                      <SelectTrigger
+                        id="provider-select"
+                        aria-label="AI provider"
+                        disabled={providers.length === 0}
+                      >
+                        <SelectValue placeholder={"Select provider"} />
                       </SelectTrigger>
                       <SelectContent>
                         {providers.map((p) => (
@@ -631,8 +695,12 @@ export default function ProjectSettings() {
                         setSettings((prev) => ({ ...prev, ai: { ...prev.ai, defaultModel: value } }))
                       }}
                     >
-                      <SelectTrigger id="model-select">
-                        <SelectValue placeholder={availableModels.length ? "Select model" : "Loading..."} />
+                      <SelectTrigger
+                        id="model-select"
+                        aria-label="AI default model"
+                        disabled={availableModels.length === 0}
+                      >
+                        <SelectValue placeholder={"Select model"} />
                       </SelectTrigger>
                       <SelectContent>
                         {availableModels.map((m) => (
@@ -664,6 +732,7 @@ export default function ProjectSettings() {
                       variant="ghost"
                       size="sm"
                       className="absolute top-1/2 right-2 -translate-y-1/2"
+                      aria-label={showApiKey ? "Hide API key" : "Show API key"}
                       onClick={() => setShowApiKey(!showApiKey)}
                     >
                       {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -740,15 +809,17 @@ export default function ProjectSettings() {
                   <div className="flex gap-2">
                     <Input
                       placeholder="Variable name"
+                      aria-label="Environment variable name"
                       value={newEnvKey}
                       onChange={(e) => setNewEnvKey(e.target.value)}
                     />
                     <Input
                       placeholder="Variable value"
+                      aria-label="Environment variable value"
                       value={newEnvValue}
                       onChange={(e) => setNewEnvValue(e.target.value)}
                     />
-                    <Button onClick={addEnvironmentVariable}>
+                    <Button aria-label="Add environment variable" onClick={addEnvironmentVariable}>
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
@@ -762,6 +833,7 @@ export default function ProjectSettings() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          aria-label={`Remove environment variable ${key}`}
                           onClick={() => removeEnvironmentVariable(key)}
                         >
                           <Minus className="h-4 w-4" />
@@ -806,7 +878,7 @@ export default function ProjectSettings() {
                         }))
                       }
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-32" aria-label="File access level">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -831,7 +903,7 @@ export default function ProjectSettings() {
                         }))
                       }
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-32" aria-label="Web access level">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -856,7 +928,7 @@ export default function ProjectSettings() {
                         }))
                       }
                     >
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-32" aria-label="Command access level">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -982,6 +1054,7 @@ export default function ProjectSettings() {
                       </p>
                     </div>
                     <Switch
+                      ariaLabel="Enable Cache"
                       checked={settings.advanced.enableCache}
                       onCheckedChange={(checked) =>
                         setSettings((prev) => ({
@@ -998,6 +1071,7 @@ export default function ProjectSettings() {
                       <p className="text-xs text-muted-foreground">Keep detailed logs for debugging</p>
                     </div>
                     <Switch
+                      ariaLabel="Enable Logs"
                       checked={settings.advanced.enableLogs}
                       onCheckedChange={(checked) =>
                         setSettings((prev) => ({
@@ -1016,6 +1090,7 @@ export default function ProjectSettings() {
                       </p>
                     </div>
                     <Switch
+                      ariaLabel="Experimental Features"
                       checked={settings.advanced.enableExperimental}
                       onCheckedChange={(checked) =>
                         setSettings((prev) => ({

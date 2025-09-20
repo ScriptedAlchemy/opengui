@@ -15,6 +15,7 @@ import {
   Globe,
   Download,
   Bot,
+  type LucideIcon,
 } from "lucide-react"
 import { Button } from "../ui/button"
 import { Badge } from "../ui/badge"
@@ -28,8 +29,9 @@ import {
 } from "../ui/dropdown-menu"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible"
 import type { AgentInfo } from "@/lib/api/types"
+import { formatAgentModelLabel } from "@/util/agents"
 
-const toolIcons: Record<string, any> = {
+const toolIcons: Record<string, LucideIcon> = {
   bash: Terminal,
   edit: Edit,
   read: FileText,
@@ -59,6 +61,7 @@ export function AgentCard({
   onDuplicate,
   onExportMarkdown,
 }: AgentCardProps) {
+  const modelLabel = formatAgentModelLabel(agent)
   return (
     <div
       className="bg-card text-card-foreground rounded-lg border border-border p-6 transition-colors hover:border-primary/30 bg-[#1a1a1a] border-[#262626]"
@@ -77,16 +80,16 @@ export function AgentCard({
                   Built-in
                 </Badge>
               ) : null}
-              <Badge variant="outline" className="border-border text-xs">
+              <Badge variant="outline" className="border-border text-xs capitalize">
                 {(agent.mode as string) || "unknown"}
               </Badge>
             </div>
             {agent.description && (
               <p className="mb-1 line-clamp-2 text-sm text-muted-foreground">{agent.description}</p>
             )}
-            {(agent as any).model && (
-              <div className="mb-3 text-xs text-muted-foreground">{String((agent as any).model)}</div>
-            )}
+            {modelLabel ? (
+              <div className="mb-3 text-xs text-muted-foreground">{modelLabel}</div>
+            ) : null}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -95,7 +98,7 @@ export function AgentCard({
             size="sm"
             title="Test agent"
             onClick={() => onTest(name)}
-            className="border-border"
+            className="border-border px-2"
           >
             <Play className="mr-2 h-4 w-4" />
             Test
@@ -167,7 +170,7 @@ export function AgentCard({
             return (
               <Tooltip key={tool}>
                 <TooltipTrigger>
-                  <div className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1 rounded bg-muted/20 border border-border px-2 py-1 text-xs text-muted-foreground">
                     <Icon className="h-3 w-3" />
                     {tool}
                   </div>
@@ -179,7 +182,7 @@ export function AgentCard({
             )
           })}
         {Object.entries(agent.tools || {}).filter(([_, enabled]) => enabled).length > 4 && (
-          <div className="rounded bg-muted px-2 py-1 text-xs text-muted-foreground">
+          <div className="rounded bg-muted/20 border border-border px-2 py-1 text-xs text-muted-foreground">
             +{Object.entries(agent.tools || {}).filter(([_, enabled]) => enabled).length - 4} more
           </div>
         )}
@@ -208,34 +211,24 @@ export function AgentCard({
 
       {/* Quick Stats */}
       <div className="mt-4 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-4">
-          <Tooltip>
-            <TooltipTrigger>
-              <div className="flex items-center gap-1">
-                <Cpu className="h-3 w-3" />
-                {agent.temperature || 0.7}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Temperature: {agent.temperature || 0.7}</p>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger>
-              <div className="flex items-center gap-1">
-                <Activity className="h-3 w-3" />
-                {Object.values(agent.tools || {}).filter(Boolean).length}
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{Object.values(agent.tools || {}).filter(Boolean).length} tools enabled</p>
-            </TooltipContent>
-          </Tooltip>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded bg-muted/20 border border-border px-2 py-1">
+            <Cpu className="h-3 w-3" />
+            <span>Temp {agent.temperature || 0.7}</span>
+          </div>
+          {Object.values(agent.tools || {}).filter(Boolean).length > 0 && (
+            <div className="flex items-center gap-1 rounded bg-muted/20 border border-border px-2 py-1">
+              <Activity className="h-3 w-3" />
+              <span>Tools {Object.values(agent.tools || {}).filter(Boolean).length}</span>
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          {agent.builtIn ? "Built-in" : "Custom"}
-        </div>
+        {!agent.builtIn && (
+          <div className="flex items-center gap-1 rounded bg-muted/20 border border-border px-2 py-1">
+            <Clock className="h-3 w-3" />
+            <span>Source Custom</span>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -54,10 +54,27 @@ export const validateFile = (file: File, options?: {
     }
   }
 
-  if (allowedTypes && !allowedTypes.includes(file.type)) {
-    return {
-      valid: false,
-      error: `File type "${file.type}" is not allowed. Allowed types: ${allowedTypes.join(', ')}`
+  // If allowedTypes is provided, support wildcard patterns like "image/*" and "text/*".
+  if (allowedTypes && allowedTypes.length > 0) {
+    const fileType = file.type || "application/octet-stream"
+
+    const matches = allowedTypes.some((pattern) => {
+      if (!pattern) return false
+      if (pattern === "*/*") return true
+      // Wildcard major type, e.g. image/*
+      if (pattern.endsWith("/*")) {
+        const major = pattern.slice(0, -2)
+        return fileType.startsWith(`${major}/`)
+      }
+      // Exact match
+      return fileType === pattern
+    })
+
+    if (!matches) {
+      return {
+        valid: false,
+        error: `File type "${fileType}" is not allowed. Allowed types: ${allowedTypes.join(", ")}`,
+      }
     }
   }
 

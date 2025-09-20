@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test"
  
-import { openFirstProjectAndGetId, goToChat } from "./helpers"
+import { openFirstProjectAndGetId, goToChat, ensureAnthropicSonnet } from "./helpers"
 
 // Updated for SDK-only architecture:
 // - No instance start/stop needed
@@ -34,6 +34,8 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       }
     })
 
+    // No stubs: select Anthropic + Sonnet 4 via UI before sending
+
     const projectId = await openFirstProjectAndGetId(page)
     await goToChat(page, projectId)
     
@@ -47,8 +49,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     
     // Use consistent data-testid for input (chat-input-textarea, not chat-input)
     expect(await chatInput.isVisible({ timeout: 10000 })).toBe(true)
-    
-    
+    await ensureAnthropicSonnet(page)
     const sidebarVisible = await chatSidebar.isVisible()
     
 
@@ -58,8 +59,8 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     await textarea.fill("Test message")
     await textarea.press("Enter")
 
-    // Wait for response and API calls to complete
-    await page.waitForTimeout(20000)
+    // Wait for an assistant message with environment-based timeout
+    await expect(page.locator('[data-testid="message-assistant"]').last()).toBeVisible({ timeout: 60_000 })
     
     // Log API errors for debugging but don't fail tests
     if (apiErrors.length > 0) {
@@ -82,10 +83,10 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     const userMsg = await userMessages.count()
     const assistantMsg = await assistantMessages.count()
 
-    
-
     // Test should verify that at least one user message exists
     expect(userMsg).toBeGreaterThan(0)
+    // And at least one assistant message (mocked in CI)
+    expect(assistantMsg).toBeGreaterThan(0)
     
   })
 })

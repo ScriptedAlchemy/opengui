@@ -91,12 +91,16 @@ export function SearchAndFilterControls({
               const v = (e.target as HTMLInputElement).value
               if (v !== searchQuery) onSearchChange(v)
             }}
-            className="border-[#262626] bg-[#1a1a1a] pl-10"
+            className="h-9 border-[#262626] bg-[#1a1a1a] pl-10 placeholder:text-gray-300"
             data-testid="agents-search-input"
           />
         </div>
         <Select value={filterCategory} onValueChange={onFilterChange}>
-          <SelectTrigger className="w-40 border-[#262626] bg-[#1a1a1a]" data-testid="agents-filter-button">
+          <SelectTrigger
+            className="h-9 w-40 border-[#262626] bg-[#1a1a1a]"
+            data-testid="agents-filter-button"
+            aria-label="Filter agents"
+          >
             <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Filter" />
           </SelectTrigger>
@@ -107,8 +111,13 @@ export function SearchAndFilterControls({
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={onSortChange}>
-          <SelectTrigger className="w-40 border-[#262626] bg-[#1a1a1a]" data-testid="agents-sort-button">
-            <SelectValue placeholder="Sort by" />
+          <SelectTrigger
+            className="h-9 w-44 border-[#262626] bg-[#1a1a1a]"
+            data-testid="agents-sort-button"
+            aria-label="Sort agents"
+          >
+            <span className="mr-1 text-muted-foreground">Sort:</span>
+            <SelectValue placeholder="Name" />
           </SelectTrigger>
           <SelectContent className="border-[#262626] bg-[#1a1a1a]" role="menu">
             <SelectItem value="name">Name</SelectItem>

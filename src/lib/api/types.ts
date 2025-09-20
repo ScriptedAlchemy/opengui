@@ -16,7 +16,7 @@ import type {
   PatchPart,
   ToolState,
   Config,
-  AgentConfig,
+  AgentConfig as SDKAgentConfig,
   Provider,
   Model,
   Command,
@@ -24,6 +24,15 @@ import type {
   File,
   Agent,
 } from "@opencode-ai/sdk/client"
+
+export type AgentModelValue =
+  | string
+  | {
+      providerID?: string | null
+      modelID?: string | null
+      [key: string]: unknown
+    }
+  | null
 
 // Re-export SDK types for convenience
 export type {
@@ -43,13 +52,18 @@ export type {
   PatchPart,
   ToolState,
   Config as ConfigInfo,
-  AgentConfig as AgentInfo,
   Provider as ProviderInfo,
   Model as ModelInfo,
   Command as CommandInfo,
   FileNode,
   File as FileInfo,
   Agent,
+}
+
+export type AgentConfig = SDKAgentConfig
+
+export type AgentInfo = SDKAgentConfig & {
+  model?: AgentModelValue
 }
 
 // Permission type for the app (string literal union)
@@ -78,7 +92,7 @@ export interface ProvidersResponse {
 // Event Types
 export interface EventStreamMessage {
   type: string
-  data: any
+  data: unknown
 }
 
 export interface MessageWithParts {
@@ -158,7 +172,7 @@ export interface ActivityEvent {
   projectId: string
   type: "session_created" | "message_sent" | "file_edited" | "command_executed" | "error"
   timestamp: string
-  details?: any
+  details?: unknown
 }
 
 // Resource Types

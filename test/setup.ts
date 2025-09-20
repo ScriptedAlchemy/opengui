@@ -1,5 +1,6 @@
 // Test setup for rstest with DOM support
-import { expect, beforeAll, afterAll, rstest } from "@rstest/core"
+import { expect, beforeAll, beforeEach, afterAll, rstest } from "@rstest/core"
+import React from "react"
 // import { setupApiMocks } from "./mocks/api-client" -- Disabled: using real servers
 import "./mocks/sse" // Import SSE mock that matches OpenCode format
 // Disable TestServerPool in unit runs to avoid SDK/server dependency
@@ -32,7 +33,14 @@ rstest.mock("../src/server/project-manager", () => {
         path,
         status: "stopped" as const,
         lastAccessed: Date.now(),
-        port: 8081
+        port: 8081,
+        worktrees: [
+          {
+            id: "default",
+            path,
+            title: `${name} (default)`,
+          },
+        ],
       }
       this.projects.set(id, { info: project })
       return project
@@ -102,6 +110,37 @@ rstest.mock("../src/server/project-manager", () => {
   }
 })
 
+// React Router's NavLink relies on NavigationContext which is difficult to provide in
+// isolated component tests. Replace it with a lightweight anchor implementation that keeps
+// the rest of the router exports intact.
+rstest.mock("react-router-dom", () => {
+  const actual = require("react-router-dom")
+
+  const MockNavLink = React.forwardRef<HTMLAnchorElement, any>((props, ref) => {
+    const { to, children, className, ...rest } = props
+    const href = typeof to === "string" ? to : typeof to === "object" ? to.pathname ?? "#" : "#"
+    const content = typeof children === "function"
+      ? children({
+          isActive: false,
+          isPending: false,
+          isTransitioning: false,
+        })
+      : children
+
+    return React.createElement(
+      "a",
+      { ...rest, href, className, ref },
+      content
+    )
+  })
+  MockNavLink.displayName = "MockNavLink"
+
+  return {
+    ...actual,
+    NavLink: MockNavLink,
+  }
+})
+
 // Use jsdom (provided by rstest) - avoid mixing with happy-dom
 
 // Force DOM initialization and ensure it's available globally
@@ -145,6 +184,22 @@ const ensureDOMReady = () => {
 
 // Initialize DOM immediately
 ensureDOMReady()
+
+// Polyfill pointer capture APIs used by Radix UI Select
+if (typeof Element !== "undefined") {
+  if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false
+  }
+  if (!Element.prototype.setPointerCapture) {
+    Element.prototype.setPointerCapture = () => {}
+  }
+  if (!Element.prototype.releasePointerCapture) {
+    Element.prototype.releasePointerCapture = () => {}
+  }
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => {}
+  }
+}
 
 // Don't setup API mocks - use real servers for all tests
 // This makes tests more realistic and reliable
@@ -210,6 +265,26 @@ try {
 
 // Import jest-dom matchers (provides toBeInTheDocument, toHaveClass, etc.)
 import "@testing-library/jest-dom"
+
+// Global mock for react-router-dom to provide default worktreeId
+rstest.mock("react-router-dom", () => {
+  const actual = require("react-router-dom")
+  return {
+    ...actual,
+    useParams: () => {
+      // If the test has already mocked this, use their mock
+      if (actual.useParams && actual.useParams.mockImplementation) {
+        return actual.useParams()
+      }
+      // Otherwise provide sensible defaults with worktreeId
+      return {
+        projectId: "test-project",
+        worktreeId: "default",
+        sessionId: undefined
+      }
+    }
+  }
+})
 
 // Mock localStorage and sessionStorage for Zustand persist
 const createMockStorage = (): Storage => {
@@ -355,6 +430,535 @@ if (typeof navigator !== "undefined") {
 // Mock URL.createObjectURL and revokeObjectURL
 global.URL.createObjectURL = () => "blob:mock-url"
 global.URL.revokeObjectURL = () => {}
+
+type MockAgentRecord = {
+  id: string
+  name: string
+  description?: string
+  temperature?: number
+  maxTokens?: number
+  systemPrompt?: string
+  tools: string[]
+  model?: string
+  enabled: boolean
+  isTemplate?: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+type MockWorktree = {
+  id: string
+  path: string
+  title: string
+  branch?: string
+}
+
+type MockProjectRecord = {
+  id: string
+  name: string
+  path: string
+  type: "git" | "local"
+  addedAt: string
+  lastOpened: string | null
+  instance: {
+    id: string
+    port: number
+    status: "running" | "stopped" | "starting" | "error"
+    startedAt: string
+  }
+  worktrees: MockWorktree[]
+}
+
+type MockApiState = {
+  projects: MockProjectRecord[]
+  agents: Record<string, Record<string, MockAgentRecord[]>>
+  resources: Record<string, { memory: { used: number; total: number }; port?: number; cpu?: { usage: number } }>
+  activity: Record<string, Array<{ id: string; type: string; message: string; timestamp: string }>>
+}
+
+const DEFAULT_WORKTREES: MockWorktree[] = [
+  { id: "default", path: "/project", title: "Main" },
+  { id: "feature", path: "/project-feature", title: "Feature Branch" },
+]
+
+const createDefaultAgents = (): MockAgentRecord[] => {
+  const now = Date.now()
+  return [
+    {
+      id: "claude",
+      name: "Claude",
+      description: "Anthropic's AI assistant",
+      temperature: 0.7,
+      maxTokens: 1000,
+      systemPrompt: "You are Claude, an AI assistant.",
+      tools: ["read", "grep", "ls"],
+      model: "claude-3-sonnet",
+      enabled: true,
+      isTemplate: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: "custom-agent",
+      name: "Custom Agent",
+      description: "Custom AI agent",
+      temperature: 0.5,
+      maxTokens: 1000,
+      systemPrompt: "You are a custom AI agent.",
+      tools: ["grep", "read", "write"],
+      model: "gpt-5-mini",
+      enabled: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: "disabled-agent",
+      name: "Disabled Agent",
+      description: "Disabled agent",
+      temperature: 0.3,
+      maxTokens: 1000,
+      systemPrompt: "You are a disabled agent.",
+      tools: [],
+      model: "gpt-3.5-turbo",
+      enabled: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]
+}
+
+const createDefaultState = (): MockApiState => {
+  const nowIso = new Date().toISOString()
+  const projects: MockProjectRecord[] = [
+    {
+      id: "test-project",
+      name: "Test Project",
+      path: "/project",
+      type: "git",
+      addedAt: nowIso,
+      lastOpened: nowIso,
+      instance: {
+        id: "instance-1",
+        port: 4000,
+        status: "running",
+        startedAt: nowIso,
+      },
+      worktrees: DEFAULT_WORKTREES,
+    },
+  ]
+
+  const agents: MockApiState["agents"] = {
+    "test-project": {
+      "/project": createDefaultAgents(),
+      "/project-feature": createDefaultAgents().map((agent) => ({
+        ...agent,
+        id: agent.id === "claude" ? "feature-claude" : agent.id,
+        name: agent.name === "Claude" ? "Feature Claude" : agent.name,
+      })),
+    },
+  }
+
+  const resources: MockApiState["resources"] = {
+    "test-project": {
+      memory: { used: 512, total: 2048 },
+      cpu: { usage: 0.18 },
+      port: 4000,
+    },
+  }
+
+  const activity: MockApiState["activity"] = {
+    "test-project": [
+      {
+        id: "activity-1",
+        type: "commit",
+        message: "Initial commit",
+        timestamp: nowIso,
+      },
+      {
+        id: "activity-2",
+        type: "session",
+        message: "Opened session 'Setup project'",
+        timestamp: nowIso,
+      },
+    ],
+  }
+
+  return { projects, agents, resources, activity }
+}
+
+let mockApiState: MockApiState = createDefaultState()
+
+const resetMockApiState = () => {
+  mockApiState = createDefaultState()
+}
+
+const jsonResponse = (data: unknown, status = 200, headers: Record<string, string> = {}) =>
+  new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      ...headers,
+    },
+  })
+
+const textResponse = (data: string, status = 200, headers: Record<string, string> = {}) =>
+  new Response(data, {
+    status,
+    headers: {
+      "Content-Type": "text/plain;charset=UTF-8",
+      ...headers,
+    },
+  })
+
+const parseRequestBody = async (init?: RequestInit): Promise<any> => {
+  if (!init || init.body == null) return undefined
+  const body = init.body as any
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body)
+    } catch {
+      return body
+    }
+  }
+  if (body instanceof URLSearchParams) {
+    return Object.fromEntries(body.entries())
+  }
+  if (ArrayBuffer.isView(body)) {
+    const text = Buffer.from(body.buffer, body.byteOffset, body.byteLength).toString()
+    try {
+      return JSON.parse(text)
+    } catch {
+      return text
+    }
+  }
+  if (body instanceof ArrayBuffer) {
+    const text = Buffer.from(body).toString()
+    try {
+      return JSON.parse(text)
+    } catch {
+      return text
+    }
+  }
+  try {
+    const resp = new Response(body)
+    return await resp.json()
+  } catch {
+    try {
+      const resp = new Response(body)
+      return await resp.text()
+    } catch {
+      return undefined
+    }
+  }
+}
+
+const resolveProject = (projectId: string): MockProjectRecord | undefined =>
+  mockApiState.projects.find((project) => project.id === projectId)
+
+const resolveWorktreePath = (projectId: string, url: URL): string => {
+  const param = url.searchParams.get("worktree")
+  if (param) return decodeURIComponent(param)
+  const project = resolveProject(projectId)
+  return project?.path ?? "/project"
+}
+
+const ensureAgentList = (projectId: string, worktreePath: string): MockAgentRecord[] => {
+  if (!mockApiState.agents[projectId]) {
+    mockApiState.agents[projectId] = {}
+  }
+  const projectAgents = mockApiState.agents[projectId]
+  if (!projectAgents[worktreePath]) {
+    projectAgents[worktreePath] = createDefaultAgents()
+  }
+  return projectAgents[worktreePath]
+}
+
+beforeEach(() => {
+  resetMockApiState()
+})
+
+// Mock fetch for tests that need to make API calls
+const originalFetch = typeof global.fetch === "function" ? global.fetch.bind(global) : undefined
+
+// Patch the original fetch to add duplex option for Node.js 18+ compatibility
+const patchedFetch = originalFetch ? (input: any, init?: any) => {
+  // Add duplex: 'half' for requests with body to fix Node.js 18+ error
+  if (init && init.body && !init.duplex) {
+    init = { ...init, duplex: 'half' }
+  }
+  return originalFetch(input, init)
+} : undefined
+
+// Also patch the Request constructor to add duplex option
+if (typeof Request !== 'undefined') {
+  const OriginalRequest = Request
+  global.Request = class extends OriginalRequest {
+    constructor(input: RequestInfo | URL, init?: RequestInit) {
+      // Add duplex option if there's a body
+      const patchedInit: any = init
+      if (patchedInit && patchedInit.body && !patchedInit.duplex) {
+        patchedInit.duplex = 'half'
+      }
+      super(input, patchedInit)
+    }
+  } as any
+}
+
+Object.defineProperty(global, "fetch", {
+  value: async (input: RequestInfo | URL, init?: RequestInit) => {
+    let urlString: string
+
+    if (typeof input === "string") {
+      urlString = input
+    } else if (input instanceof URL) {
+      urlString = input.toString()
+    } else if (typeof Request !== "undefined" && input instanceof Request) {
+      urlString = input.url
+      if (!init) {
+        init = {
+          method: input.method,
+          headers: input.headers as any,
+          body: input.body as any,
+        }
+      }
+    } else {
+      urlString = String(input)
+    }
+
+    const isAbsoluteUrl = /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(urlString)
+    if (isAbsoluteUrl) {
+      if (patchedFetch) {
+        return patchedFetch(input as any, init)
+      }
+      throw new Error(`Unhandled absolute fetch request: ${urlString}`)
+    }
+
+    const url = new URL(urlString, "http://localhost")
+    const pathname = url.pathname
+    const method = (init?.method || "GET").toUpperCase()
+
+    if (pathname === "/api/backend-url") {
+      return jsonResponse({ url: "/opencode" })
+    }
+
+    if (pathname === "/api/projects") {
+      if (method === "GET") {
+        return jsonResponse(mockApiState.projects)
+      }
+      if (method === "POST") {
+        const body = (await parseRequestBody(init)) ?? {}
+        const id = body.id || `project-${Date.now()}`
+        const nowIso = new Date().toISOString()
+        const project: MockProjectRecord = {
+          id,
+          name: body.name || `Project ${mockApiState.projects.length + 1}`,
+          path: body.path || `/project-${mockApiState.projects.length + 1}`,
+          type: "git",
+          addedAt: nowIso,
+          lastOpened: nowIso,
+          instance: {
+            id: `${id}-instance`,
+            port: 4000,
+            status: "running",
+            startedAt: nowIso,
+          },
+          worktrees: DEFAULT_WORKTREES,
+        }
+        mockApiState.projects.push(project)
+        return jsonResponse(project, 201)
+      }
+    }
+
+    const gitStatusMatch = pathname.match(/^\/api\/projects\/([^/]+)\/git\/status$/)
+    if (gitStatusMatch) {
+      return jsonResponse({
+        branch: "main",
+        ahead: 0,
+        behind: 0,
+        changedFiles: 2,
+        stagedCount: 1,
+        unstagedCount: 1,
+        untrackedCount: 0,
+        staged: [
+          { path: "src/components/ProjectDashboard.tsx", status: "M", staged: true },
+        ],
+        modified: [
+          { path: "src/pages/GitOperations.tsx", status: "M", staged: false },
+        ],
+        untracked: [],
+        remoteUrl: "git@github.com:mock/repo.git",
+        lastCommit: {
+          hash: "abc123",
+          author: "Mock Author",
+          date: new Date().toISOString(),
+          message: "Mock commit",
+        },
+      })
+    }
+
+    const projectMatch = pathname.match(/^\/api\/projects\/([^/]+)$/)
+    if (projectMatch) {
+      const projectId = decodeURIComponent(projectMatch[1])
+      const project = resolveProject(projectId)
+      if (!project) {
+        return textResponse("Project not found", 404)
+      }
+
+      if (method === "GET") {
+        return jsonResponse(project)
+      }
+
+      if (method === "PATCH") {
+        const body = (await parseRequestBody(init)) ?? {}
+        Object.assign(project, body)
+        return jsonResponse(project)
+      }
+
+      if (method === "DELETE") {
+        mockApiState.projects = mockApiState.projects.filter((p) => p.id !== projectId)
+        delete mockApiState.agents[projectId]
+        delete mockApiState.resources[projectId]
+        delete mockApiState.activity[projectId]
+        return jsonResponse({ success: true })
+      }
+    }
+
+    const projectStatusMatch = pathname.match(/^\/api\/projects\/([^/]+)\/status$/)
+    if (projectStatusMatch) {
+      const projectId = decodeURIComponent(projectStatusMatch[1])
+      const project = resolveProject(projectId)
+      if (!project) {
+        return textResponse("Project not found", 404)
+      }
+      return jsonResponse({
+        status: project.instance.status,
+        port: project.instance.port,
+        projectId: project.id,
+      })
+    }
+
+    const worktreesMatch = pathname.match(/^\/api\/projects\/([^/]+)\/worktrees$/)
+    if (worktreesMatch) {
+      const projectId = decodeURIComponent(worktreesMatch[1])
+      const project = resolveProject(projectId)
+      if (!project) {
+        return textResponse("Project not found", 404)
+      }
+      return jsonResponse(project.worktrees)
+    }
+
+    const resourcesMatch = pathname.match(/^\/api\/projects\/([^/]+)\/resources$/)
+    if (resourcesMatch) {
+      const projectId = decodeURIComponent(resourcesMatch[1])
+      const resource = mockApiState.resources[projectId]
+      if (!resource) {
+        return textResponse("Resources not found", 404)
+      }
+      return jsonResponse(resource)
+    }
+
+    const activityMatch = pathname.match(/^\/api\/projects\/([^/]+)\/activity$/)
+    if (activityMatch) {
+      const projectId = decodeURIComponent(activityMatch[1])
+      const activity = mockApiState.activity[projectId] || []
+      return jsonResponse(activity)
+    }
+
+    const agentsRootMatch = pathname.match(/^\/api\/projects\/([^/]+)\/agents$/)
+    if (agentsRootMatch) {
+      const projectId = decodeURIComponent(agentsRootMatch[1])
+      const project = resolveProject(projectId)
+      if (!project) {
+        return textResponse("Project not found", 404)
+      }
+      const worktreePath = resolveWorktreePath(projectId, url)
+      const agents = ensureAgentList(projectId, worktreePath)
+
+      if (method === "GET") {
+        return jsonResponse(agents)
+      }
+
+      if (method === "POST") {
+        const body = (await parseRequestBody(init)) ?? {}
+        const now = Date.now()
+        const newAgent: MockAgentRecord = {
+          id: body.id || `agent-${now}`,
+          name: body.name || "New Agent",
+          description: body.description || "",
+          temperature: body.temperature ?? 0.7,
+          maxTokens: body.maxTokens ?? 1000,
+          systemPrompt: body.systemPrompt || "",
+          tools: Array.isArray(body.tools) ? body.tools : [],
+          model: body.model,
+          enabled: body.enabled !== false,
+          createdAt: now,
+          updatedAt: now,
+        }
+        agents.push(newAgent)
+        return jsonResponse(newAgent, 201)
+      }
+    }
+
+    const agentDetailMatch = pathname.match(/^\/api\/projects\/([^/]+)\/agents\/([^/]+)$/)
+    if (agentDetailMatch) {
+      const projectId = decodeURIComponent(agentDetailMatch[1])
+      const agentId = decodeURIComponent(agentDetailMatch[2])
+      const worktreePath = resolveWorktreePath(projectId, url)
+      const agents = ensureAgentList(projectId, worktreePath)
+      const agent = agents.find((item) => item.id === agentId)
+      if (!agent) {
+        return textResponse("Agent not found", 404)
+      }
+
+      if (method === "GET") {
+        return jsonResponse(agent)
+      }
+
+      if (method === "PUT" || method === "PATCH") {
+        const body = (await parseRequestBody(init)) ?? {}
+        Object.assign(agent, body, { updatedAt: Date.now() })
+        if (Array.isArray(body.tools)) {
+          agent.tools = body.tools
+        }
+        return jsonResponse(agent)
+      }
+
+      if (method === "DELETE") {
+        const index = agents.findIndex((item) => item.id === agentId)
+        if (index !== -1) {
+          agents.splice(index, 1)
+        }
+        return jsonResponse({ success: true })
+      }
+    }
+
+    const agentTestMatch = pathname.match(/^\/api\/projects\/([^/]+)\/agents\/([^/]+)\/test$/)
+    if (agentTestMatch && method === "POST") {
+      const body = (await parseRequestBody(init)) ?? {}
+      const prompt = typeof body?.prompt === "string" ? body.prompt : ""
+      return jsonResponse({ success: true, response: `Echo: ${prompt || "Test response"}` })
+    }
+
+    if (pathname.startsWith("/opencode/")) {
+      if (pathname.includes("/files") && method === "GET") {
+        if (/\/files\//.test(pathname)) {
+          return textResponse("console.log('Hello, world!');")
+        }
+        return jsonResponse([
+          { name: "src", type: "directory", path: "/project/src" },
+          { name: "package.json", type: "file", path: "/project/package.json" },
+        ])
+      }
+      if (pathname.includes("/files") && method === "POST") {
+        return jsonResponse({ success: true })
+      }
+    }
+
+    return jsonResponse({ error: "Not found" }, 404)
+  },
+  writable: true,
+  configurable: true,
+})
 
 // Mock File and FileReader for file upload tests
 global.File = class MockFile {
@@ -528,7 +1132,7 @@ afterAll(async () => {
       ;(globalThis as any).__OPENCODE_URL__ = null
     }
   } catch {
-    // Ignore server cleanup errors
+    // Ignore errors when stopping OpenCode test server
   }
 })
 

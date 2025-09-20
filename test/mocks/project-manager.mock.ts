@@ -6,6 +6,23 @@
 import { createHash } from "crypto"
 
 // Define types inline to avoid circular dependencies
+interface WorktreeMetadata {
+  id: string
+  path: string
+  title: string
+}
+interface WorktreeMetadata {
+  id: string
+  path: string
+  title: string
+}
+
+interface WorktreeMetadata {
+  id: string
+  path: string
+  title: string
+}
+
 interface ProjectInfo {
   id: string
   name: string
@@ -15,6 +32,7 @@ interface ProjectInfo {
   gitRoot?: string
   commitHash?: string
   port?: number
+  worktrees?: WorktreeMetadata[]
 }
 
 interface ProjectInstance {
@@ -65,6 +83,13 @@ export class MockProjectManager {
       port,
       status: "stopped",
       lastAccessed: Date.now(),
+      worktrees: [
+        {
+          id: "default",
+          path,
+          title: `${name} (default)`,
+        },
+      ],
     }
 
     this.projects.set(id, {
@@ -375,3 +400,8 @@ export class MockProjectManager {
 
 // Export a singleton instance for import compatibility
 export const mockProjectManager = MockProjectManager.getInstance()
+interface WorktreeMetadata {
+  id: string
+  path: string
+  title: string
+}

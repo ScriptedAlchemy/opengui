@@ -115,7 +115,7 @@ export const SessionItem: React.FC<SessionItemProps> = ({
                 onDelete(session.id)
               }}
               className="text-destructive hover:text-destructive h-8 w-8 p-0"
-              data-testid="button-session-delete"
+              data-testid="delete-button"
             >
               <Trash2 className="h-3 w-3" />
             </Button>

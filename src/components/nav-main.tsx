@@ -8,7 +8,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 
 export function NavMain({
   items,
@@ -20,6 +20,7 @@ export function NavMain({
   }[]
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
 
   return (
     <SidebarGroup data-testid="nav-main">
@@ -46,7 +47,9 @@ export function NavMain({
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu data-testid="main-navigation">
-          {items.map((item) => (
+          {items.map((item) => {
+            const isActive = location.pathname === item.url || location.pathname.startsWith(item.url + "/")
+            return (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
                 data-testid={
@@ -57,6 +60,7 @@ export function NavMain({
                     : `nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`
                 }
                 tooltip={item.title}
+                isActive={isActive}
                 onClick={() => {
                   console.log("navigation to", item)
                   return navigate(item.url)
@@ -66,7 +70,7 @@ export function NavMain({
                 <span>{item.title}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
-          ))}
+          )})}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

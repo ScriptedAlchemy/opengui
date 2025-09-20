@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { DynamicDirectoryCombobox } from "@/components/ui/dynamic-directory-combobox"
 
 import {
   useProjects,
@@ -44,6 +45,28 @@ import {
   useProjectsActions,
 } from "../stores/projects"
 import type { Project } from "../lib/api/project-manager"
+
+const isAbsolutePath = (value: string) => {
+  if (!value) return false
+  const trimmed = value.trim()
+  return (
+    trimmed.startsWith("/") ||
+    /^[A-Za-z]:[\\/]/.test(trimmed) ||
+    trimmed.startsWith("\\\\")
+  )
+}
+
+interface DirectoryEntry {
+  name: string
+  path: string
+  isDirectory: true
+}
+
+interface DirectoryListingResponse {
+  path: string
+  parent: string | null
+  entries: DirectoryEntry[]
+}
 
 interface AddProjectDialogProps {
   open: boolean
@@ -55,45 +78,154 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
   const [projectName, setProjectName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [pathEdited, setPathEdited] = useState(false)
+  const [nameEdited, setNameEdited] = useState(false)
+
+  const [homeDirectory, setHomeDirectory] = useState<string | null>(null)
+  const [currentDirectory, setCurrentDirectory] = useState<string | null>(null)
+  // Directory Explorer state removed
 
   const projects = useProjects()
   const { createProject } = useProjectsActions()
 
-  // Auto-fill project name from path
-  useEffect(() => {
-    if (projectPath && !projectName) {
-      const pathParts = projectPath.split(/[/\\]/)
-      const folderName = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2]
-      if (folderName) {
-        setProjectName(folderName)
-      }
-    }
-  }, [projectPath, projectName])
-
-  const handleBrowseFolder = async () => {
+  // Function to fetch directories for the dynamic combobox
+  const fetchDirectoriesForPath = async (path: string): Promise<DirectoryEntry[]> => {
     try {
-      // Use the File System Access API if available
-      if ("showDirectoryPicker" in window) {
-        const dirHandle = await (window as any).showDirectoryPicker()
-        setProjectPath(dirHandle.name)
-      } else {
-        // Fallback for browsers without File System Access API
-        const input = document.createElement("input")
-        input.type = "file"
-        input.webkitdirectory = true
-        input.onchange = (e) => {
-          const files = (e.target as HTMLInputElement).files
-          if (files && files.length > 0) {
-            const path = files[0].webkitRelativePath.split("/")[0]
-            setProjectPath(path)
-          }
-        }
-        input.click()
+      const response = await fetch(
+        `/api/system/list-directory?path=${encodeURIComponent(path)}`
+      )
+      if (!response.ok) {
+        throw new Error(`Failed to list directory (${response.status})`)
       }
-    } catch (_error) {
-      // User cancelled or error occurred
+      const data = (await response.json()) as DirectoryListingResponse
+      return data.entries || []
+    } catch (error) {
+      console.error("Failed to fetch directories:", error)
+      return []
     }
   }
+
+  const fallbackProjectName = useMemo(() => {
+    const trimmedPath = projectPath.trim()
+    if (!trimmedPath) {
+      return ""
+    }
+
+    const withoutTrailingSeparators = trimmedPath.replace(/[\\/]+$/, "")
+    if (!withoutTrailingSeparators) {
+      return ""
+    }
+
+    const segments = withoutTrailingSeparators.split(/[/\\]/).filter(Boolean)
+    return segments[segments.length - 1] ?? ""
+  }, [projectPath])
+
+  // Auto-fill project name using package.json when available
+  useEffect(() => {
+    if (!open || nameEdited) {
+      return
+    }
+
+    const trimmedPath = projectPath.trim()
+    if (!trimmedPath) {
+      setProjectName("")
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    const suggestProjectName = async () => {
+      let suggestion = fallbackProjectName
+
+      if (isAbsolutePath(trimmedPath)) {
+        try {
+          const response = await fetch(
+            `/api/system/package-json?path=${encodeURIComponent(trimmedPath)}`,
+            { signal: controller.signal }
+          )
+
+          if (response.ok) {
+            const data = (await response.json()) as {
+              packageJson?: Record<string, unknown>
+            }
+            const packageName = data.packageJson?.name
+            if (typeof packageName === "string" && packageName.trim()) {
+              suggestion = packageName.trim()
+            }
+          }
+        } catch (fetchError) {
+          if (!controller.signal.aborted) {
+            console.debug(
+              "Failed to inspect package.json for project name suggestion:",
+              fetchError
+            )
+          }
+        }
+      }
+
+      if (!cancelled && suggestion) {
+        setProjectName((prev) => (prev === suggestion ? prev : suggestion))
+      } else if (!cancelled && !suggestion) {
+        setProjectName((prev) => (prev === "" ? prev : ""))
+      }
+    }
+
+    void suggestProjectName()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [open, projectPath, nameEdited, fallbackProjectName])
+
+  useEffect(() => {
+    if (!open) return
+
+    let cancelled = false
+
+    const loadHomeDirectory = async () => {
+      try {
+
+        let basePath = homeDirectory
+        if (!basePath) {
+          const response = await fetch("/api/system/home")
+          if (!response.ok) {
+            throw new Error(`Failed to load home directory (${response.status})`)
+          }
+          const data = (await response.json()) as { path: string }
+          if (cancelled) return
+          basePath = data.path
+          setHomeDirectory(basePath)
+        }
+
+        if (!pathEdited && !projectPath) {
+          setProjectPath(basePath ?? "")
+        }
+
+        if (basePath) {
+          setCurrentDirectory(basePath)
+        }
+      } catch (loadError) {
+        console.error("Failed to load home directory:", loadError)
+        if (!cancelled) {
+          // Swallow home directory errors; combobox opens at '/'
+        }
+      }
+    }
+
+    void loadHomeDirectory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, homeDirectory, pathEdited, projectPath])
+
+  useEffect(() => {
+    // Directory Explorer removed — no parent directory fetch needed.
+  }, [open, currentDirectory])
+
+  // Directory Explorer and browse button removed; selection occurs via combobox.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,6 +233,11 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
 
     if (!projectPath.trim()) {
       setError("Project path is required")
+      return
+    }
+
+    if (!isAbsolutePath(projectPath)) {
+      setError("Project path must be absolute (e.g. /Users/name/project or C:/path/to/project)")
       return
     }
 
@@ -128,6 +265,9 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
         onOpenChange(false)
         setProjectPath("")
         setProjectName("")
+        setNameEdited(false)
+        setPathEdited(false)
+        setCurrentDirectory(homeDirectory)
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to create project")
@@ -141,7 +281,20 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
     setProjectPath("")
     setProjectName("")
     setError("")
+    setPathEdited(false)
+    setNameEdited(false)
+    setCurrentDirectory(homeDirectory)
+    // Directory Explorer state cleared
   }
+
+  const handleDirectorySelect = (target: string) => {
+    setCurrentDirectory(target)
+    setProjectPath(target)
+    setPathEdited(true)
+    setError("")
+  }
+
+  // Parent navigation removed with Directory Explorer.
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -159,24 +312,17 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Project Path</label>
-            <div className="flex gap-2">
-              <Input
-                data-testid="project-path-input"
-                value={projectPath}
-                onChange={(e) => setProjectPath(e.target.value)}
-                placeholder="/path/to/your/project"
-                className="border-border bg-background text-foreground placeholder:text-muted-foreground"
-              />
-              <Button
-                data-testid="button-browse-folder"
-                type="button"
-                variant="outline"
-                onClick={handleBrowseFolder}
-                className="border-border bg-background text-foreground hover:bg-accent/50"
-              >
-                <Folder className="h-4 w-4" />
-              </Button>
-            </div>
+            <DynamicDirectoryCombobox
+              currentDirectory={currentDirectory || homeDirectory || '/'}
+              onSelect={handleDirectorySelect}
+              placeholder="Search or select directories..."
+              emptyText="No directories found. Start typing to search..."
+              searchPlaceholder="Type to search (e.g. 'dev', 'projects')..."
+              fetchDirectories={fetchDirectoriesForPath}
+            />
+            <p className="truncate text-xs text-muted-foreground" title={(projectPath || currentDirectory || undefined) as string | undefined}>
+              {projectPath ? `Selected: ${projectPath}` : currentDirectory ? `Current: ${currentDirectory}` : ""}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -184,7 +330,10 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
             <Input
               data-testid="project-name-input"
               value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
+              onChange={(e) => {
+                setProjectName(e.target.value)
+                setNameEdited(true)
+              }}
               placeholder="My Project"
               className="border-border bg-background text-foreground placeholder:text-muted-foreground"
             />
@@ -196,6 +345,8 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
               {error}
             </div>
           )}
+
+          {/* Directory Explorer section removed; combobox above handles selection and search. */}
         </form>
 
         <DialogFooter>
@@ -470,7 +621,7 @@ export default function ProjectList({ navigateOverride }: { navigateOverride?: (
       console.error("Failed to select project:", error)
       // Continue with navigation even if selection fails
     }
-    navigate(`/projects/${project.id}`)
+    navigate(`/projects/${project.id}/default`)
   }
 
   const handleRemoveProject = async (project: Project) => {
