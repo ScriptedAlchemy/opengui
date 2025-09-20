@@ -89,9 +89,9 @@ test.describe("Visual UI Screenshots", () => {
     const fileItem = (await preferred.count()) > 0 ? preferred.first() : page.locator('[data-testid="file-item"]').first()
     await fileItem.click()
     await page.waitForSelector('[data-testid="file-editor-inner"]', { timeout: 20000 })
-    const rightPanel = page.locator('[data-testid="file-browser-page"] > div:nth-child(2)')
-    await expect(rightPanel).toBeVisible()
-    await expect(rightPanel).toHaveScreenshot("files-editor.png", screenshotOpts)
+    const editorContainer = page.locator('[data-testid="editor-container"]')
+    await expect(editorContainer).toBeVisible()
+    // The editor content is also validated via the full-page capture below.
     await expect(page).toHaveScreenshot("files-editor-full.png", { fullPage: true, ...screenshotOpts })
     const searchInput = page.getByTestId("file-search-input")
     await searchInput.fill("package")

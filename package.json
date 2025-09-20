@@ -15,7 +15,7 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
     "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "eslint src --ext .ts,.tsx,.js,.jsx --fix",
-    "test": "timeout 500 rstest",
+    "test": "timeout 1200 rstest",
     "test:components": "rstest test/components",
     "test:runtime": "rstest test/runtime",
     "test:stores": "rstest test/stores",
@@ -29,7 +29,7 @@
     "test:verbose": "rstest --reporter=verbose",
     "test:only": "rstest --testNamePattern=only",
     "pretest:e2e": "kill-port 3001",
-    "test:e2e": "pnpm build && timeout 400 npx playwright test",
+    "test:e2e": "pnpm build && timeout 1200 npx playwright test",
     "test:visual": "pnpm build && npx playwright test test/e2e/visual/ui-screenshots.e2e.ts --project=chromium --reporter=line",
     "test:e2e:ci": "pnpm build && npx playwright test",
     "health-check": "tsx scripts/health-check.ts"

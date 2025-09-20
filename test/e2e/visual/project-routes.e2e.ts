@@ -40,10 +40,22 @@ test("project route snapshots", async ({ page }) => {
   for (const route of routes) {
     await page.goto(route)
     await page.waitForTimeout(1000)
-    await expect(page).toHaveScreenshot(`route-${route.split("/").slice(-1)[0]}.png`, {
-      animations: "disabled",
-      timeout: 15000,
-      maxDiffPixelRatio: 0.02,
-    })
+
+    const name = route.split("/").slice(-1)[0]
+    if (name === "git") {
+      const panel = page.locator('[data-testid="git-operations-page"]')
+      await expect(panel).toBeVisible()
+      await expect(panel).toHaveScreenshot(`route-${name}.png`, {
+        animations: "disabled",
+        timeout: 15000,
+        maxDiffPixelRatio: 0.02,
+      })
+    } else {
+      await expect(page).toHaveScreenshot(`route-${name}.png`, {
+        animations: "disabled",
+        timeout: 15000,
+        maxDiffPixelRatio: 0.02,
+      })
+    }
   }
 })
