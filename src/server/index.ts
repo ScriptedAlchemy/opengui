@@ -21,6 +21,8 @@ import { Log } from "../util/log"
 import { createOpencodeServer } from "@opencode-ai/sdk/server"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+// For controlling fetch timeouts and connection reuse with Node's undici
+import { Agent } from "undici"
 
 const log = Log.create({ service: "app-server" })
 
@@ -50,6 +52,20 @@ export function createServer(config: ServerConfig = {}) {
   const staticDirExists = fs.existsSync(resolvedStaticDir)
 
   const app = new Hono()
+
+  // A long‑lived Agent for streaming/SSE proxying.
+  // - bodyTimeout: 0 disables per-chunk inactivity timeout (important for LLM streams)
+  // - headersTimeout: 0 disables header timeout for slow backends
+  // - keepAlive improves reuse when many requests are made
+  const streamingAgent = new Agent({
+    connect: { timeout: 30_000 },
+    // Disable per-chunk inactivity and header timeouts for long-lived streams
+    bodyTimeout: 0,
+    headersTimeout: 0,
+    // Keep connections alive longer for reuse (if supported)
+    keepAliveTimeout: 60_000,
+    keepAliveMaxTimeout: 60_000,
+  } as any)
 
   // Error handling middleware - must be first
   app.onError((err, c) => {
@@ -125,20 +141,52 @@ export function createServer(config: ServerConfig = {}) {
     const headers = new Headers(c.req.raw.headers)
     headers.delete("host")
 
-    const response = await fetch(targetUrl, {
-      method: c.req.method,
-      headers,
-      body: c.req.raw.body,
-      // enable streaming/SSE compatibility
-      duplex: "half",
-    } as RequestInit)
+    try {
+      // Forward client aborts to the upstream request to prevent "terminated" errors
+      const signal = c.req.raw.signal
 
-    // Return the backend response as-is
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    })
+      const response = await fetch(targetUrl, {
+        method: c.req.method,
+        headers,
+        body: c.req.raw.body,
+        // enable streaming/SSE compatibility
+        duplex: "half",
+        // use streaming-friendly agent (no body/header timeouts)
+        dispatcher: streamingAgent,
+        signal,
+      } as RequestInit)
+
+      // Return the backend response as-is
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      })
+    } catch (err: unknown) {
+      // Map common undici errors to a quiet response; avoid noisy logs
+      const e = err as any
+      const code = e?.code || e?.cause?.code
+      const msg: string = e?.message || "fetch error"
+
+      // Client navigated away / connection closed
+      if (msg.includes("terminated") || msg.includes("aborted") || code === "ABORT_ERR") {
+        return new Response(null, { status: 499, statusText: "Client Closed Request" })
+      }
+
+      // Upstream was too slow sending body chunks
+      if (code === "UND_ERR_BODY_TIMEOUT") {
+        return new Response(JSON.stringify({ error: "Upstream timeout" }), {
+          status: 504,
+          headers: { "content-type": "application/json" },
+        })
+      }
+
+      // Fallback
+      return new Response(JSON.stringify({ error: "Proxy error", detail: msg }), {
+        status: 502,
+        headers: { "content-type": "application/json" },
+      })
+    }
   }
 
   // Catch-all proxy for anything under /opencode
