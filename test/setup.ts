@@ -193,6 +193,19 @@ const ensureDOMReady = () => {
 // Initialize DOM immediately
 ensureDOMReady()
 
+// Ensure AbortController/AbortSignal are compatible with the global fetch implementation (undici in Node).
+// In jsdom environments, a different AbortSignal constructor can cause "Expected signal to be an instance of AbortSignal".
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const undici = require('undici') as { AbortController?: any; AbortSignal?: any }
+  if (undici?.AbortController && undici?.AbortSignal) {
+    ;(global as any).AbortController = undici.AbortController
+    ;(global as any).AbortSignal = undici.AbortSignal
+  }
+} catch {
+  // If undici is not available, continue with the default globals
+}
+
 // Polyfill pointer capture APIs used by Radix UI Select
 if (typeof Element !== "undefined") {
   if (!Element.prototype.hasPointerCapture) {

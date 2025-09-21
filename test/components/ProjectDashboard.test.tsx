@@ -706,9 +706,7 @@ describe("ProjectDashboard", () => {
       )
     })
 
-    // Debug output
-    // eslint-disable-next-line no-console
-    console.log(result.container.innerHTML)
+
 
     // Card is present (may appear multiple times in quick actions and section)
     await waitFor(() => {

@@ -262,7 +262,7 @@ export default function GitOperations() {
   }, [fetchGitStatus])
 
   const fetchBranches = useCallback(async () => {
-    if (!client) return
+    if (!client || !workingPath) return
 
     try {
       const response = await runGitCommand("git branch -vv")
@@ -291,7 +291,7 @@ export default function GitOperations() {
     } catch (err) {
       console.error("Failed to fetch branches:", err)
     }
-  }, [client, runGitCommand])
+  }, [client, workingPath, runGitCommand])
 
   const recentCommitSummaries = useMemo(() => {
     if (statusRecentCommits && statusRecentCommits.length > 0) {

@@ -47,11 +47,17 @@ type MockSession = {
 type MockMessage = {
   id: string
   sessionID: string
-  type: "text"
-  content: string
+  role?: "user" | "assistant" | "system"
   time: {
     created: number
   }
+  parts?: Array<{
+    id: string
+    sessionID: string
+    messageID: string
+    type: "text"
+    text: string
+  }>
 }
 const createMockSession = (): MockSession => ({
   id: "test-session-1",
@@ -258,12 +264,10 @@ describe("ChatInterface Component", () => {
     mockCurrentSession = mockSessions[0]
     mockMessages = [
       {
-        info: {
-          id: "msg-1",
-          sessionID: mockCurrentSession.id,
-          role: "assistant",
-          time: { created: Math.floor(Date.now() / 1000) },
-        },
+        id: "msg-1",
+        sessionID: mockCurrentSession.id,
+        role: "assistant",
+        time: { created: Math.floor(Date.now() / 1000) },
         parts: [
           {
             id: "part-1",

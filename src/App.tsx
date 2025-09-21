@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { useEffect } from "react"
+import { loader as monacoLoader } from "@monaco-editor/react"
 import { ThemeProvider } from "next-themes"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AppSidebar } from "./components/app-sidebar"
@@ -85,6 +87,17 @@ function DashboardLayout() {
 }
 
 function App() {
+  const disableToasts =
+    typeof process !== "undefined" &&
+    typeof process.env !== "undefined" &&
+    process.env.OPENCODE_TEST_MODE === "1"
+
+  // Pre-initialize Monaco editor to avoid async "Loading..." overlay
+  // and stabilize visual snapshots across environments.
+  useEffect(() => {
+    // monacoLoader.init() is idempotent; safe to call once at startup.
+    void monacoLoader.init().catch(() => {})
+  }, [])
   return (
     <OpencodeSDKProvider>
       <QueryClientProvider client={queryClient}>
@@ -98,7 +111,9 @@ function App() {
             <div className="bg-background text-foreground min-h-screen">
               <DashboardLayout />
               {/* Global toast notifications */}
-              <Toaster position="top-right" richColors />
+              {disableToasts ? null : (
+                <Toaster position="top-right" richColors />
+              )}
             </div>
           </BrowserRouter>
         </ThemeProvider>

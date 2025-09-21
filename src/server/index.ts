@@ -103,15 +103,40 @@ export function createServer(config: ServerConfig = {}) {
     )
   })
 
-  // Middleware - production CORS settings
-  // CORS: reflect the request Origin when present; otherwise use "*"
-  app.use(
-    "*",
-    cors({
-      origin: (origin) => (origin ? origin : "*"),
-      credentials: true,
-    })
-  )
+  // Middleware - CORS
+  // Permissive but browser-compatible with credentials:
+  // - If request has an Origin header, reflect it and allow credentials.
+  // - If there's no Origin, skip adding CORS headers (no need for CORS).
+  app.use("*", async (c, next) => {
+    const reqOrigin = c.req.header("Origin") || c.req.header("origin")
+    if (reqOrigin) {
+      const handler = cors({
+        origin: reqOrigin,
+        credentials: true,
+      })
+      return handler(c, next)
+    }
+
+    // No Origin header:
+    // - Still respond to OPTIONS preflight to be permissive for non-browser clients/tests
+    // - Do not interfere with normal requests
+    if (c.req.method === "OPTIONS") {
+      const reqHeaders = c.req.header("access-control-request-headers") || "*"
+      const reqMethod = c.req.header("access-control-request-method") || "*"
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-allow-credentials": "true",
+          "access-control-allow-methods": reqMethod || "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
+          "access-control-allow-headers": reqHeaders,
+          "vary": "Origin, Access-Control-Request-Headers, Access-Control-Request-Method",
+        },
+      })
+    }
+
+    return next()
+  })
 
   // Create a sub-app for API routes to ensure they're handled first
   const apiApp = new Hono()
@@ -248,6 +273,10 @@ export function createServer(config: ServerConfig = {}) {
           headers: {
             "Content-Type": "text/html; charset=utf-8",
             "Cache-Control": "public, max-age=300",
+            // Signal test mode to the client for E2E-only behavior (non-HttpOnly so client can read)
+            ...(process.env["OPENCODE_TEST_MODE"] === "1"
+              ? { "Set-Cookie": "OPENCODE_TEST_MODE=1; Path=/; SameSite=Lax" }
+              : {}),
           },
         })
       } catch (error) {

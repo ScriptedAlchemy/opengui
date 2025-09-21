@@ -126,39 +126,35 @@ export function useProvidersSDK(
           return models[0]?.id || ""
         }
 
-        const persistedProvider = selectedProvider
-        const providerValid = formattedProviders.some((provider) => provider.id === persistedProvider)
+        // Resolve provider deterministically to avoid stale stored provider
+        const preferred = pickPreferredProvider()
+        const storedProvider = initialSelection.provider
+        const storedValid = storedProvider && formattedProviders.some((p) => p.id === storedProvider)
+        const currentValid = selectedProvider && formattedProviders.some((p) => p.id === selectedProvider)
+        const resolvedProviderId = (currentValid && selectedProvider) || (storedValid && storedProvider) || preferred?.id || ""
 
-        let activeProviderId = persistedProvider
-        if (!providerValid) {
-          const fallback = pickPreferredProvider()
-          activeProviderId = fallback?.id ?? ""
-          if (activeProviderId) setSelectedProvider(activeProviderId)
+        if (resolvedProviderId && resolvedProviderId !== selectedProvider) {
+          setSelectedProvider(resolvedProviderId)
         }
 
-        if (!activeProviderId && formattedProviders.length > 0) {
-          const fallback = pickPreferredProvider()
-          activeProviderId = fallback?.id ?? ""
-          if (activeProviderId) setSelectedProvider(activeProviderId)
-        }
+        // Resolve model for the resolved provider (avoid using stale initial provider)
+        const modelsForResolved = formattedProviders.find((p) => p.id === resolvedProviderId)?.models || []
+        const storedModel = initialSelection.model
+        const storedModelValid = storedModel && modelsForResolved.some((m) => m.id === storedModel)
+        const currentModelValid = selectedModel && modelsForResolved.some((m) => m.id === selectedModel)
+        const backendDefault = defaultModels[resolvedProviderId]
+        const backendDefaultValid = backendDefault && modelsForResolved.some((m) => m.id === backendDefault)
+        const preferredModel = pickPreferredModel(resolvedProviderId)
 
-        const modelsForActive =
-          formattedProviders.find((provider) => provider.id === activeProviderId)?.models ?? []
-        const modelValid = modelsForActive.some((model) => model.id === selectedModel)
-        if (!modelValid) {
-          const resolved = pickPreferredModel(activeProviderId)
-          if (resolved) setSelectedModel(resolved)
-        }
+        const resolvedModelId =
+          (currentModelValid && selectedModel) ||
+          (storedModelValid && storedModel) ||
+          (backendDefaultValid && backendDefault) ||
+          preferredModel ||
+          ""
 
-        if (!persistedProvider && !providerValid && formattedProviders.length > 0) {
-          const fallback = pickPreferredProvider()
-          if (fallback) {
-            setSelectedProvider(fallback.id)
-            // If backend suggests a default for this provider, allow it to win
-            const backendDefault = defaultModels[fallback.id]
-            const resolved = backendDefault || pickPreferredModel(fallback.id)
-            if (resolved) setSelectedModel(resolved)
-          }
+        if (resolvedModelId && resolvedModelId !== selectedModel) {
+          setSelectedModel(resolvedModelId)
         }
       } catch (error) {
         console.error("Failed to load providers:", error)
@@ -174,6 +170,10 @@ export function useProvidersSDK(
     instanceStatus,
     client,
     sdkLoading,
+    storageKey,
+    initialSelection.provider,
+    initialSelection.model,
+    // Re-validate model when provider changes or when model changes externally
     selectedProvider,
     selectedModel,
   ])

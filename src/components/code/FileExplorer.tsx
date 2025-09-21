@@ -1,3 +1,4 @@
+import type { MouseEvent as ReactMouseEvent } from "react"
 import { ChevronDown, ChevronRight, FileCode, FileText, Folder, FolderOpen, Loader2 } from "lucide-react"
 
 export interface FileTreeNode {
@@ -14,7 +15,7 @@ export interface FileExplorerProps {
   selectedPath?: string
   onSelect: (node: FileTreeNode) => void
   onToggle: (node: FileTreeNode) => void
-  onContextMenu: (node: FileTreeNode, e: React.MouseEvent) => void
+  onContextMenu: (node: FileTreeNode, e: ReactMouseEvent) => void
   className?: string
 }
 

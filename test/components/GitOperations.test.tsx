@@ -1,6 +1,8 @@
 import { describe, test, expect, beforeEach, afterEach, rstest } from "@rstest/core"
 import { waitFor, act, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import * as React from "react"
+import type { ReactNode, ReactElement } from "react"
 let GitOperations: any
 let OpencodeSDKProvider: any
 import { renderWithRouter } from "../utils/test-router"
@@ -93,7 +95,7 @@ const mockContextValue = {
 }
 
 rstest.mock("../../src/contexts/OpencodeSDKContext", () => ({
-  OpencodeSDKProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  OpencodeSDKProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   useProjectSDK: () => ({
     client: mockContextValue.client,
     instanceStatus: mockContextValue.instanceStatus,
@@ -103,7 +105,7 @@ rstest.mock("../../src/contexts/OpencodeSDKContext", () => ({
 }))
 
 rstest.mock("@/contexts/OpencodeSDKContext", () => ({
-  OpencodeSDKProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  OpencodeSDKProvider: ({ children }: { children: ReactNode }) => <>{children}</>,
   useProjectSDK: () => ({
     client: mockContextValue.client,
     instanceStatus: mockContextValue.instanceStatus,
@@ -249,7 +251,7 @@ rstest.mock("@/hooks/useProjectSDK", () => ({
 }))
 
 // Helper to render with SDK context
-const renderWithSDK = (ui: React.ReactElement, routerOptions: any = {}) => {
+const renderWithSDK = (ui: ReactElement, routerOptions: any = {}) => {
   return renderWithRouter(
     <OpencodeSDKProvider>{ui}</OpencodeSDKProvider>,
     routerOptions

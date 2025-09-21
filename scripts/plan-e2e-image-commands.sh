@@ -74,7 +74,7 @@ for d in "${dirs[@]}"; do
       printf '%s\n' "$(abspath "$f")" >> "$tmpfile"
       count=$((count+1))
       (( count >= max_images )) && break
-    done < <(find "$d" -type f -name "$pattern" \( -ipath '*test-failed*' -o -ipath '*failed*' -o -true \) -print0 | sort -z)
+    done < <(find "$d" -type f -name "$pattern" \( -ipath '*test-failed*' -o -ipath '*failed*' -o -true \) -print0)
   fi
   (( count >= max_images )) && break
 done

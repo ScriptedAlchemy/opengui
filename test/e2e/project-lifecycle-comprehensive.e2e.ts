@@ -243,12 +243,19 @@ test.beforeEach(async ({ page }) => {
     await page.waitForTimeout(2000)
     
     await goToChat(page, projectId || "")
-    
+
     // Test chat functionality using proper data-testid
     const messageInput = page.locator('[data-testid="chat-input-textarea"]')
     await expect(messageInput).toBeVisible({ timeout: 10000 })
-    
-    const existingUserMessage = page.locator('[data-testid="message-user"]').first()
+
+    // Send a prompt to ensure there is at least one user message in this session
+    const lifecyclePrompt = "Hello from lifecycle smoke test"
+    await messageInput.fill(lifecyclePrompt)
+    await messageInput.press("Enter")
+
+    const existingUserMessage = page
+      .locator('[data-testid="message-user"]').filter({ hasText: lifecyclePrompt })
+      .first()
     await expect(existingUserMessage).toBeVisible({ timeout: 10000 })
     
     
