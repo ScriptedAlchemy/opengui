@@ -2,6 +2,11 @@ import { useEffect, useRef } from "react"
 import type { OpencodeClient, Event, Part } from "@opencode-ai/sdk/client"
 import type { SessionInfo, MessageResponse } from "@/types/chat"
 
+type SessionErrorProperties = Extract<Event, { type: "session.error" }>["properties"] & {
+  messageID?: string
+}
+type MessageUpdatedInfo = MessageResponse & { sessionID: string; id?: string }
+
 export function useSSESDK(
   client: OpencodeClient | null,
   projectPath: string | undefined,
@@ -80,9 +85,7 @@ export function useSSESDK(
           signal: abortController.signal,
         })
 
-        const stream = (result as any)?.stream as
-          | AsyncGenerator<Event, void, unknown>
-          | undefined
+        const stream = result?.stream
 
         if (!stream) {
           warn("[useSSESDK] SDK returned no stream; aborting subscribe")
@@ -111,12 +114,10 @@ export function useSSESDK(
 
     const handleEvent = (event: Event) => {
       try {
-        log("[useSSESDK] Received event:", event.type, (event as any)?.properties)
+        log("[useSSESDK] Received event:", event.type, event.properties)
         switch (event.type) {
           case "message.updated": {
-            const info = (event as any)?.properties?.info as
-              | (MessageResponse & { sessionID: string; id?: string })
-              | undefined
+            const info = event.properties.info as MessageUpdatedInfo
             if (!info) break
             if (info.sessionID === currentSession?.id && info.id) {
               setMessages((prev) => {
@@ -170,7 +171,7 @@ export function useSSESDK(
           }
 
           case "message.part.updated": {
-            const part = (event as any)?.properties?.part as Part | undefined
+            const { part } = event.properties
             if (!part) break
             log("[useSSESDK] message.part.updated event:", {
               part,
@@ -225,12 +226,7 @@ export function useSSESDK(
           }
 
           case "session.error": {
-            const { sessionID, messageID, error: sessionError } = ((event as any)
-              ?.properties ?? {}) as {
-              sessionID?: string
-              messageID?: string
-              error?: { name?: string; message?: string; data?: unknown }
-            }
+            const { sessionID, messageID, error: sessionError } = event.properties as SessionErrorProperties
             if (!sessionID) break
             if (sessionID === currentSession?.id) {
               console.error("Session error:", sessionError)

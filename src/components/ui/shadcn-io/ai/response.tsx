@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils"
 import type { HTMLAttributes } from "react"
 import { isValidElement, memo } from "react"
 import ReactMarkdown, { type Options } from "react-markdown"
+import type { Plugin } from "unified"
 import rehypeKatex from "rehype-katex"
 import rehypeSanitize from "rehype-sanitize"
 import remarkGfm from "remark-gfm"
@@ -174,11 +175,14 @@ const HardenedMarkdown: typeof ReactMarkdown = hardenReactMarkdown
 const IS_HARDENED = !!hardenReactMarkdown
 
 // Safely resolve rehype-raw once (optional dependency)
-let REHYPE_RAW_PLUGIN: any | null = null
+let REHYPE_RAW_PLUGIN: Plugin | null = null
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const mod = require("rehype-raw")
-  REHYPE_RAW_PLUGIN = mod?.default ?? mod ?? null
+  const mod = require("rehype-raw") as { default?: Plugin } | Plugin
+  if (typeof mod === "function") {
+    REHYPE_RAW_PLUGIN = mod
+  } else if (typeof mod.default === "function") {
+    REHYPE_RAW_PLUGIN = mod.default
+  }
 } catch {
   REHYPE_RAW_PLUGIN = null
 }

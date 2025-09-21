@@ -19,12 +19,22 @@ import { addIntegratedProjectRoutes } from "./integrated-project-routes"
 import { projectManager } from "./project-manager"
 import { Log } from "../util/log"
 import { createOpencodeServer } from "@opencode-ai/sdk/server"
+import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import type Dispatcher from "undici-types/dispatcher"
 // For controlling fetch timeouts and connection reuse with Node's undici
 // Note: avoid static import of 'undici' Agent to prevent bundling/runtime issues
 // in certain environments. We'll require it dynamically when available.
-let streamingAgentGlobal: { close: () => Promise<void> | void } | undefined
+type UndiciAgentCtor = typeof import("undici").Agent
+type UndiciAgentOptions = ConstructorParameters<UndiciAgentCtor>[0]
+type StreamingDispatcher = Dispatcher & { close: () => Promise<void> | void }
+type StreamingFetchInit = Omit<RequestInit, "duplex"> & {
+  duplex?: "half"
+  dispatcher?: StreamingDispatcher
+}
+
+let streamingAgentGlobal: StreamingDispatcher | undefined
 
 const log = Log.create({ service: "app-server" })
 
@@ -50,7 +60,6 @@ export function createServer(config: ServerConfig = {}) {
     : path.resolve(__dirname, staticDir)
   
   // Check if static directory exists
-  const fs = require("fs")
   const staticDirExists = fs.existsSync(resolvedStaticDir)
 
   const app = new Hono()
@@ -61,24 +70,22 @@ export function createServer(config: ServerConfig = {}) {
   // - keepAlive improves reuse when many requests are made
   // Create a streaming-friendly dispatcher if undici is available at runtime
   // without forcing it into the bundle.
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  let streamingAgent: any | undefined
+  let streamingAgent: StreamingDispatcher | undefined
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { Agent } = require("undici") as { Agent: new (...args: any[]) => any }
-    streamingAgent = new Agent({
+    const { Agent } = require("undici") as { Agent: UndiciAgentCtor }
+    const agentOptions: UndiciAgentOptions = {
       connect: { timeout: 30_000 },
       bodyTimeout: 0,
       headersTimeout: 0,
       keepAliveTimeout: 60_000,
       keepAliveMaxTimeout: 60_000,
-    } as any)
+    }
+    streamingAgent = new Agent(agentOptions) as unknown as StreamingDispatcher
   } catch {
     // undici not available; fetch will fall back to defaults
     streamingAgent = undefined
   }
   streamingAgentGlobal = streamingAgent
-  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // Error handling middleware - must be first
   app.onError((err: Error & { message?: string }, c: Context) => {
@@ -195,7 +202,7 @@ export function createServer(config: ServerConfig = {}) {
       // Forward client aborts to the upstream request to prevent "terminated" errors
       const signal = c.req.raw.signal
 
-      const init: any = {
+      const init: StreamingFetchInit = {
         method: c.req.method,
         headers,
         body: c.req.raw.body,

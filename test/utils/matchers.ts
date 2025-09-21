@@ -2,7 +2,7 @@
  * Custom test matchers for domain-specific assertions
  */
 
-import { expect } from "bun:test"
+import { expect } from "@rstest/core"
 import type { TestMessage, TestSession, TestProject } from "./factories"
 
 /**

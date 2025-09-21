@@ -2,7 +2,7 @@
  * Performance measurement utilities for testing
  */
 
-import { expect } from "bun:test"
+import { expect } from "@rstest/core"
 
 export interface PerformanceMetrics {
   duration: number

@@ -2,7 +2,7 @@
  * Async test helpers for handling promises, timeouts, and async operations
  */
 
-import { expect } from "bun:test"
+import { expect } from "@rstest/core"
 
 /**
  * Wait for a condition to be true with timeout

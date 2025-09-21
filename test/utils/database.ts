@@ -2,7 +2,7 @@
  * Test database helpers for integration tests
  */
 
-import { expect } from "bun:test"
+import { expect } from "@rstest/core"
 import type { TestMessage, TestSession, TestProject } from "./factories"
 
 /**
