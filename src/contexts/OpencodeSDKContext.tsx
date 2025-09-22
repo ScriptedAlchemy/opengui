@@ -84,11 +84,24 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
   const [client, setClient] = useState<OpencodeClient | null>(null)
   const [loading, setLoading] = useState(false)
   const attemptedRef = useRef(false)
+  const inFlightRef = useRef(false)
+  const lastRequestKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
+    const requestKey = projectId ? `${projectId}:${projectPath ?? ""}` : null
+    if (requestKey !== lastRequestKeyRef.current) {
+      attemptedRef.current = false
+    }
+    lastRequestKeyRef.current = requestKey
+
     if (!projectId) {
       setClient(null)
       attemptedRef.current = false
+      inFlightRef.current = false
+      return
+    }
+
+    if (inFlightRef.current) {
       return
     }
 
@@ -100,6 +113,7 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
 
     setLoading(true)
     attemptedRef.current = true
+    inFlightRef.current = true
     
     // Create SDK client as soon as we have a projectId; projectPath is not required for client construction
     getClient(projectId, projectPath || "")
@@ -108,13 +122,11 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
         console.error('Failed to get SDK client:', err)
         setClient(null)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        setLoading(false)
+        inFlightRef.current = false
+      })
   }, [projectId, projectPath, getClient, error])
-
-  // Reset attempt flag when projectId or projectPath changes
-  useEffect(() => {
-    attemptedRef.current = false
-  }, [projectId, projectPath])
 
   return {
     client,
