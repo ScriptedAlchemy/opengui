@@ -64,7 +64,7 @@ describe("ProjectManagerClient", () => {
   })
 
   test("instance controls and status", async () => {
-    const inst = { id: "i1", port: 3001, status: "running" as const, startedAt: new Date() }
+    const inst = { id: "i1", port: 3099, status: "running" as const, startedAt: new Date() }
     stubFetch(async (input, init) => {
       const url = toRequestUrl(input)
       if (url.endsWith("/projects/p1/start") && init?.method === "POST") return ok(inst)
@@ -77,7 +77,7 @@ describe("ProjectManagerClient", () => {
     const sp = await c.stopInstance("p1")
     expect(s.status).toBe("running")
     expect(st).toBeDefined()
-    expect(st?.port).toBe(3001)
+    expect(st?.port).toBe(3099)
     expect(sp.success).toBe(true)
   })
 

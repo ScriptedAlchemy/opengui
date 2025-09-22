@@ -39,7 +39,7 @@ const mockProject = {
   lastOpened: new Date().toISOString(),
   instance: {
     id: "instance-1",
-    port: 3001,
+    port: 3099,
     status: "running" as const,
     startedAt: new Date(),
   },
@@ -107,7 +107,7 @@ rstest.mock("../../src/services/opencode-sdk-service", () => ({
         status: () => Promise.resolve({ data: { status: "running" } }),
       },
     }),
-    getBackendUrl: () => "http://localhost:3001",
+    getBackendUrl: () => "http://localhost:3099",
   },
 }))
 

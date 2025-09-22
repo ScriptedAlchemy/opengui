@@ -42,10 +42,42 @@ export function ensureDemoProjectOnDisk(root: string) {
   )
 }
 
+async function getWithRetry(page: Page, url: string, attempts = 5, baseDelayMs = 300) {
+  let lastError: unknown
+  let response: Awaited<ReturnType<Page["request"]["get"]>> | undefined
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      response = await page.request.get(url)
+      if (response.ok()) {
+        return response
+      }
+      lastError = new Error(`GET ${url} failed with status ${response.status()}`)
+    } catch (error) {
+      lastError = error
+    }
+
+    if (attempt < attempts - 1) {
+      const delay = Math.min(baseDelayMs * (attempt + 1), 2000)
+      await page.waitForTimeout(delay)
+    }
+  }
+
+  if (response) {
+    return response
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError
+  }
+
+  throw new Error(`GET ${url} failed after ${attempts} attempts`)
+}
+
 export async function ensureDefaultProject(page: Page): Promise<{ id: string; path: string }> {
   ensureDemoProjectOnDisk(DEMO_PROJECT_ROOT)
 
-  const listResponse = await page.request.get("/api/projects")
+  const listResponse = await getWithRetry(page, "/api/projects")
   if (!listResponse.ok()) {
     throw new Error(`Failed to list projects: ${listResponse.status()} ${listResponse.statusText()}`)
   }
@@ -68,7 +100,7 @@ export async function ensureDefaultProject(page: Page): Promise<{ id: string; pa
   })
 
   if (!createResponse.ok()) {
-    const retryResponse = await page.request.get("/api/projects")
+    const retryResponse = await getWithRetry(page, "/api/projects")
     if (retryResponse.ok()) {
       const retryProjects = (await retryResponse.json()) as Array<{ id: string; path: string }>
       const fallback = Array.isArray(retryProjects)

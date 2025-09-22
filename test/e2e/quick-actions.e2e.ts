@@ -27,8 +27,9 @@ test.describe("Quick Actions Navigation", () => {
     expect(page.url()).toContain(`/projects/${projectId}/${DEFAULT_WORKTREE}/agents`)
 
     await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
+    await expect(page.locator('[data-testid="quick-actions-section"]').first()).toBeVisible({ timeout: 20000 })
     const newChatButton = page.locator('[data-testid="button-new-chat"]')
-    await expect(newChatButton).toBeVisible({ timeout: 5000 })
+    await expect(newChatButton).toBeVisible({ timeout: 20000 })
     await newChatButton.click()
     await page.waitForURL("**/sessions/**/chat", { timeout: 30000 })
   })

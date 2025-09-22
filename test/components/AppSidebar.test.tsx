@@ -14,7 +14,7 @@ const mockProject = {
   lastOpened: new Date().toISOString(),
   instance: {
     id: "instance-1",
-    port: 3001,
+    port: 3099,
     status: "running" as const,
     startedAt: new Date(),
   },

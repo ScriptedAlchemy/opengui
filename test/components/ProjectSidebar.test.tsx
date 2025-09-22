@@ -10,7 +10,7 @@ const proj = {
   type: "git" as const,
   addedAt: new Date().toISOString(),
   lastOpened: new Date().toISOString(),
-  instance: { id: "i1", port: 3001, status: "running" as const, startedAt: new Date() },
+  instance: { id: "i1", port: 3099, status: "running" as const, startedAt: new Date() },
 }
 
 const sessions = [

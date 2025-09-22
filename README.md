@@ -9,7 +9,7 @@ A modern web interface for OpenCode that enables managing multiple projects/repo
 pnpm install
 
 # Development mode (hot reload, unminified)
-pnpm run dev              # Default port 3001
+pnpm run dev              # Default port 3099
 pnpm run dev:full         # Run client + server concurrently
 
 # Production build
@@ -28,11 +28,11 @@ pnpm run test:components  # Component tests only
 
 | Command              | Description                        | Default Port |
 | -------------------- | ---------------------------------- | ------------ |
-| `pnpm run dev`       | Development server with HMR        | 3001         |
+| `pnpm run dev`       | Development server with HMR        | 3099         |
 | `pnpm run dev:server`| API server only                    | 3002         |
-| `pnpm run dev:full`  | Client + server concurrently       | 3001/3002    |
+| `pnpm run dev:full`  | Client + server concurrently       | 3099/3002    |
 | `pnpm run build`     | Production build (client + server) | -            |
-| `pnpm start`         | Serve production build             | 3001         |
+| `pnpm start`         | Serve production build             | 3099         |
 
 ## Features
 
@@ -61,7 +61,7 @@ You can switch worktrees from the project sidebar or the dashboard. URLs now tak
 The app consists of a Hono server that serves both the React app and provides API endpoints:
 
 ```
-Browser → Hono Server (Port 3001)
+Browser → Hono Server (Port 3099)
             ├── / → React App (dev: transpiled on-the-fly, prod: pre-built)
             ├── /api/* → Project Management APIs
             └── SDK Integration → Direct SDK access (no proxy)
@@ -179,7 +179,7 @@ Notes:
 
 ## Environment Variables
 
-- `PORT` - Server port (default: 3001)
+- `PORT` - Server port (default: 3099)
 - `HOST` - Server hostname (default: 127.0.0.1)
 - `NODE_ENV` - Environment (development/production)
 
@@ -191,7 +191,7 @@ If you get a "port in use" error:
 
 ```bash
 # Find process using port
-lsof -i :3001
+lsof -i :3099
 
 # Kill process
 kill <PID>

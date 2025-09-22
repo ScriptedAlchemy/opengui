@@ -108,7 +108,7 @@ describe("Store Integration", () => {
     mockCreateProject.mockResolvedValue(TestDataFactory.createProject())
     mockUpdateProject.mockResolvedValue(TestDataFactory.createProject())
     mockRemoveProject.mockResolvedValue(true)
-    mockStartInstance.mockResolvedValue({ id: "instance-1", port: 3001, status: "running", startedAt: new Date() })
+    mockStartInstance.mockResolvedValue({ id: "instance-1", port: 3099, status: "running", startedAt: new Date() })
     mockStopInstance.mockResolvedValue(true)
     mockGetInstanceStatus.mockResolvedValue(null)
     mockGetSessions.mockResolvedValue([])
@@ -511,7 +511,7 @@ describe("Store Integration", () => {
       expect(useSessionsStore.getState().sessions.get("project-1")).toEqual(sessions)
 
       // 4. User starts the project instance
-      const instance = { id: "instance-1", port: 3001, status: "running" as const, startedAt: new Date() }
+      const instance = { id: "instance-1", port: 3099, status: "running" as const, startedAt: new Date() }
       mockStartInstance.mockResolvedValue(instance)
 
       await useProjectsStore.getState().startInstance("project-1")

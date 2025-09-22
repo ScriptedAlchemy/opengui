@@ -16,7 +16,7 @@ const baseProject = () => ({
   lastOpened: new Date().toISOString(),
   instance: {
     id: "instance-1",
-    port: 3001,
+    port: 3099,
     status: "running" as const,
     startedAt: new Date(),
   },
@@ -290,7 +290,7 @@ const mockFetch = rstest.fn((url: string) => {
   if (url.includes("/resources")) {
     return Promise.resolve({
       ok: true,
-      json: () => Promise.resolve({ memory: { used: 128, total: 512 }, port: 3001 }),
+      json: () => Promise.resolve({ memory: { used: 128, total: 512 }, port: 3099 }),
     } as Response)
   }
   if (url.includes("/activity")) {

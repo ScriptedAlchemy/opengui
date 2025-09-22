@@ -6,7 +6,7 @@
 
 export {}; // Make this file a module
 
-const port = parseInt(process.env["PORT"] || "3001")
+const port = parseInt(process.env["PORT"] || "3099")
 const hostname = process.env["HOST"] || "127.0.0.1"
 const url = `http://${hostname}:${port}/health`
 

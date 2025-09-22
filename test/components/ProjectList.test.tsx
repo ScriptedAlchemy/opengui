@@ -45,7 +45,7 @@ const mockProjects = [
     id: "project-1",
     name: "Test Project 1",
     status: "running",
-    instance: { id: "inst-1", port: 3001, status: "running", startedAt: new Date() },
+    instance: { id: "inst-1", port: 3099, status: "running", startedAt: new Date() },
   }),
   TestDataFactory.createProject({
     id: "project-2",

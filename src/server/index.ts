@@ -298,7 +298,7 @@ export function createServer(config: ServerConfig = {}) {
 
 export async function startServer(config: ServerConfig = {}) {
   const {
-    port = 3001,
+    port = 3099,
     hostname = "127.0.0.1",
     opencodePort, // Don't set a default - let OpenCode choose
     opencodeHostname = "127.0.0.1",
@@ -383,7 +383,7 @@ export async function startServer(config: ServerConfig = {}) {
 
 // Start server if this file is run directly
 if (process.argv[1] === new URL(import.meta.url).pathname) {
-  const port = parseInt(process.env["PORT"] || "3001")
+  const port = parseInt(process.env["PORT"] || "3099")
   const hostname = process.env["HOST"] || "127.0.0.1"
 
   await startServer({ port, hostname })

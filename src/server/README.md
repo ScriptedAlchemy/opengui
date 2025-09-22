@@ -97,7 +97,7 @@ pnpm start
 
 The server will:
 
-- Start on port 3001 (configurable via PORT env)
+- Start on port 3099 (configurable via PORT env)
 - Start OpenCode backend on an auto-selected port
 - Serve pre-built static files from `web-dist/`
 - Provide backend URL to clients via API
@@ -107,7 +107,7 @@ The server will:
 
 ## Environment Variables
 
-- `PORT` - Server port (default: 3001)
+- `PORT` - Server port (default: 3099)
 - `HOST` - Server hostname (default: 127.0.0.1)
 - `NODE_ENV` - Environment (used for error messages only, does not enable dev server)
 
