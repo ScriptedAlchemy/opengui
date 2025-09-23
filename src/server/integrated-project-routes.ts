@@ -356,13 +356,13 @@ const parseWorktreeOutput = (output: string, projectPath: string): ParsedWorktre
   if (!output.trim()) return []
   const normalizedProject = normalizePath(projectPath)
   const result: ParsedWorktree[] = []
-  let current: Partial<ParsedWorktree> & { path?: string } = {}
+  let current: Partial<ParsedWorktree> & { path?: string; __prunable__?: boolean } = {}
 
   for (const rawLine of output.split(/\r?\n/)) {
     const line = rawLine.trim()
     if (!line) continue
     if (line.startsWith("worktree ")) {
-      if (current.path) {
+      if (current.path && !current.__prunable__) {
         result.push(current as ParsedWorktree)
       }
       current = { path: normalizePath(line.substring("worktree ".length).trim()) }
@@ -387,9 +387,14 @@ const parseWorktreeOutput = (output: string, projectPath: string): ParsedWorktre
       if (reason) current.lockReason = reason
       continue
     }
+    if (line.startsWith("prunable")) {
+      // Mark this block as prunable so we can skip it entirely
+      current.__prunable__ = true
+      continue
+    }
   }
 
-  if (current.path) {
+  if (current.path && !current.__prunable__) {
     result.push(current as ParsedWorktree)
   }
 
@@ -434,11 +439,43 @@ const buildWorktreeResponses = async (projectId: string): Promise<WorktreeRespon
     throw new Error(`Project ${projectId} not found`)
   }
 
-  const { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], {
+  // First pass: list worktrees and detect stale entries
+  let { stdout } = await execFileAsync("git", ["worktree", "list", "--porcelain"], {
     cwd: project.path,
   })
 
-  const parsed = parseWorktreeOutput(stdout, project.path)
+  // If git reports prunable entries, proactively prune to self-heal
+  if (/\bprunable\b/i.test(stdout)) {
+    try {
+      await execFileAsync("git", ["worktree", "prune"], { cwd: project.path })
+      // Re-list after pruning
+      const res = await execFileAsync("git", ["worktree", "list", "--porcelain"], {
+        cwd: project.path,
+      })
+      stdout = res.stdout
+    } catch (pruneError) {
+      // Non-fatal: continue with whatever we can parse; UI will still hide prunable entries
+      log.warn("git worktree prune failed:", pruneError)
+    }
+  }
+
+  // Parse and implicitly ignore prunable entries
+  let parsed = parseWorktreeOutput(stdout, project.path)
+
+  // Guard: filter out any worktree paths that no longer exist on disk
+  if (parsed.length > 0) {
+    const existence = await Promise.all(
+      parsed.map(async (entry) => {
+        try {
+          const stat = await nodeFs.stat(entry.path)
+          return stat.isDirectory()
+        } catch {
+          return false
+        }
+      })
+    )
+    parsed = parsed.filter((_, idx) => existence[idx])
+  }
   const metadataList = projectManager.getWorktrees(projectId)
 
   const responses = parsed.map((entry) => {
@@ -483,6 +520,23 @@ const buildWorktreeResponses = async (projectId: string): Promise<WorktreeRespon
       lockReason: entry.lockReason,
     }
   })
+
+  // Clean up orphaned metadata: any non-default worktree not present in git list
+  try {
+    const presentPaths = new Set(parsed.map((p) => p.path))
+    for (const meta of metadataList) {
+      if (meta.id === "default") continue
+      if (!presentPaths.has(normalizePath(meta.path))) {
+        try {
+          projectManager.removeWorktreeMetadata(projectId, meta.id)
+        } catch (e) {
+          log.warn(`Failed removing orphaned worktree metadata ${meta.id}:`, e)
+        }
+      }
+    }
+  } catch (metaError) {
+    log.warn("Failed during worktree metadata cleanup:", metaError)
+  }
 
   await projectManager.saveProjects()
   return responses
