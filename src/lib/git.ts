@@ -150,7 +150,10 @@ const buildGitStatusUrl = (projectId: string, worktreeId?: string) => {
   return `/api/projects/${projectId}/git/status${query ? `?${query}` : ""}`
 }
 
-export async function fetchGitStatus(projectId: string, worktreeId?: string): Promise<GitStatusResponse> {
+export async function fetchGitStatus(
+  projectId: string,
+  worktreeId?: string
+): Promise<GitStatusResponse> {
   if (!projectId) {
     throw new Error("Project ID is required to fetch git status")
   }
@@ -168,7 +171,10 @@ export async function fetchGitStatus(projectId: string, worktreeId?: string): Pr
   return data
 }
 
-export async function fetchGitSummary(projectId: string, worktreeId?: string): Promise<GitSummary | null> {
+export async function fetchGitSummary(
+  projectId: string,
+  worktreeId?: string
+): Promise<GitSummary | null> {
   if (!projectId) {
     return null
   }

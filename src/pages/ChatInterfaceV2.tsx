@@ -47,24 +47,35 @@ function ChatInterfaceV2Inner() {
   const activeWorktree = React.useMemo(() => {
     if (activeWorktreeId === "default") {
       if (project?.path) {
-        return { id: "default", path: project.path, title: `${project.name ?? "Project"} (default)` }
+        return {
+          id: "default",
+          path: project.path,
+          title: `${project.name ?? "Project"} (default)`,
+        }
       }
       if (currentProject?.path) {
         return {
           id: "default",
           path: currentProject.path,
-          title: `${currentProject.name ?? "Project"} (default)`
+          title: `${currentProject.name ?? "Project"} (default)`,
         }
       }
       return undefined
     }
     return worktrees.find((worktree) => worktree.id === activeWorktreeId)
-  }, [activeWorktreeId, worktrees, project?.path, project?.name, currentProject?.path, currentProject?.name])
+  }, [
+    activeWorktreeId,
+    worktrees,
+    project?.path,
+    project?.name,
+    currentProject?.path,
+    currentProject?.name,
+  ])
 
   React.useEffect(() => {
     if (!projectId) return
     if (activeWorktreeId !== "default" && !activeWorktree) {
-      navigate(`/projects/${projectId}/default/sessions/${sessionId || "new"}` , { replace: true })
+      navigate(`/projects/${projectId}/default/sessions/${sessionId || "new"}`, { replace: true })
     }
   }, [projectId, activeWorktreeId, activeWorktree, navigate, sessionId])
 
@@ -159,14 +170,21 @@ function ChatInterfaceV2Inner() {
       const msg = messages[i]
       const provider = (msg as unknown as { providerID?: string }).providerID
       const model = (msg as unknown as { modelID?: string }).modelID
-      if (msg.role === 'assistant' && provider && model) {
+      if (msg.role === "assistant" && provider && model) {
         if (selectedProvider !== provider) setSelectedProvider(provider)
         if (selectedModel !== model) setSelectedModel(model)
         sessionDefaultsApplied.current = sessionId
         break
       }
     }
-  }, [currentSession?.id, messages, selectedProvider, selectedModel, setSelectedProvider, setSelectedModel])
+  }, [
+    currentSession?.id,
+    messages,
+    selectedProvider,
+    selectedModel,
+    setSelectedProvider,
+    setSelectedModel,
+  ])
 
   const handleSelectSession = React.useCallback(
     (session: SessionInfo) => {
@@ -185,7 +203,10 @@ function ChatInterfaceV2Inner() {
   }
 
   return (
-    <div className="bg-background flex h-screen-minus-header min-h-0" data-testid="chat-interface-v2-container">
+    <div
+      className="bg-background h-screen-minus-header flex min-h-0"
+      data-testid="chat-interface-v2-container"
+    >
       <ChatSidebar
         project={project}
         sessions={sessions}
@@ -197,7 +218,7 @@ function ChatInterfaceV2Inner() {
         onDeleteSession={handleDeleteSession}
       />
 
-      <div className="flex flex-1 min-h-0 flex-col overflow-hidden" data-testid="chat-main-area">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="chat-main-area">
         <ChatHeader
           currentSession={currentSession}
           providers={providers}
@@ -210,7 +231,11 @@ function ChatInterfaceV2Inner() {
 
         {currentSession ? (
           <>
-            <ChatMessages currentSession={currentSession} messages={messages} isStreaming={isStreaming} />
+            <ChatMessages
+              currentSession={currentSession}
+              messages={messages}
+              isStreaming={isStreaming}
+            />
             <ChatInput
               inputValue={inputValue}
               setInputValue={setInputValue}
@@ -225,7 +250,9 @@ function ChatInterfaceV2Inner() {
           <div className="text-muted-foreground flex flex-1 items-center justify-center">
             <div className="text-center">
               <p className="mb-2 text-lg">No session selected</p>
-              <p className="text-sm">Create a new session or select an existing one to start chatting</p>
+              <p className="text-sm">
+                Create a new session or select an existing one to start chatting
+              </p>
             </div>
           </div>
         )}

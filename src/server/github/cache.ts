@@ -187,7 +187,10 @@ interface MemoryEntry<T> {
 }
 
 const memoryCache = new Map<string, MemoryEntry<CacheFileSchema>>()
-const listMemoryCache = new Map<string, MemoryEntry<ListCacheFileSchema<GitHubIssue | GitHubPullRequest>>>()
+const listMemoryCache = new Map<
+  string,
+  MemoryEntry<ListCacheFileSchema<GitHubIssue | GitHubPullRequest>>
+>()
 const errorMemoryCache = new Map<string, MemoryEntry<GitHubContentError>>()
 
 interface WarmRecord {
@@ -263,10 +266,7 @@ const normalizeTtlOverrides = (ttl?: number | GitHubCacheTtlOverrides): GitHubCa
   return {}
 }
 
-const getTtl = (
-  overrides: GitHubCacheTtlOverrides,
-  key: keyof typeof DEFAULT_TTL_MS
-): number => {
+const getTtl = (overrides: GitHubCacheTtlOverrides, key: keyof typeof DEFAULT_TTL_MS): number => {
   const override = overrides[key]
   if (typeof override === "number" && override >= 0) {
     return override
@@ -290,10 +290,7 @@ const clampTtl = (ttlMs: number, fallback: number): number => {
   return Math.max(MIN_MEMORY_CACHE_TTL_MS, ttlMs)
 }
 
-const getMemoryEntry = <T>(
-  map: Map<string, MemoryEntry<T>>,
-  key: string
-): T | null => {
+const getMemoryEntry = <T>(map: Map<string, MemoryEntry<T>>, key: string): T | null => {
   const entry = map.get(key)
   if (!entry) {
     return null
@@ -347,7 +344,13 @@ const readCacheFile = async (filePath: string): Promise<CacheFileSchema | null> 
     if (!parsed || parsed.version !== CACHE_SCHEMA_VERSION) {
       return null
     }
-    setMemoryEntry(memoryCache, filePath, parsed, MEMORY_CACHE_ENTRY_TTL_MS, MEMORY_CACHE_MAX_ENTRIES)
+    setMemoryEntry(
+      memoryCache,
+      filePath,
+      parsed,
+      MEMORY_CACHE_ENTRY_TTL_MS,
+      MEMORY_CACHE_MAX_ENTRIES
+    )
     return parsed
   } catch (error) {
     cacheLog.warn("Failed to read GitHub cache", { filePath, error })
@@ -360,7 +363,13 @@ const writeCacheFile = async (filePath: string, payload: CacheFileSchema) => {
   await ensureDirectory(dir)
   const serialized = JSON.stringify(payload, null, 2)
   await fs.writeFile(filePath, serialized, "utf-8")
-  setMemoryEntry(memoryCache, filePath, payload, MEMORY_CACHE_ENTRY_TTL_MS, MEMORY_CACHE_MAX_ENTRIES)
+  setMemoryEntry(
+    memoryCache,
+    filePath,
+    payload,
+    MEMORY_CACHE_ENTRY_TTL_MS,
+    MEMORY_CACHE_MAX_ENTRIES
+  )
 }
 
 const readListCacheFile = async <T>(filePath: string): Promise<ListCacheFileSchema<T> | null> => {
@@ -412,7 +421,11 @@ const getCachedError = (filePath: string): GitHubContentError | null => {
   return getMemoryEntry(errorMemoryCache, filePath)
 }
 
-const setCachedError = (filePath: string, error: GitHubContentError, ttlMs = ERROR_CACHE_TTL_MS) => {
+const setCachedError = (
+  filePath: string,
+  error: GitHubContentError,
+  ttlMs = ERROR_CACHE_TTL_MS
+) => {
   setMemoryEntry(errorMemoryCache, filePath, error, ttlMs, ERROR_CACHE_MAX_ENTRIES)
 }
 
@@ -525,7 +538,8 @@ const determineIssueRefresh = (
   const isUpdated =
     knownUpdatedTs !== null && cachedUpdatedTs !== null && knownUpdatedTs > cachedUpdatedTs
 
-  const refreshItem = !hasCache || isUpdated || shouldRefreshTimestamp(cache?.itemFetchedAt, itemTtl, now)
+  const refreshItem =
+    !hasCache || isUpdated || shouldRefreshTimestamp(cache?.itemFetchedAt, itemTtl, now)
   const refreshComments =
     !hasCache || refreshItem || shouldRefreshTimestamp(cache?.commentsFetchedAt, commentTtl, now)
 
@@ -554,11 +568,14 @@ const determinePullRefresh = (
   const isUpdated =
     knownUpdatedTs !== null && cachedUpdatedTs !== null && knownUpdatedTs > cachedUpdatedTs
 
-  const refreshItem = !hasCache || isUpdated || shouldRefreshTimestamp(cache?.itemFetchedAt, pullTtl, now)
+  const refreshItem =
+    !hasCache || isUpdated || shouldRefreshTimestamp(cache?.itemFetchedAt, pullTtl, now)
   const refreshComments =
     !hasCache || refreshItem || shouldRefreshTimestamp(cache?.commentsFetchedAt, commentTtl, now)
   const refreshReviewComments =
-    !hasCache || refreshItem || shouldRefreshTimestamp(cache?.reviewCommentsFetchedAt, reviewTtl, now)
+    !hasCache ||
+    refreshItem ||
+    shouldRefreshTimestamp(cache?.reviewCommentsFetchedAt, reviewTtl, now)
   const refreshStatus =
     includeStatus &&
     (!hasCache || refreshItem || shouldRefreshTimestamp(cache?.statusFetchedAt, statusTtl, now))
@@ -776,7 +793,8 @@ export async function fetchGitHubContentBatch(
   const shouldAutoIncludeIssues = !includeIssues && requestedItems.length === 0
   const shouldAutoIncludePulls = !includePulls && requestedItems.length === 0
 
-  const effectiveIssueParams = includeIssues ?? (shouldAutoIncludeIssues ? DEFAULT_ISSUE_PARAMS : null)
+  const effectiveIssueParams =
+    includeIssues ?? (shouldAutoIncludeIssues ? DEFAULT_ISSUE_PARAMS : null)
   const effectivePullParams = includePulls ?? (shouldAutoIncludePulls ? DEFAULT_PULL_PARAMS : null)
 
   let issuesList: GitHubIssue[] = []
@@ -786,7 +804,11 @@ export async function fetchGitHubContentBatch(
     issuesList = await loadIssueList(repo, effectiveIssueParams, ttlOverrides, client)
     requestedItems = mergeItems(
       requestedItems,
-      issuesList.map((issue) => ({ type: "issue" as const, number: issue.number, updatedAt: issue.updated_at }))
+      issuesList.map((issue) => ({
+        type: "issue" as const,
+        number: issue.number,
+        updatedAt: issue.updated_at,
+      }))
     )
   }
 
@@ -794,7 +816,11 @@ export async function fetchGitHubContentBatch(
     pullsList = await loadPullList(repo, effectivePullParams, ttlOverrides, client)
     requestedItems = mergeItems(
       requestedItems,
-      pullsList.map((pull) => ({ type: "pull" as const, number: pull.number, updatedAt: pull.updated_at }))
+      pullsList.map((pull) => ({
+        type: "pull" as const,
+        number: pull.number,
+        updatedAt: pull.updated_at,
+      }))
     )
   }
 
@@ -877,7 +903,9 @@ export async function fetchGitHubContentBatch(
           number: request.number,
           repo,
           updatedAt,
-          itemFetchedAt: plan.refreshItem ? refreshedAt : formatTimestamp(cached?.itemFetchedAt, () => refreshedAt),
+          itemFetchedAt: plan.refreshItem
+            ? refreshedAt
+            : formatTimestamp(cached?.itemFetchedAt, () => refreshedAt),
           commentsFetchedAt: plan.refreshComments
             ? refreshedAt
             : formatTimestamp(cached?.commentsFetchedAt, () => refreshedAt),
@@ -938,7 +966,7 @@ export async function fetchGitHubContentBatch(
 
     if (!plan.needsFetch && cached) {
       metrics.cacheHits += 1
-      const status = includeStatuses ? cached.statusSummary ?? null : undefined
+      const status = includeStatuses ? (cached.statusSummary ?? null) : undefined
       if (includeStatuses) {
         statuses[request.number] = status ?? null
       }
@@ -1019,7 +1047,9 @@ export async function fetchGitHubContentBatch(
         number: request.number,
         repo,
         updatedAt,
-        itemFetchedAt: plan.refreshItem ? refreshedAt : formatTimestamp(cached?.itemFetchedAt, () => refreshedAt),
+        itemFetchedAt: plan.refreshItem
+          ? refreshedAt
+          : formatTimestamp(cached?.itemFetchedAt, () => refreshedAt),
         commentsFetchedAt: plan.refreshComments
           ? refreshedAt
           : formatTimestamp(cached?.commentsFetchedAt, () => refreshedAt),
@@ -1035,7 +1065,7 @@ export async function fetchGitHubContentBatch(
         item: pull,
         comments,
         reviewComments,
-        statusSummary: includeStatuses ? status ?? null : undefined,
+        statusSummary: includeStatuses ? (status ?? null) : undefined,
       }
 
       await writeCacheFile(cachePath, cachePayload)
@@ -1055,7 +1085,7 @@ export async function fetchGitHubContentBatch(
         item: pull,
         comments,
         reviewComments,
-        status: includeStatuses ? cachePayload.statusSummary ?? null : undefined,
+        status: includeStatuses ? (cachePayload.statusSummary ?? null) : undefined,
       })
 
       metrics.refreshed += 1
@@ -1076,7 +1106,7 @@ export async function fetchGitHubContentBatch(
           item: cached.item,
           comments: cached.comments,
           reviewComments: cached.reviewComments,
-          status: includeStatuses ? cached.statusSummary ?? null : undefined,
+          status: includeStatuses ? (cached.statusSummary ?? null) : undefined,
           warning: message,
         })
         continue
@@ -1158,7 +1188,7 @@ export async function fetchGitHubContentBatch(
           item: pending.cached.item,
           comments: pending.cached.comments,
           reviewComments: pending.cached.reviewComments,
-          status: includeStatuses ? pending.cached.statusSummary ?? null : undefined,
+          status: includeStatuses ? (pending.cached.statusSummary ?? null) : undefined,
           warning: "Unable to refresh pull request status",
         })
       }

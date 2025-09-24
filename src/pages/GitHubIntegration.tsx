@@ -19,10 +19,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { RepositoryHeader } from "@/components/github/repository-header"
-import {
-  fetchGitStatus,
-  type GitStatusResponse,
-} from "@/lib/git"
+import { fetchGitStatus, type GitStatusResponse } from "@/lib/git"
 import {
   parseGitHubRemote,
   type GitHubIssue,
@@ -138,7 +135,7 @@ function formatRelativeDate(iso: string | undefined | null) {
 function MarkdownRenderer({ content, className }: { content: string; className?: string }) {
   return (
     <Response
-      className={cn("prose prose-sm max-w-none dark:prose-invert", className)}
+      className={cn("prose prose-sm dark:prose-invert max-w-none", className)}
       options={GITHUB_MARKDOWN_OPTIONS}
       parseIncompleteMarkdown={false}
     >
@@ -148,7 +145,10 @@ function MarkdownRenderer({ content, className }: { content: string; className?:
 }
 
 interface CommentDisplay
-  extends Pick<GitHubIssueComment, "id" | "body" | "html_url" | "created_at" | "updated_at" | "user"> {
+  extends Pick<
+    GitHubIssueComment,
+    "id" | "body" | "html_url" | "created_at" | "updated_at" | "user"
+  > {
   subtitle?: string
   diff?: string
 }
@@ -166,14 +166,17 @@ function GitHubCommentList({ comments }: { comments: CommentDisplay[] }) {
         const edited = created !== updated
 
         return (
-          <div key={comment.id} className="border-border/60 dark:border-border/40 flex flex-col gap-3 border-l pl-4">
+          <div
+            key={comment.id}
+            className="border-border/60 dark:border-border/40 flex flex-col gap-3 border-l pl-4"
+          >
             <div className="flex items-center gap-3">
               <Avatar className="h-8 w-8">
                 <AvatarImage src={comment.user.avatar_url ?? undefined} alt={comment.user.login} />
                 <AvatarFallback>{comment.user.login.slice(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div className="flex flex-1 flex-col">
-                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <div className="text-foreground flex items-center gap-2 text-sm font-medium">
                   {comment.user.login}
                   <a
                     href={comment.html_url ?? undefined}
@@ -193,11 +196,11 @@ function GitHubCommentList({ comments }: { comments: CommentDisplay[] }) {
                 ) : null}
               </div>
             </div>
-            <div className="text-sm text-foreground">
+            <div className="text-foreground text-sm">
               <MarkdownRenderer content={comment.body} />
             </div>
             {comment.diff ? (
-              <pre className="bg-muted/60 dark:bg-muted/20 text-xs overflow-auto rounded-md px-3 py-2">
+              <pre className="bg-muted/60 dark:bg-muted/20 overflow-auto rounded-md px-3 py-2 text-xs">
                 {comment.diff.trim()}
               </pre>
             ) : null}
@@ -221,7 +224,7 @@ function renderStatusIndicator(status?: PullRequestStatusSummary | null) {
   switch (status.overallState) {
     case "success":
       return (
-        <div className="text-emerald-600 flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm text-emerald-600">
           <CheckCircle2 className="h-4 w-4" />
           Checks passed
         </div>
@@ -236,7 +239,7 @@ function renderStatusIndicator(status?: PullRequestStatusSummary | null) {
       )
     default:
       return (
-        <div className="text-amber-500 flex items-center gap-2 text-sm">
+        <div className="flex items-center gap-2 text-sm text-amber-500">
           <Clock3 className="h-4 w-4" />
           Checks pending
         </div>
@@ -277,14 +280,7 @@ export default function GitHubIntegration() {
     if (!projectId || !repoRef) {
       return null
     }
-    return [
-      "github",
-      "content",
-      projectId,
-      repoRef.owner,
-      repoRef.repo,
-      issuePageSize,
-    ] as const
+    return ["github", "content", projectId, repoRef.owner, repoRef.repo, issuePageSize] as const
   }, [projectId, repoRef, issuePageSize])
 
   const contentQuery = useQuery<GitHubContentBatchResponse>({
@@ -389,8 +385,7 @@ export default function GitHubIntegration() {
     }
   }, [rateLimitCore])
 
-  const isLoadingInitial =
-    gitStatusQuery.isLoading || (!!repoRef && contentQuery.isLoading)
+  const isLoadingInitial = gitStatusQuery.isLoading || (!!repoRef && contentQuery.isLoading)
 
   const isRefreshing = gitStatusQuery.isRefetching || contentQuery.isRefetching
 
@@ -454,7 +449,8 @@ export default function GitHubIntegration() {
   const handleIssueAction = useCallback(
     async (issue: GitHubIssue, action: "research" | "fix") => {
       const key = buildActionKey("issue", issue.number, action)
-      const branch = action === "research" ? `research/issue-${issue.number}` : `fix/issue-${issue.number}`
+      const branch =
+        action === "research" ? `research/issue-${issue.number}` : `fix/issue-${issue.number}`
       const titlePrefix = action === "research" ? "Research" : "Fix"
       await runAction(key, {
         branch,
@@ -502,16 +498,13 @@ export default function GitHubIntegration() {
     [issues.length, pullRequests.length]
   )
 
-  const handleHeaderTabChange = useCallback(
-    (tab: string) => {
-      if (tab === "pulls") {
-        setActiveTab("pulls")
-      } else if (tab === "issues") {
-        setActiveTab("issues")
-      }
-    },
-    []
-  )
+  const handleHeaderTabChange = useCallback((tab: string) => {
+    if (tab === "pulls") {
+      setActiveTab("pulls")
+    } else if (tab === "issues") {
+      setActiveTab("issues")
+    }
+  }, [])
 
   return (
     <div className="flex h-full flex-col">
@@ -527,11 +520,11 @@ export default function GitHubIntegration() {
         pullsCount={pullRequests.length}
       />
 
-      <div className="flex flex-col gap-6 px-6 pb-10 pt-6">
+      <div className="flex flex-col gap-6 px-6 pt-6 pb-10">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-semibold text-foreground">GitHub Integration</h2>
+              <h2 className="text-foreground text-xl font-semibold">GitHub Integration</h2>
               <p className="text-muted-foreground text-sm">
                 {repoLabel
                   ? `Connected to ${repoLabel}`
@@ -550,7 +543,8 @@ export default function GitHubIntegration() {
                       : "text-muted-foreground"
                 }`}
               >
-                GitHub API remaining: {rateLimitInfo.remaining.toLocaleString()} / {rateLimitInfo.limit.toLocaleString()}
+                GitHub API remaining: {rateLimitInfo.remaining.toLocaleString()} /{" "}
+                {rateLimitInfo.limit.toLocaleString()}
                 {rateLimitInfo.resetLabel ? ` (reset ${rateLimitInfo.resetLabel})` : ""}
               </div>
             ) : null}
@@ -562,7 +556,7 @@ export default function GitHubIntegration() {
             </div>
           ) : null}
           {topLevelContentError ? (
-            <div className="border-amber-400/40 bg-amber-500/10 text-amber-700 flex items-center gap-2 rounded-md border px-3 py-2 text-sm dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+            <div className="flex items-center gap-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
               <AlertCircle className="h-4 w-4" />
               {topLevelContentError}
             </div>
@@ -595,7 +589,8 @@ export default function GitHubIntegration() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground text-sm">
-                Ensure the current project has a GitHub remote configured (e.g. origin pointing to GitHub) and try refreshing.
+                Ensure the current project has a GitHub remote configured (e.g. origin pointing to
+                GitHub) and try refreshing.
               </p>
             </CardContent>
           </Card>
@@ -603,353 +598,409 @@ export default function GitHubIntegration() {
 
         {repoRef && (
           <div className="space-y-4">
-          {activeTab === "issues" ? (
-            <section className="space-y-4">
-              <div className="bg-card border border-border rounded-lg">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="sm" className="font-normal text-foreground hover:bg-accent">
-                      <CircleDot className="mr-2 h-4 w-4 text-green-600" /> Open
-                      <Badge variant="secondary" className="ml-2 bg-muted text-muted-foreground">
-                        {issues.length}
-                      </Badge>
-                    </Button>
-                    <Button variant="ghost" size="sm" className="font-normal text-muted-foreground" disabled>
-                      Closed
-                    </Button>
+            {activeTab === "issues" ? (
+              <section className="space-y-4">
+                <div className="bg-card border-border rounded-lg border">
+                  <div className="border-border flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-foreground hover:bg-accent font-normal"
+                      >
+                        <CircleDot className="mr-2 h-4 w-4 text-green-600" /> Open
+                        <Badge variant="secondary" className="bg-muted text-muted-foreground ml-2">
+                          {issues.length}
+                        </Badge>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground font-normal"
+                        disabled
+                      >
+                        Closed
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-foreground hover:bg-accent font-normal"
+                        onClick={handleRefresh}
+                        disabled={isRefreshing || isLoadingInitial}
+                      >
+                        {isRefreshing ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                        )}
+                        Refetch
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="font-normal text-foreground hover:bg-accent"
-                      onClick={handleRefresh}
-                      disabled={isRefreshing || isLoadingInitial}
-                    >
-                      {isRefreshing ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="mr-2 h-4 w-4" />
-                      )}
-                      Refetch
-                    </Button>
-                  </div>
-                </div>
-                {contentQuery.isLoading ? (
-                  <div className="text-muted-foreground flex items-center gap-2 px-4 py-6 text-sm">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Loading issues…
-                  </div>
-                ) : issues.length === 0 ? (
-                  <div className="text-muted-foreground flex items-center gap-2 px-4 py-6 text-sm">
-                    <GitPullRequest className="h-4 w-4" /> No open issues found.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {issues.map((issue) => {
-                      const actionFixKey = buildActionKey("issue", issue.number, "fix")
-                      const actionResearchKey = buildActionKey("issue", issue.number, "research")
-                      const fixLoading = actionStates[actionFixKey]
-                      const researchLoading = actionStates[actionResearchKey]
-                      const issueContent = issueContentMap[issue.number]
-                      const issueError = contentErrorMap.get(`issue:${issue.number}`)
-                      const issueDescription = issueContent?.item.body ?? issue.body ?? ""
-                      const issueComments: CommentDisplay[] = issueContent
-                        ? issueContent.comments.map((comment) => ({ ...comment }))
-                        : []
-                      const issueLoading = isContentFetching && !issueContent
-                      const isIssueExpanded = expandedIssues[issue.number] ?? false
-                      const issuePreview = createPreview(issueDescription)
-                      const issueCreatedRelative = formatRelativeDate(issue.created_at)
-                      const commentCount = issueComments.length
+                  {contentQuery.isLoading ? (
+                    <div className="text-muted-foreground flex items-center gap-2 px-4 py-6 text-sm">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading issues…
+                    </div>
+                  ) : issues.length === 0 ? (
+                    <div className="text-muted-foreground flex items-center gap-2 px-4 py-6 text-sm">
+                      <GitPullRequest className="h-4 w-4" /> No open issues found.
+                    </div>
+                  ) : (
+                    <div className="divide-border divide-y">
+                      {issues.map((issue) => {
+                        const actionFixKey = buildActionKey("issue", issue.number, "fix")
+                        const actionResearchKey = buildActionKey("issue", issue.number, "research")
+                        const fixLoading = actionStates[actionFixKey]
+                        const researchLoading = actionStates[actionResearchKey]
+                        const issueContent = issueContentMap[issue.number]
+                        const issueError = contentErrorMap.get(`issue:${issue.number}`)
+                        const issueDescription = issueContent?.item.body ?? issue.body ?? ""
+                        const issueComments: CommentDisplay[] = issueContent
+                          ? issueContent.comments.map((comment) => ({ ...comment }))
+                          : []
+                        const issueLoading = isContentFetching && !issueContent
+                        const isIssueExpanded = expandedIssues[issue.number] ?? false
+                        const issuePreview = createPreview(issueDescription)
+                        const issueCreatedRelative = formatRelativeDate(issue.created_at)
+                        const commentCount = issueComments.length
 
-                      return (
-                        <div key={issue.id} className="bg-background">
-                          <div className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
-                            <button
-                              type="button"
-                              onClick={() => toggleIssueExpansion(issue.number)}
-                              className="text-left"
-                            >
-                              <div className="flex flex-wrap items-center gap-2">
-                                <CircleDot className="h-4 w-4 text-green-600" />
-                                <span className="text-sm font-semibold text-foreground">
-                                  #{issue.number} · {issue.title}
-                                </span>
-                              </div>
-                              {!isIssueExpanded && (
-                                <p className="text-muted-foreground mt-2 text-sm">
-                                  {issuePreview || "No description provided."}
-                                </p>
-                              )}
-                              <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                                <span>
-                                  {issue.user?.login}
-                                  {issueCreatedRelative ? ` opened ${issueCreatedRelative}` : ""}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <MessageSquare className="h-3.5 w-3.5" /> {commentCount}
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {issue.labels.slice(0, 3).map((label) => (
-                                    <Badge key={label.id} variant="outline" style={getLabelStyle(label)}>
-                                      {label.name}
-                                    </Badge>
-                                  ))}
-                                  {issue.labels.length > 3 ? (
-                                    <Badge variant="outline" className="text-muted-foreground">
-                                      +{issue.labels.length - 3}
-                                    </Badge>
-                                  ) : null}
+                        return (
+                          <div key={issue.id} className="bg-background">
+                            <div className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start">
+                              <button
+                                type="button"
+                                onClick={() => toggleIssueExpansion(issue.number)}
+                                className="text-left"
+                              >
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <CircleDot className="h-4 w-4 text-green-600" />
+                                  <span className="text-foreground text-sm font-semibold">
+                                    #{issue.number} · {issue.title}
+                                  </span>
                                 </div>
-                              </div>
-                            </button>
-                            <div className="flex flex-wrap items-start justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => void handleIssueAction(issue, "research")}
-                                disabled={researchLoading || anyActionInFlight}
-                              >
-                                {researchLoading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-                                Research
-                              </Button>
-                              <Button
-                                size="sm"
-                                onClick={() => void handleIssueAction(issue, "fix")}
-                                disabled={fixLoading || anyActionInFlight}
-                              >
-                                {fixLoading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-                                Fix with AI
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => toggleIssueExpansion(issue.number)}>
-                                {isIssueExpanded ? (
-                                  <>
-                                    Show less <ChevronDown className="ml-1 h-3 w-3 rotate-180 transition-transform" />
-                                  </>
-                                ) : (
-                                  <>
-                                    Show more <ChevronDown className="ml-1 h-3 w-3 transition-transform" />
-                                  </>
+                                {!isIssueExpanded && (
+                                  <p className="text-muted-foreground mt-2 text-sm">
+                                    {issuePreview || "No description provided."}
+                                  </p>
                                 )}
-                              </Button>
-                            </div>
-                          </div>
-                          {isIssueExpanded ? (
-                            <div className="bg-muted/50 px-4 pb-4">
-                              <div className="space-y-3 border-t border-border pt-4">
-                                <div className="space-y-2">
-                                  <div className="text-xs font-semibold uppercase text-muted-foreground">Description</div>
-                                  {issueLoading ? (
-                                    <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                                      <Loader2 className="h-4 w-4 animate-spin" /> Loading description…
-                                    </div>
-                                  ) : issueDescription.trim() ? (
-                                    <MarkdownRenderer content={issueDescription} />
-                                  ) : (
-                                    <p className="text-muted-foreground text-sm italic">No description provided.</p>
-                                  )}
-                                </div>
-                                <div className="space-y-2">
-                                  <div className="text-xs font-semibold uppercase text-muted-foreground">Comments</div>
-                                  {issueError ? (
-                                    <div className="text-destructive flex items-center gap-2 text-sm">
-                                      <AlertCircle className="h-4 w-4" /> {issueError.message}
-                                    </div>
-                                  ) : issueLoading && !issueComments.length ? (
-                                    <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                                      <Loader2 className="h-4 w-4 animate-spin" /> Loading comments…
-                                    </div>
-                                  ) : issueComments.length > 0 ? (
-                                    <GitHubCommentList comments={issueComments} />
-                                  ) : (
-                                    <p className="text-muted-foreground text-sm italic">No comments yet.</p>
-                                  )}
-                                </div>
-                                {issueContent?.warning ? (
-                                  <div className="border-amber-400/40 bg-amber-500/10 text-amber-700 flex items-center gap-2 rounded-md border px-3 py-2 text-sm dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-                                    <AlertCircle className="h-4 w-4" /> {issueContent.warning}
+                                <div className="text-muted-foreground mt-3 flex flex-wrap items-center gap-4 text-xs">
+                                  <span>
+                                    {issue.user?.login}
+                                    {issueCreatedRelative ? ` opened ${issueCreatedRelative}` : ""}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <MessageSquare className="h-3.5 w-3.5" /> {commentCount}
+                                  </span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {issue.labels.slice(0, 3).map((label) => (
+                                      <Badge
+                                        key={label.id}
+                                        variant="outline"
+                                        style={getLabelStyle(label)}
+                                      >
+                                        {label.name}
+                                      </Badge>
+                                    ))}
+                                    {issue.labels.length > 3 ? (
+                                      <Badge variant="outline" className="text-muted-foreground">
+                                        +{issue.labels.length - 3}
+                                      </Badge>
+                                    ) : null}
                                   </div>
-                                ) : null}
-                                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                                  <a
-                                    href={issue.html_url ?? undefined}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="hover:text-foreground inline-flex items-center gap-1"
-                                  >
-                                    View on GitHub <ExternalLink className="h-3 w-3" />
-                                  </a>
                                 </div>
+                              </button>
+                              <div className="flex flex-wrap items-start justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => void handleIssueAction(issue, "research")}
+                                  disabled={researchLoading || anyActionInFlight}
+                                >
+                                  {researchLoading ? (
+                                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                  ) : null}
+                                  Research
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => void handleIssueAction(issue, "fix")}
+                                  disabled={fixLoading || anyActionInFlight}
+                                >
+                                  {fixLoading ? (
+                                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                  ) : null}
+                                  Fix with AI
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleIssueExpansion(issue.number)}
+                                >
+                                  {isIssueExpanded ? (
+                                    <>
+                                      Show less{" "}
+                                      <ChevronDown className="ml-1 h-3 w-3 rotate-180 transition-transform" />
+                                    </>
+                                  ) : (
+                                    <>
+                                      Show more{" "}
+                                      <ChevronDown className="ml-1 h-3 w-3 transition-transform" />
+                                    </>
+                                  )}
+                                </Button>
                               </div>
                             </div>
-                          ) : null}
-                        </div>
-                      )
-                    })}
+                            {isIssueExpanded ? (
+                              <div className="bg-muted/50 px-4 pb-4">
+                                <div className="border-border space-y-3 border-t pt-4">
+                                  <div className="space-y-2">
+                                    <div className="text-muted-foreground text-xs font-semibold uppercase">
+                                      Description
+                                    </div>
+                                    {issueLoading ? (
+                                      <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                                        <Loader2 className="h-4 w-4 animate-spin" /> Loading
+                                        description…
+                                      </div>
+                                    ) : issueDescription.trim() ? (
+                                      <MarkdownRenderer content={issueDescription} />
+                                    ) : (
+                                      <p className="text-muted-foreground text-sm italic">
+                                        No description provided.
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="space-y-2">
+                                    <div className="text-muted-foreground text-xs font-semibold uppercase">
+                                      Comments
+                                    </div>
+                                    {issueError ? (
+                                      <div className="text-destructive flex items-center gap-2 text-sm">
+                                        <AlertCircle className="h-4 w-4" /> {issueError.message}
+                                      </div>
+                                    ) : issueLoading && !issueComments.length ? (
+                                      <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                                        <Loader2 className="h-4 w-4 animate-spin" /> Loading
+                                        comments…
+                                      </div>
+                                    ) : issueComments.length > 0 ? (
+                                      <GitHubCommentList comments={issueComments} />
+                                    ) : (
+                                      <p className="text-muted-foreground text-sm italic">
+                                        No comments yet.
+                                      </p>
+                                    )}
+                                  </div>
+                                  {issueContent?.warning ? (
+                                    <div className="flex items-center gap-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                                      <AlertCircle className="h-4 w-4" /> {issueContent.warning}
+                                    </div>
+                                  ) : null}
+                                  <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
+                                    <a
+                                      href={issue.html_url ?? undefined}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="hover:text-foreground inline-flex items-center gap-1"
+                                    >
+                                      View on GitHub <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+                {showLoadMoreIssues ? (
+                  <div className="flex justify-center">
+                    <Button
+                      variant="outline"
+                      onClick={handleLoadMoreIssues}
+                      disabled={contentQuery.isRefetching}
+                    >
+                      {contentQuery.isRefetching ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
+                        </>
+                      ) : (
+                        "Load more issues"
+                      )}
+                    </Button>
+                  </div>
+                ) : null}
+              </section>
+            ) : (
+              <section className="space-y-4">
+                {contentQuery.isLoading && (
+                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading pull requests…
                   </div>
                 )}
-              </div>
-              {showLoadMoreIssues ? (
-                <div className="flex justify-center">
-                  <Button variant="outline" onClick={handleLoadMoreIssues} disabled={contentQuery.isRefetching}>
-                    {contentQuery.isRefetching ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading…
-                      </>
-                    ) : (
-                      "Load more issues"
-                    )}
-                  </Button>
-                </div>
-              ) : null}
-            </section>
-          ) : (
-            <section className="space-y-4">
-              {contentQuery.isLoading && (
-                <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Loading pull requests…
-                </div>
-              )}
-              {!contentQuery.isLoading && !contentQuery.isError && pullRequests.length === 0 && (
-                <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                  <GitPullRequest className="h-4 w-4" /> No open pull requests found.
-                </div>
-              )}
-              {pullRequests.map((pullRequest) => {
-                const status = statusMap[pullRequest.number]
-                const fixKey = buildActionKey("pr", pullRequest.number, "fix")
-                const fixLoading = actionStates[fixKey]
-                const labels = (pullRequest as GitHubPullRequest & { labels?: GitHubLabel[] }).labels || []
-                const showFixButton = status?.overallState === "failure" || status?.overallState === "error"
-                const pullContent = pullContentMap[pullRequest.number]
-                const pullError = contentErrorMap.get(`pull:${pullRequest.number}`)
-                const pullDescription = pullContent?.item.body ?? pullRequest.body ?? ""
-                const pullComments: CommentDisplay[] = pullContent
-                  ? pullContent.comments.map((comment) => ({ ...comment }))
-                  : []
-                const reviewComments: CommentDisplay[] = pullContent?.reviewComments
-                  ? pullContent.reviewComments.map((comment: GitHubReviewComment) => ({
-                      id: comment.id,
-                      body: comment.body,
-                      html_url: comment.html_url,
-                      created_at: comment.created_at,
-                      updated_at: comment.updated_at,
-                      user: comment.user,
-                      subtitle: comment.path
-                        ? `${comment.path}${comment.original_line ? ` · Line ${comment.original_line}` : ""}`
-                        : undefined,
-                      diff: comment.diff_hunk,
-                    }))
-                  : []
-                const pullLoading = isContentFetching && !pullContent
+                {!contentQuery.isLoading && !contentQuery.isError && pullRequests.length === 0 && (
+                  <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                    <GitPullRequest className="h-4 w-4" /> No open pull requests found.
+                  </div>
+                )}
+                {pullRequests.map((pullRequest) => {
+                  const status = statusMap[pullRequest.number]
+                  const fixKey = buildActionKey("pr", pullRequest.number, "fix")
+                  const fixLoading = actionStates[fixKey]
+                  const labels =
+                    (pullRequest as GitHubPullRequest & { labels?: GitHubLabel[] }).labels || []
+                  const showFixButton =
+                    status?.overallState === "failure" || status?.overallState === "error"
+                  const pullContent = pullContentMap[pullRequest.number]
+                  const pullError = contentErrorMap.get(`pull:${pullRequest.number}`)
+                  const pullDescription = pullContent?.item.body ?? pullRequest.body ?? ""
+                  const pullComments: CommentDisplay[] = pullContent
+                    ? pullContent.comments.map((comment) => ({ ...comment }))
+                    : []
+                  const reviewComments: CommentDisplay[] = pullContent?.reviewComments
+                    ? pullContent.reviewComments.map((comment: GitHubReviewComment) => ({
+                        id: comment.id,
+                        body: comment.body,
+                        html_url: comment.html_url,
+                        created_at: comment.created_at,
+                        updated_at: comment.updated_at,
+                        user: comment.user,
+                        subtitle: comment.path
+                          ? `${comment.path}${comment.original_line ? ` · Line ${comment.original_line}` : ""}`
+                          : undefined,
+                        diff: comment.diff_hunk,
+                      }))
+                    : []
+                  const pullLoading = isContentFetching && !pullContent
 
-                return (
-                  <Card key={pullRequest.id}>
-                    <CardHeader className="flex flex-col gap-2">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <CardTitle className="text-base font-semibold">
-                          #{pullRequest.number} · {pullRequest.title}
-                        </CardTitle>
-                        {renderStatusIndicator(status)}
-                      </div>
-                      <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={pullRequest.user?.avatar_url ?? undefined} alt={pullRequest.user?.login} />
-                            <AvatarFallback>{pullRequest.user?.login?.slice(0, 2).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium text-foreground">{pullRequest.user?.login}</div>
-                            <div className="text-xs">
-                              {pullRequest.base.ref} ← {pullRequest.head.ref}
+                  return (
+                    <Card key={pullRequest.id}>
+                      <CardHeader className="flex flex-col gap-2">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <CardTitle className="text-base font-semibold">
+                            #{pullRequest.number} · {pullRequest.title}
+                          </CardTitle>
+                          {renderStatusIndicator(status)}
+                        </div>
+                        <div className="text-muted-foreground flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage
+                                src={pullRequest.user?.avatar_url ?? undefined}
+                                alt={pullRequest.user?.login}
+                              />
+                              <AvatarFallback>
+                                {pullRequest.user?.login?.slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="text-foreground font-medium">
+                                {pullRequest.user?.login}
+                              </div>
+                              <div className="text-xs">
+                                {pullRequest.base.ref} ← {pullRequest.head.ref}
+                              </div>
                             </div>
                           </div>
+                          <div className="flex flex-wrap gap-2">
+                            {labels.map((label) => (
+                              <Badge key={label.id} variant="outline" style={getLabelStyle(label)}>
+                                {label.name}
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {labels.map((label) => (
-                            <Badge key={label.id} variant="outline" style={getLabelStyle(label)}>
-                              {label.name}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold uppercase text-muted-foreground">Description</div>
-                        {pullDescription.trim() ? (
-                          <MarkdownRenderer content={pullDescription} />
-                        ) : pullLoading ? (
-                          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                            <Loader2 className="h-4 w-4 animate-spin" /> Loading description…
-                          </div>
-                        ) : (
-                          <p className="text-muted-foreground text-sm italic">No description provided.</p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-xs font-semibold uppercase text-muted-foreground">Comments</div>
-                        {pullError ? (
-                          <div className="text-destructive flex items-center gap-2 text-sm">
-                            <AlertCircle className="h-4 w-4" /> {pullError.message}
-                          </div>
-                        ) : pullLoading && !pullComments.length ? (
-                          <div className="text-muted-foreground flex items-center gap-2 text-sm">
-                            <Loader2 className="h-4 w-4 animate-spin" /> Loading comments…
-                          </div>
-                        ) : pullComments.length > 0 ? (
-                          <GitHubCommentList comments={pullComments} />
-                        ) : (
-                          <p className="text-muted-foreground text-sm italic">No comments yet.</p>
-                        )}
-                      </div>
-                      {reviewComments.length > 0 ? (
+                      </CardHeader>
+                      <CardContent className="space-y-4">
                         <div className="space-y-2">
-                          <div className="text-xs font-semibold uppercase text-muted-foreground">Review Comments</div>
-                          <GitHubCommentList comments={reviewComments} />
-                        </div>
-                      ) : null}
-                      {pullContent?.warning ? (
-                        <div className="border-amber-400/40 bg-amber-500/10 text-amber-700 flex items-center gap-2 rounded-md border px-3 py-2 text-sm dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-                          <AlertCircle className="h-4 w-4" /> {pullContent.warning}
-                        </div>
-                      ) : null}
-                      <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-2">
-                          <a
-                            href={pullRequest.html_url ?? undefined}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="hover:text-foreground inline-flex items-center gap-1"
-                          >
-                            View on GitHub <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {showFixButton ? (
-                            <Button
-                              size="sm"
-                              onClick={() => void handlePullRequestFix(pullRequest)}
-                              disabled={fixLoading || anyActionInFlight}
-                            >
-                              {fixLoading ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : null}
-                              Fix with AI
-                            </Button>
+                          <div className="text-muted-foreground text-xs font-semibold uppercase">
+                            Description
+                          </div>
+                          {pullDescription.trim() ? (
+                            <MarkdownRenderer content={pullDescription} />
+                          ) : pullLoading ? (
+                            <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                              <Loader2 className="h-4 w-4 animate-spin" /> Loading description…
+                            </div>
                           ) : (
-                            <Button size="sm" variant="outline" disabled>
-                              Waiting on checks
-                            </Button>
+                            <p className="text-muted-foreground text-sm italic">
+                              No description provided.
+                            </p>
                           )}
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </section>
-          )}
-        </div>
-      )}
+                        <div className="space-y-2">
+                          <div className="text-muted-foreground text-xs font-semibold uppercase">
+                            Comments
+                          </div>
+                          {pullError ? (
+                            <div className="text-destructive flex items-center gap-2 text-sm">
+                              <AlertCircle className="h-4 w-4" /> {pullError.message}
+                            </div>
+                          ) : pullLoading && !pullComments.length ? (
+                            <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                              <Loader2 className="h-4 w-4 animate-spin" /> Loading comments…
+                            </div>
+                          ) : pullComments.length > 0 ? (
+                            <GitHubCommentList comments={pullComments} />
+                          ) : (
+                            <p className="text-muted-foreground text-sm italic">No comments yet.</p>
+                          )}
+                        </div>
+                        {reviewComments.length > 0 ? (
+                          <div className="space-y-2">
+                            <div className="text-muted-foreground text-xs font-semibold uppercase">
+                              Review Comments
+                            </div>
+                            <GitHubCommentList comments={reviewComments} />
+                          </div>
+                        ) : null}
+                        {pullContent?.warning ? (
+                          <div className="flex items-center gap-2 rounded-md border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+                            <AlertCircle className="h-4 w-4" /> {pullContent.warning}
+                          </div>
+                        ) : null}
+                        <div className="text-muted-foreground flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={pullRequest.html_url ?? undefined}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:text-foreground inline-flex items-center gap-1"
+                            >
+                              View on GitHub <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {showFixButton ? (
+                              <Button
+                                size="sm"
+                                onClick={() => void handlePullRequestFix(pullRequest)}
+                                disabled={fixLoading || anyActionInFlight}
+                              >
+                                {fixLoading ? (
+                                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                                ) : null}
+                                Fix with AI
+                              </Button>
+                            ) : (
+                              <Button size="sm" variant="outline" disabled>
+                                Waiting on checks
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </section>
+            )}
+          </div>
+        )}
 
         {!projectId && (
           <Card>

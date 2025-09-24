@@ -31,9 +31,7 @@ const getEnvironment = (): string => {
   }
 
   const globalEnv =
-    typeof globalThis !== "undefined"
-      ? (globalThis as GlobalEnvironment).__APP_ENV__
-      : undefined
+    typeof globalThis !== "undefined" ? (globalThis as GlobalEnvironment).__APP_ENV__ : undefined
 
   if (typeof globalEnv === "string" && globalEnv.length > 0) {
     return globalEnv
@@ -46,7 +44,9 @@ const environment = getEnvironment()
 const isProduction = environment === "production"
 const minimumLevel: LogLevel = isProduction ? "warn" : "debug"
 
-const sanitizeSensitive = (values?: Record<string, unknown>): Record<string, unknown> | undefined => {
+const sanitizeSensitive = (
+  values?: Record<string, unknown>
+): Record<string, unknown> | undefined => {
   if (!values || Object.keys(values).length === 0) {
     return undefined
   }
@@ -55,9 +55,7 @@ const sanitizeSensitive = (values?: Record<string, unknown>): Record<string, unk
     return values
   }
 
-  return Object.fromEntries(
-    Object.keys(values).map((key) => [key, "[REDACTED]"])
-  )
+  return Object.fromEntries(Object.keys(values).map((key) => [key, "[REDACTED]"]))
 }
 
 const formatDetails = (details?: LogDetails): unknown[] => {

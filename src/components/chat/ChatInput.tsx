@@ -1,17 +1,23 @@
 import React, { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { 
-  PromptInput, 
-  PromptInputTextarea, 
-  PromptInputToolbar, 
+import {
+  PromptInput,
+  PromptInputTextarea,
+  PromptInputToolbar,
   PromptInputSubmit,
   PromptInputTools,
   PromptInputButton,
 } from "@/components/ui/shadcn-io/ai/prompt-input"
 import { Paperclip, X } from "lucide-react"
 import { toast } from "sonner"
-import { fileToAttachment, validateFile, formatFileSize, getFileIcon, type FileAttachment } from "@/util/file"
+import {
+  fileToAttachment,
+  validateFile,
+  formatFileSize,
+  getFileIcon,
+  type FileAttachment,
+} from "@/util/file"
 
 interface ChatInputProps {
   inputValue: string
@@ -68,14 +74,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       const validation = validateFile(file, {
         maxSize: 10 * 1024 * 1024, // 10MB
         allowedTypes: [
-          'image/*',
-          'text/*',
-          'application/pdf',
-          'application/json',
-          'application/javascript',
-          'application/typescript',
-          'application/octet-stream', // Fallback for unknown browser MIME detection
-        ]
+          "image/*",
+          "text/*",
+          "application/pdf",
+          "application/json",
+          "application/javascript",
+          "application/typescript",
+          "application/octet-stream", // Fallback for unknown browser MIME detection
+        ],
       })
 
       if (!validation.valid) {
@@ -88,12 +94,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
         newAttachments.push(attachment)
       } catch (error) {
         toast.error(`Failed to process file "${file.name}"`)
-        console.error('File processing error:', error)
+        console.error("File processing error:", error)
       }
     }
 
     if (newAttachments.length > 0) {
-      setAttachments(prev => [...prev, ...newAttachments])
+      setAttachments((prev) => [...prev, ...newAttachments])
       toast.success(`Added ${newAttachments.length} file(s)`)
     }
 
@@ -104,7 +110,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   }
 
   const removeAttachment = (index: number) => {
-    setAttachments(prev => prev.filter((_, i) => i !== index))
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
   return (
@@ -113,20 +119,16 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {attachments.length > 0 && (
         <div className="mb-3 flex flex-wrap gap-2">
           {attachments.map((attachment, index) => (
-            <Badge
-              key={index}
-              variant="secondary"
-              className="flex items-center gap-2 px-3 py-1"
-            >
+            <Badge key={index} variant="secondary" className="flex items-center gap-2 px-3 py-1">
               <span className="text-sm">{getFileIcon(attachment.mime)}</span>
               <span className="text-sm font-medium">{attachment.filename}</span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {formatFileSize(attachment.size)}
               </span>
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-4 w-4 p-0 hover:bg-destructive hover:text-destructive-foreground"
+                className="hover:bg-destructive hover:text-destructive-foreground h-4 w-4 p-0"
                 onClick={() => removeAttachment(index)}
                 aria-label={`Remove attachment ${attachment.filename}`}
               >
@@ -172,7 +174,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </PromptInputTools>
           <PromptInputSubmit
             disabled={disabled || isLoading || (!inputValue.trim() && attachments.length === 0)}
-            status={isStreaming ? 'streaming' : isLoading ? 'submitted' : 'ready'}
+            status={isStreaming ? "streaming" : isLoading ? "submitted" : "ready"}
             data-testid="button-send-message"
           />
         </PromptInputToolbar>

@@ -40,7 +40,13 @@ interface AgentTestDialogProps {
   worktreePath?: string
 }
 
-export function AgentTestDialog({ open, onOpenChange, agentId, projectId, worktreePath }: AgentTestDialogProps) {
+export function AgentTestDialog({
+  open,
+  onOpenChange,
+  agentId,
+  projectId,
+  worktreePath,
+}: AgentTestDialogProps) {
   const [testMessages, setTestMessages] = useState<TestMessage[]>([])
   const [testInput, setTestInput] = useState("")
   const [testLoading, setTestLoading] = useState(false)
@@ -90,16 +96,16 @@ export function AgentTestDialog({ open, onOpenChange, agentId, projectId, worktr
 
       if (!response.ok) {
         // Enhanced error logging for HTTP failures
-        const responseText = await response.text().catch(() => 'Unable to read response body')
+        const responseText = await response.text().catch(() => "Unable to read response body")
         const responseHeaders = Object.fromEntries(response.headers.entries())
-        console.error('Agent test failed:', {
-          method: 'POST',
+        console.error("Agent test failed:", {
+          method: "POST",
           url,
           status: response.status,
           statusText: response.statusText,
           headers: responseHeaders,
           body: responseText,
-          requestBody: JSON.stringify({ prompt: testInput })
+          requestBody: JSON.stringify({ prompt: testInput }),
         })
         throw new Error(`Test failed: ${response.statusText}`)
       }
@@ -315,23 +321,23 @@ export function AgentTestDialog({ open, onOpenChange, agentId, projectId, worktr
                                 {call.tool}
                                 {hasError && (
                                   <span className="ml-2 text-xs text-red-400">(Error)</span>
-                              )}
-                              {hasOutput && (
-                                <span className="ml-2 text-xs text-green-400">(Completed)</span>
-                              )}
+                                )}
+                                {hasOutput && (
+                                  <span className="ml-2 text-xs text-green-400">(Completed)</span>
+                                )}
+                              </div>
+                              <div className="ml-4 text-xs text-gray-500">
+                                <div className="mb-1">Input: {formatDebugValue(call.input)}</div>
+                                {hasOutput && (
+                                  <div className="mb-1 text-green-300">
+                                    Output: {formatDebugValue(call.output)}
+                                  </div>
+                                )}
+                                {hasError && (
+                                  <div className="text-red-400">Error: {call.error}</div>
+                                )}
+                              </div>
                             </div>
-                            <div className="ml-4 text-xs text-gray-500">
-                              <div className="mb-1">Input: {formatDebugValue(call.input)}</div>
-                              {hasOutput && (
-                                <div className="mb-1 text-green-300">
-                                  Output: {formatDebugValue(call.output)}
-                                </div>
-                              )}
-                              {hasError && (
-                                <div className="text-red-400">Error: {call.error}</div>
-                              )}
-                            </div>
-                          </div>
                           )
                         })}
                       </div>

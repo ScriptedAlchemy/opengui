@@ -18,7 +18,7 @@ export const fileToDataUri = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result as string)
-    reader.onerror = () => reject(new Error('Failed to read file'))
+    reader.onerror = () => reject(new Error("Failed to read file"))
     reader.readAsDataURL(file)
   })
 }
@@ -28,7 +28,7 @@ export const fileToDataUri = async (file: File): Promise<string> => {
  */
 export const fileToAttachment = async (file: File): Promise<FileAttachment> => {
   const dataUri = await fileToDataUri(file)
-  
+
   return {
     type: "file",
     mime: file.type || "application/octet-stream",
@@ -41,16 +41,19 @@ export const fileToAttachment = async (file: File): Promise<FileAttachment> => {
 /**
  * Validate file size and type
  */
-export const validateFile = (file: File, options?: {
-  maxSize?: number // in bytes
-  allowedTypes?: string[]
-}): { valid: boolean; error?: string } => {
+export const validateFile = (
+  file: File,
+  options?: {
+    maxSize?: number // in bytes
+    allowedTypes?: string[]
+  }
+): { valid: boolean; error?: string } => {
   const { maxSize = 10 * 1024 * 1024, allowedTypes } = options || {} // Default 10MB
 
   if (file.size > maxSize) {
     return {
       valid: false,
-      error: `File size (${formatFileSize(file.size)}) exceeds maximum allowed size (${formatFileSize(maxSize)})`
+      error: `File size (${formatFileSize(file.size)}) exceeds maximum allowed size (${formatFileSize(maxSize)})`,
     }
   }
 
@@ -85,43 +88,50 @@ export const validateFile = (file: File, options?: {
  * Format file size in human readable format
  */
 export const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes'
-  
+  if (bytes === 0) return "0 Bytes"
+
   const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB']
+  const sizes = ["Bytes", "KB", "MB", "GB"]
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
 }
 
 /**
  * Get file icon based on mime type
  */
 export const getFileIcon = (mimeType: string): string => {
-  if (mimeType.startsWith('image/')) return '🖼️'
-  if (mimeType.startsWith('video/')) return '🎥'
-  if (mimeType.startsWith('audio/')) return '🎵'
-  if (mimeType.includes('pdf')) return '📄'
-  if (mimeType.includes('text/')) return '📝'
-  if (mimeType.includes('json') || mimeType.includes('javascript') || mimeType.includes('typescript')) return '📋'
-  if (mimeType.includes('zip') || mimeType.includes('archive')) return '📦'
-  return '📎'
+  if (mimeType.startsWith("image/")) return "🖼️"
+  if (mimeType.startsWith("video/")) return "🎥"
+  if (mimeType.startsWith("audio/")) return "🎵"
+  if (mimeType.includes("pdf")) return "📄"
+  if (mimeType.includes("text/")) return "📝"
+  if (
+    mimeType.includes("json") ||
+    mimeType.includes("javascript") ||
+    mimeType.includes("typescript")
+  )
+    return "📋"
+  if (mimeType.includes("zip") || mimeType.includes("archive")) return "📦"
+  return "📎"
 }
 
 /**
  * Check if file is an image
  */
 export const isImageFile = (mimeType: string): boolean => {
-  return mimeType.startsWith('image/')
+  return mimeType.startsWith("image/")
 }
 
 /**
  * Check if file is text-based
  */
 export const isTextFile = (mimeType: string): boolean => {
-  return mimeType.startsWith('text/') || 
-         mimeType.includes('json') || 
-         mimeType.includes('javascript') || 
-         mimeType.includes('typescript') ||
-         mimeType.includes('xml')
+  return (
+    mimeType.startsWith("text/") ||
+    mimeType.includes("json") ||
+    mimeType.includes("javascript") ||
+    mimeType.includes("typescript") ||
+    mimeType.includes("xml")
+  )
 }

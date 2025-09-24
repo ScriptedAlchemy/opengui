@@ -36,30 +36,33 @@ export function OpencodeSDKProvider({ children }: OpencodeSDKProviderProps) {
   const [error, setError] = useState<Error | null>(null)
   const clientCacheRef = useRef<Map<string, OpencodeClient>>(new Map())
 
-  const getClient = useCallback(async (projectId: string, projectPath: string): Promise<OpencodeClient> => {
-    // Check cache first
-    const cached = clientCacheRef.current.get(projectId)
-    if (cached) {
-      setCurrentClient(cached)
-      return cached
-    }
+  const getClient = useCallback(
+    async (projectId: string, projectPath: string): Promise<OpencodeClient> => {
+      // Check cache first
+      const cached = clientCacheRef.current.get(projectId)
+      if (cached) {
+        setCurrentClient(cached)
+        return cached
+      }
 
-    setIsLoading(true)
-    setError(null)
+      setIsLoading(true)
+      setError(null)
 
-    try {
-      const client = await opencodeSDKService.getClient(projectId, projectPath)
-      clientCacheRef.current.set(projectId, client)
-      setCurrentClient(client)
-      return client
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error("Failed to create SDK client")
-      setError(error)
-      throw error
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+      try {
+        const client = await opencodeSDKService.getClient(projectId, projectPath)
+        clientCacheRef.current.set(projectId, client)
+        setCurrentClient(client)
+        return client
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error("Failed to create SDK client")
+        setError(error)
+        throw error
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    []
+  )
 
   // Cleanup on unmount
   useEffect(() => {
@@ -107,19 +110,19 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
 
     // Prevent infinite retries if already attempted and failed
     if (attemptedRef.current && error) {
-      console.warn('Skipping SDK client creation due to previous error:', error)
+      console.warn("Skipping SDK client creation due to previous error:", error)
       return
     }
 
     setLoading(true)
     attemptedRef.current = true
     inFlightRef.current = true
-    
+
     // Create SDK client as soon as we have a projectId; projectPath is not required for client construction
     getClient(projectId, projectPath || "")
       .then(setClient)
       .catch((err) => {
-        console.error('Failed to get SDK client:', err)
+        console.error("Failed to get SDK client:", err)
         setClient(null)
       })
       .finally(() => {

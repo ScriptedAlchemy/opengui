@@ -94,7 +94,13 @@ interface SwitchProps {
   ariaLabel?: string
 }
 
-const Switch: React.FC<SwitchProps> = ({ checked, onCheckedChange, disabled, className, ariaLabel }) => (
+const Switch: React.FC<SwitchProps> = ({
+  checked,
+  onCheckedChange,
+  disabled,
+  className,
+  ariaLabel,
+}) => (
   <button
     type="button"
     role="switch"
@@ -211,7 +217,11 @@ export default function ProjectSettings() {
   const activeWorktree = useMemo(() => {
     if (activeWorktreeId === "default") {
       if (currentProject?.path) {
-        return { id: "default", path: currentProject.path, title: `${currentProject.name} (default)` }
+        return {
+          id: "default",
+          path: currentProject.path,
+          title: `${currentProject.name} (default)`,
+        }
       }
       return worktrees.find((worktree) => worktree.id === "default")
     }
@@ -458,7 +468,7 @@ export default function ProjectSettings() {
 
   if (!currentProject) {
     return (
-      <div className="flex h-full items-center justify-center bg-background text-foreground">
+      <div className="bg-background text-foreground flex h-full items-center justify-center">
         <div className="text-center">
           <h1 className="mb-4 text-2xl font-bold">Project Not Found</h1>
           <p className="text-muted-foreground">The requested project could not be found.</p>
@@ -467,19 +477,22 @@ export default function ProjectSettings() {
     )
   }
 
-  const worktreeName = activeWorktreeId === "default" ? `${currentProject.name} (default)` : activeWorktree?.title ?? "Unknown"
+  const worktreeName =
+    activeWorktreeId === "default"
+      ? `${currentProject.name} (default)`
+      : (activeWorktree?.title ?? "Unknown")
 
   return (
-    <div className="h-full bg-background text-foreground">
+    <div className="bg-background text-foreground h-full">
       {/* Header */}
-      <div data-testid="settings-header" className="border-b border-border p-6">
+      <div data-testid="settings-header" className="border-border border-b p-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold">
               <Settings className="h-6 w-6" />
               Project Settings
             </h1>
-            <p className="mt-1 text-muted-foreground">Project: {currentProject.name}</p>
+            <p className="text-muted-foreground mt-1">Project: {currentProject.name}</p>
             <p className="text-muted-foreground text-sm">
               Worktree: <span className="font-medium">{worktreeName}</span>
               {projectPath && (
@@ -510,7 +523,11 @@ export default function ProjectSettings() {
               <X className="mr-2 h-4 w-4" />
               Cancel
             </Button>
-            <Button data-testid="save-settings-button" onClick={handleSave} disabled={!hasUnsavedChanges || loading}>
+            <Button
+              data-testid="save-settings-button"
+              onClick={handleSave}
+              disabled={!hasUnsavedChanges || loading}
+            >
               <Save className="mr-2 h-4 w-4" />
               Save Changes
             </Button>
@@ -522,23 +539,43 @@ export default function ProjectSettings() {
       <div className="p-6" data-testid="settings-container">
         <Tabs defaultValue="general" className="w-full">
           <TabsList data-testid="settings-navigation" className="mb-6 grid w-full grid-cols-5">
-            <TabsTrigger data-testid="settings-tab-general" value="general" className="flex items-center gap-2">
+            <TabsTrigger
+              data-testid="settings-tab-general"
+              value="general"
+              className="flex items-center gap-2"
+            >
               <Folder className="h-4 w-4" />
               General
             </TabsTrigger>
-            <TabsTrigger data-testid="settings-tab-ai" value="ai" className="flex items-center gap-2">
+            <TabsTrigger
+              data-testid="settings-tab-ai"
+              value="ai"
+              className="flex items-center gap-2"
+            >
               <Brain className="h-4 w-4" />
               AI Models
             </TabsTrigger>
-            <TabsTrigger data-testid="settings-tab-environment" value="environment" className="flex items-center gap-2">
+            <TabsTrigger
+              data-testid="settings-tab-environment"
+              value="environment"
+              className="flex items-center gap-2"
+            >
               <Key className="h-4 w-4" />
               Environment
             </TabsTrigger>
-            <TabsTrigger data-testid="settings-tab-permissions" value="permissions" className="flex items-center gap-2">
+            <TabsTrigger
+              data-testid="settings-tab-permissions"
+              value="permissions"
+              className="flex items-center gap-2"
+            >
               <Shield className="h-4 w-4" />
               Permissions
             </TabsTrigger>
-            <TabsTrigger data-testid="settings-tab-advanced" value="advanced" className="flex items-center gap-2">
+            <TabsTrigger
+              data-testid="settings-tab-advanced"
+              value="advanced"
+              className="flex items-center gap-2"
+            >
               <Zap className="h-4 w-4" />
               Advanced
             </TabsTrigger>
@@ -546,8 +583,12 @@ export default function ProjectSettings() {
 
           <TabsContents>
             {/* General Settings */}
-            <TabsContent data-testid="general-settings-section" value="general" className="space-y-6">
-              <div className="space-y-6 rounded-lg bg-card p-6">
+            <TabsContent
+              data-testid="general-settings-section"
+              value="general"
+              className="space-y-6"
+            >
+              <div className="bg-card space-y-6 rounded-lg p-6">
                 <h3 className="text-lg font-semibold">Project Information</h3>
 
                 <div className="grid grid-cols-2 gap-6">
@@ -589,7 +630,7 @@ export default function ProjectSettings() {
                   <textarea
                     data-testid="project-description-input"
                     id="project-description-input"
-                    className="w-full rounded border border-border bg-muted p-2 text-sm"
+                    className="border-border bg-muted w-full rounded border p-2 text-sm"
                     placeholder="Describe your project..."
                     rows={3}
                   />
@@ -638,7 +679,7 @@ export default function ProjectSettings() {
                   </div>
                 </div>
 
-                <div className="border-t border-border pt-4">
+                <div className="border-border border-t pt-4">
                   <Button
                     variant="destructive"
                     onClick={() => setShowDeleteDialog(true)}
@@ -647,7 +688,7 @@ export default function ProjectSettings() {
                     <Trash2 className="h-4 w-4" />
                     Delete Project
                   </Button>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="text-muted-foreground mt-2 text-sm">
                     This will remove the project from OpenCode. The files will not be deleted.
                   </p>
                 </div>
@@ -656,7 +697,7 @@ export default function ProjectSettings() {
 
             {/* AI Models Settings */}
             <TabsContent data-testid="ai-settings-section" value="ai" className="space-y-6">
-              <div className="space-y-6 rounded-lg bg-card p-6">
+              <div className="bg-card space-y-6 rounded-lg p-6">
                 <h3 className="text-lg font-semibold">AI Configuration</h3>
 
                 <div className="grid grid-cols-2 gap-6">
@@ -692,7 +733,10 @@ export default function ProjectSettings() {
                       value={selectedModel}
                       onValueChange={(value) => {
                         setSelectedModel(value)
-                        setSettings((prev) => ({ ...prev, ai: { ...prev.ai, defaultModel: value } }))
+                        setSettings((prev) => ({
+                          ...prev,
+                          ai: { ...prev.ai, defaultModel: value },
+                        }))
                       }}
                     >
                       <SelectTrigger
@@ -778,8 +822,12 @@ export default function ProjectSettings() {
             </TabsContent>
 
             {/* Environment Variables */}
-            <TabsContent data-testid="environment-settings-section" value="environment" className="space-y-6">
-              <div className="space-y-6 rounded-lg bg-card p-6">
+            <TabsContent
+              data-testid="environment-settings-section"
+              value="environment"
+              className="space-y-6"
+            >
+              <div className="bg-card space-y-6 rounded-lg p-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold">Environment Variables</h3>
                   <div className="flex gap-2">
@@ -826,7 +874,7 @@ export default function ProjectSettings() {
 
                   <div className="max-h-64 space-y-2 overflow-y-auto">
                     {Object.entries(settings.environment).map(([key, value]) => (
-                      <div key={key} className="flex items-center gap-2 rounded bg-muted p-2">
+                      <div key={key} className="bg-muted flex items-center gap-2 rounded p-2">
                         <span className="flex-1 font-mono text-sm">{key}</span>
                         <span className="text-muted-foreground">=</span>
                         <span className="flex-1 truncate font-mono text-sm">{value}</span>
@@ -846,8 +894,12 @@ export default function ProjectSettings() {
             </TabsContent>
 
             {/* Permissions */}
-            <TabsContent data-testid="permissions-settings-section" value="permissions" className="space-y-6">
-              <div className="space-y-6 rounded-lg bg-card p-6" data-testid="permissions-section">
+            <TabsContent
+              data-testid="permissions-settings-section"
+              value="permissions"
+              className="space-y-6"
+            >
+              <div className="bg-card space-y-6 rounded-lg p-6" data-testid="permissions-section">
                 <h3 className="text-lg font-semibold">Access Permissions</h3>
 
                 <div className="space-y-4">
@@ -855,7 +907,9 @@ export default function ProjectSettings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="text-sm font-medium">Public Project</label>
-                      <p className="text-xs text-muted-foreground">Allow anyone with link to view</p>
+                      <p className="text-muted-foreground text-xs">
+                        Allow anyone with link to view
+                      </p>
                     </div>
                     <input
                       type="checkbox"
@@ -867,7 +921,9 @@ export default function ProjectSettings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="text-sm font-medium">File Access</label>
-                      <p className="text-xs text-muted-foreground">Allow AI to read and modify files</p>
+                      <p className="text-muted-foreground text-xs">
+                        Allow AI to read and modify files
+                      </p>
                     </div>
                     <Select
                       value={settings.permissions.fileAccess}
@@ -892,7 +948,7 @@ export default function ProjectSettings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="text-sm font-medium">Web Access</label>
-                      <p className="text-xs text-muted-foreground">Allow AI to fetch web content</p>
+                      <p className="text-muted-foreground text-xs">Allow AI to fetch web content</p>
                     </div>
                     <Select
                       value={settings.permissions.webAccess}
@@ -917,7 +973,7 @@ export default function ProjectSettings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="text-sm font-medium">Command Access</label>
-                      <p className="text-xs text-muted-foreground">Allow AI to execute commands</p>
+                      <p className="text-muted-foreground text-xs">Allow AI to execute commands</p>
                     </div>
                     <Select
                       value={settings.permissions.commandAccess}
@@ -954,7 +1010,9 @@ export default function ProjectSettings() {
                         <SelectItem value="admin">Admin</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button data-testid="add-user-button" variant="outline">Add User</Button>
+                    <Button data-testid="add-user-button" variant="outline">
+                      Add User
+                    </Button>
                   </div>
                   <div className="flex gap-2">
                     <Input
@@ -985,7 +1043,7 @@ export default function ProjectSettings() {
 
                   <div className="max-h-32 space-y-2 overflow-y-auto">
                     {settings.permissions.pathRules.map((rule, index) => (
-                      <div key={index} className="flex items-center gap-2 rounded bg-muted p-2">
+                      <div key={index} className="bg-muted flex items-center gap-2 rounded p-2">
                         <span className="flex-1 font-mono text-sm">{rule.path}</span>
                         <span
                           className={cn(
@@ -1022,7 +1080,7 @@ export default function ProjectSettings() {
                     {settings.permissions.commandWhitelist.map((command, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-1 rounded bg-muted px-2 py-1 text-sm"
+                        className="bg-muted flex items-center gap-1 rounded px-2 py-1 text-sm"
                       >
                         <span className="font-mono">{command}</span>
                         <Button
@@ -1042,14 +1100,14 @@ export default function ProjectSettings() {
 
             {/* Advanced Settings */}
             <TabsContent value="advanced" className="space-y-6">
-              <div className="space-y-6 rounded-lg bg-card p-6">
+              <div className="bg-card space-y-6 rounded-lg p-6">
                 <h3 className="text-lg font-semibold">Advanced Configuration</h3>
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="text-sm font-medium">Enable Cache</label>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         Cache responses for better performance
                       </p>
                     </div>
@@ -1068,7 +1126,9 @@ export default function ProjectSettings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="text-sm font-medium">Enable Logs</label>
-                      <p className="text-xs text-muted-foreground">Keep detailed logs for debugging</p>
+                      <p className="text-muted-foreground text-xs">
+                        Keep detailed logs for debugging
+                      </p>
                     </div>
                     <Switch
                       ariaLabel="Enable Logs"
@@ -1085,7 +1145,7 @@ export default function ProjectSettings() {
                   <div className="flex items-center justify-between">
                     <div>
                       <label className="text-sm font-medium">Experimental Features</label>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         Enable experimental features (may be unstable)
                       </p>
                     </div>

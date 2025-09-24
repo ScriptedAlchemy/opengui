@@ -30,11 +30,7 @@ import {
   useSessionsError,
   Session,
 } from "../../stores/sessions"
-import {
-  useWorktreesForProject,
-  useWorktreesLoading,
-  useWorktreesStore,
-} from "@/stores/worktrees"
+import { useWorktreesForProject, useWorktreesLoading, useWorktreesStore } from "@/stores/worktrees"
 import { resolveDate } from "@/lib/utils"
 import { Button } from "../ui/button"
 import { ScrollArea } from "../ui/scroll-area"
@@ -135,11 +131,7 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
     if (!currentProject?.path || !activeWorktreePath) return
 
     try {
-      const session = await createSession(
-        currentProject.id,
-        activeWorktreePath,
-        "New Session"
-      )
+      const session = await createSession(currentProject.id, activeWorktreePath, "New Session")
       selectSession(session)
       if (session?.id) {
         navigate(`/projects/${currentProject.id}/${activeWorktreeId}/sessions/${session.id}/chat`)
@@ -173,6 +165,17 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
 
   const handleWorktreeSelect = (id: string) => {
     if (!currentProject?.id) return
+    // Proactively refresh sessions for the target worktree for immediate UI updates
+    try {
+      const worktree =
+        id === "default" ? { path: currentProject?.path } : worktrees.find((w) => w.id === id)
+      const targetPath = worktree?.path || currentProject?.path
+      if (targetPath) {
+        void loadSessions(currentProject.id, targetPath)
+      }
+    } catch {
+      // ignore
+    }
     navigate(`/projects/${currentProject.id}/${id}`)
   }
 
@@ -227,13 +230,13 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
   const basePath = currentProject?.id
     ? `/projects/${currentProject.id}/${activeWorktreeId}`
     : projectId
-    ? `/projects/${projectId}/${activeWorktreeId}`
-    : undefined
+      ? `/projects/${projectId}/${activeWorktreeId}`
+      : undefined
 
   return (
     <div
       data-testid="project-sidebar"
-      className={`flex flex-col border-r border-border bg-background text-foreground transition-all duration-300 ease-in-out ${isCollapsed ? "w-[60px]" : "w-[250px]"} ${className} `}
+      className={`border-border bg-background text-foreground flex flex-col border-r transition-all duration-300 ease-in-out ${isCollapsed ? "w-[60px]" : "w-[250px]"} ${className} `}
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[#27272a] p-4">
@@ -258,7 +261,7 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
           size="sm"
           aria-label="Toggle sidebar"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="h-8 w-8 flex-shrink-0 p-0 hover:bg-muted/50"
+          className="hover:bg-muted/50 h-8 w-8 flex-shrink-0 p-0"
         >
           {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </Button>
@@ -267,7 +270,9 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
       {!isCollapsed && (
         <div className="border-b border-[#27272a] px-4 py-3">
           <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-xs font-medium tracking-wider text-gray-400 uppercase">Worktrees</h3>
+            <h3 className="text-xs font-medium tracking-wider text-gray-400 uppercase">
+              Worktrees
+            </h3>
             <Button
               variant="ghost"
               size="sm"
@@ -413,7 +418,7 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
                         variant="ghost"
                         size="sm"
                         aria-label="Session actions"
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 hover:bg-muted/50"
+                        className="hover:bg-muted/50 h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <MoreHorizontal className="h-3 w-3" />
@@ -421,7 +426,7 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
                       align="end"
-                      className="w-40 border-border bg-popover text-popover-foreground"
+                      className="border-border bg-popover text-popover-foreground w-40"
                     >
                       <DropdownMenuItem className="text-xs text-white hover:bg-[#27272a] hover:text-white">
                         <Edit3 className="mr-2 h-3 w-3" />
@@ -456,7 +461,9 @@ export function ProjectSidebar({ className }: ProjectSidebarProps) {
             return (
               <TooltipWrapper key={item.label} content={item.label} disabled={!isCollapsed}>
                 <NavLink
-                  data-testid={item.label === "Dashboard" ? "dashboard-nav" : `nav-${item.label.toLowerCase()}`}
+                  data-testid={
+                    item.label === "Dashboard" ? "dashboard-nav" : `nav-${item.label.toLowerCase()}`
+                  }
                   to={target}
                   className={({ isActive }) =>
                     `flex items-center space-x-3 rounded-md px-3 py-2 text-sm font-medium transition-colors duration-150 ${

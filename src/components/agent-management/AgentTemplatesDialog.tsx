@@ -95,7 +95,8 @@ export function AgentTemplatesDialog({
                     ))}
                   {Object.entries(template.tools).filter(([_, enabled]) => enabled).length > 3 && (
                     <div className="rounded bg-[#262626] px-2 py-1 text-xs text-gray-300">
-                      +{Object.entries(template.tools).filter(([_, enabled]) => enabled).length - 3} more
+                      +{Object.entries(template.tools).filter(([_, enabled]) => enabled).length - 3}{" "}
+                      more
                     </div>
                   )}
                 </div>

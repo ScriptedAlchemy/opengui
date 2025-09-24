@@ -46,9 +46,7 @@ export const formatAgentModelLabel = (agent: AgentInfo): string | null => {
       ? value.providerID
       : undefined
   const modelID =
-    typeof value.modelID === "string" && value.modelID.trim().length > 0
-      ? value.modelID
-      : undefined
+    typeof value.modelID === "string" && value.modelID.trim().length > 0 ? value.modelID : undefined
 
   if (providerID && modelID) {
     return `${providerID}/${modelID}`

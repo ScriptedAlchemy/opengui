@@ -89,7 +89,9 @@ export const useProjectsStore = create<ProjectsStore>()(
 
             // Sync currentProject with server list; clear if missing
             if (state.currentProject) {
-              const updatedCurrent = projects.find((p: Project) => p.id === state.currentProject?.id)
+              const updatedCurrent = projects.find(
+                (p: Project) => p.id === state.currentProject?.id
+              )
               state.currentProject = updatedCurrent || null
             }
             // Optionally set a default current project when none is selected
@@ -108,13 +110,13 @@ export const useProjectsStore = create<ProjectsStore>()(
       // Select and load a specific project
       selectProject: async (id: string) => {
         let { projects } = get()
-        
+
         // If projects haven't been loaded yet, load them first
         if (projects.length === 0) {
           await get().loadProjects()
           projects = get().projects
         }
-        
+
         const project = projects.find((p: Project) => p.id === id)
 
         if (!project) {
@@ -146,7 +148,7 @@ export const useProjectsStore = create<ProjectsStore>()(
               state.projects[index] = updatedProject
             }
           })
-          
+
           // Return the updated project so callers can use it
           return updatedProject
         } catch (error) {

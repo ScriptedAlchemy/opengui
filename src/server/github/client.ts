@@ -11,8 +11,4 @@ export function createServerGitHubClient(token?: string) {
 }
 
 export type { GitHubCliClient } from "./gh-cli"
-export {
-  GhCliError,
-  GhNotInstalledError,
-  GhNotAuthenticatedError,
-} from "./gh-cli"
+export { GhCliError, GhNotInstalledError, GhNotAuthenticatedError } from "./gh-cli"

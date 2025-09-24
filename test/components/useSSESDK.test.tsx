@@ -212,4 +212,174 @@ describe("useSSESDK", () => {
 
     expect(latest[0]._isTemporary).toBeFalsy()
   })
+
+  test("sets streaming true on assistant start and false on finish", async () => {
+    const now = Math.floor(Date.now() / 1000)
+    const assistantId = "assistant-1"
+  
+    const startEvent = {
+      type: "message.updated",
+      properties: {
+        info: {
+          ...createMessage({ id: assistantId, role: "assistant", time: { created: now } }),
+        },
+      },
+    } as unknown as Event
+  
+    const finishEvent = {
+      type: "message.updated",
+      properties: {
+        info: {
+          ...createMessage({ id: assistantId, role: "assistant", time: { created: now - 1, completed: now } }),
+        },
+      },
+    } as unknown as Event
+  
+    const events: Event[] = [startEvent, finishEvent]
+    const client = createMockClient(events)
+    const onMessages = rstest.fn((messages: MessageResponse[]) => messages)
+    const setIsStreaming = rstest.fn((_: boolean) => {}) as unknown as StreamingSetter
+  
+    await act(async () => {
+      render(
+        <Harness
+          client={client}
+          initialMessages={[]}
+          onMessages={onMessages}
+          onStreaming={setIsStreaming}
+        />
+      )
+    })
+  
+    await waitFor(() => {
+      expect(setIsStreaming).toHaveBeenCalledWith(true)
+    })
+  
+    await waitFor(() => {
+      expect(setIsStreaming).toHaveBeenCalledWith(false)
+    })
+  })
+  
+  // Verifies tool call parts are processed in order during streaming (step-start -> tool output -> step-finish)
+  test("processes tool call parts from step-start to step-finish", async () => {
+    const assistantMessage = createMessage({ id: "message-1", role: "assistant" })
+  
+    const toolStartPart = {
+      id: "tool-step-1-start",
+      sessionID: "session-1",
+      messageID: assistantMessage.id,
+      type: "tool",
+      name: "search",
+      status: "start",
+      arguments: { query: "hello" },
+    } as unknown as Part
+  
+    const toolOutputPart = {
+      id: "tool-step-1-output",
+      sessionID: "session-1",
+      messageID: assistantMessage.id,
+      type: "tool",
+      name: "search",
+      status: "update",
+      output: "Found 3 results",
+    } as unknown as Part
+  
+    const toolFinishPart = {
+      id: "tool-step-1-finish",
+      sessionID: "session-1",
+      messageID: assistantMessage.id,
+      type: "tool",
+      name: "search",
+      status: "finish",
+      result: { count: 3 },
+    } as unknown as Part
+  
+    const events: Event[] = [
+      { type: "message.part.updated", properties: { part: toolStartPart } } as unknown as Event,
+      { type: "message.part.updated", properties: { part: toolOutputPart } } as unknown as Event,
+      { type: "message.part.updated", properties: { part: toolFinishPart } } as unknown as Event,
+    ]
+  
+    const client = createMockClient(events)
+    const onMessages = rstest.fn((messages: MessageResponse[]) => messages)
+    const setIsStreaming = rstest.fn((_: boolean) => {}) as unknown as StreamingSetter
+  
+    await act(async () => {
+      render(
+        <Harness
+          client={client}
+          initialMessages={[assistantMessage]}
+          onMessages={onMessages}
+          onStreaming={setIsStreaming}
+        />
+      )
+    })
+  
+    let latest: MessageResponse[] = []
+    await waitFor(() => {
+      const call = onMessages.mock.calls.at(-1)
+      expect(call).toBeDefined()
+      latest = call?.[0] ?? []
+      expect(latest).toHaveLength(1)
+      expect(latest[0].parts.map((p: any) => p.id)).toEqual([
+        "tool-step-1-start",
+        "tool-step-1-output",
+        "tool-step-1-finish",
+      ])
+    })
+  })
+  
+  // Ensures temp tool parts are removed when real tool parts arrive
+  test("removes temp tool parts when real tool part arrives", async () => {
+    const assistantMessage = createMessage({ id: "message-2", role: "assistant" })
+    const tempToolPart: Part = {
+      id: "temp-part-tool-1",
+      sessionID: "session-1",
+      messageID: assistantMessage.id,
+      type: "tool" as any,
+    } as unknown as Part
+  
+    const initialWithTemp = {
+      ...assistantMessage,
+      parts: [tempToolPart],
+    }
+  
+    const realToolPart = {
+      id: "real-tool-1",
+      sessionID: "session-1",
+      messageID: assistantMessage.id,
+      type: "tool",
+      name: "search",
+      status: "start",
+    } as unknown as Part
+  
+    const events: Event[] = [
+      { type: "message.part.updated", properties: { part: realToolPart } } as unknown as Event,
+    ]
+  
+    const client = createMockClient(events)
+    const onMessages = rstest.fn((messages: MessageResponse[]) => messages)
+    const setIsStreaming = rstest.fn((_: boolean) => {}) as unknown as StreamingSetter
+  
+    await act(async () => {
+      render(
+        <Harness
+          client={client}
+          initialMessages={[initialWithTemp]}
+          onMessages={onMessages}
+          onStreaming={setIsStreaming}
+        />
+      )
+    })
+  
+    let latest: MessageResponse[] = []
+    await waitFor(() => {
+      const call = onMessages.mock.calls.at(-1)
+      expect(call).toBeDefined()
+      latest = call?.[0] ?? []
+      expect(latest).toHaveLength(1)
+      expect(latest[0].parts).toHaveLength(1)
+      expect(latest[0].parts[0].id).toBe("real-tool-1")
+    })
+  })
 })

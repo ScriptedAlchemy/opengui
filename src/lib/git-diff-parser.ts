@@ -36,7 +36,12 @@ export function parseUnifiedDiff(diffText: string, filePath: string): DiffData |
   let newLinePointer = 0
 
   for (const line of lines) {
-    if (line.startsWith("diff --git") || line.startsWith("index ") || line.startsWith("--- ") || line.startsWith("+++ ")) {
+    if (
+      line.startsWith("diff --git") ||
+      line.startsWith("index ") ||
+      line.startsWith("--- ") ||
+      line.startsWith("+++ ")
+    ) {
       continue
     }
 

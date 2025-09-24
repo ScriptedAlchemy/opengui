@@ -285,7 +285,9 @@ const EMPTY_SESSIONS: Session[] = []
 
 // Selector hooks
 export const useSessionsForProject = (projectId: string, projectPath?: string) =>
-  useSessionsStore((state) => state.sessions.get(makeSessionKey(projectId, projectPath)) || EMPTY_SESSIONS)
+  useSessionsStore(
+    (state) => state.sessions.get(makeSessionKey(projectId, projectPath)) || EMPTY_SESSIONS
+  )
 
 export const useCurrentSession = () => useSessionsStore((state) => state.currentSession)
 
@@ -300,7 +302,11 @@ export const useSessionsCreateLoading = () => useSessionsStore((state) => state.
 export const useSessionsError = () => useSessionsStore((state) => state.error)
 
 // Utility selectors - simplified to avoid infinite loops
-export const useRecentSessions = (projectId: string, limit = 10, projectPath?: string): Session[] => {
+export const useRecentSessions = (
+  projectId: string,
+  limit = 10,
+  projectPath?: string
+): Session[] => {
   const sessions = useSessionsForProject(projectId, projectPath)
 
   // Return stable empty array if no sessions

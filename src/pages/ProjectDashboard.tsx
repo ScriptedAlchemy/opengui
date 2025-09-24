@@ -40,11 +40,7 @@ import {
   useProjects,
   useProjectsStore,
 } from "../stores/projects"
-import {
-  useWorktreesStore,
-  useWorktreesForProject,
-  useWorktreesLoading,
-} from "@/stores/worktrees"
+import { useWorktreesStore, useWorktreesForProject, useWorktreesLoading } from "@/stores/worktrees"
 import { useSessionsForProject, useRecentSessions, useSessionsStore } from "../stores/sessions"
 import { useOpencodeSDK } from "../contexts/OpencodeSDKContext"
 import type { Project } from "../lib/api/project-manager"
@@ -128,7 +124,9 @@ export default function ProjectDashboard() {
       return gitStatus.recentCommits.slice(0, 3) as CommitSummary[]
     }
 
-    const filtered = gitStatus.recentCommits.filter((commit) => commit.hash !== gitStatus.lastCommit?.hash)
+    const filtered = gitStatus.recentCommits.filter(
+      (commit) => commit.hash !== gitStatus.lastCommit?.hash
+    )
     return filtered.slice(0, 3) as CommitSummary[]
   }, [gitStatus])
 
@@ -192,9 +190,22 @@ export default function ProjectDashboard() {
   const handleSelectWorktree = useCallback(
     (targetId: string) => {
       if (!projectId) return
+      // Preload sessions for the target worktree so counts/recents refresh immediately
+      try {
+        const worktree =
+          targetId === "default"
+            ? { path: currentProject?.path }
+            : worktrees.find((w) => w.id === targetId)
+        const targetPath = worktree?.path || currentProject?.path
+        if (targetPath) {
+          void loadSessions(projectId, targetPath)
+        }
+      } catch {
+        // ignore; route hooks will load lazily after navigation
+      }
       navigate(`/projects/${projectId}/${targetId}`)
     },
-    [navigate, projectId]
+    [navigate, projectId, worktrees, currentProject?.path, loadSessions]
   )
 
   const handleCreateWorktree = useCallback(async () => {
@@ -209,10 +220,12 @@ export default function ProjectDashboard() {
       setCreateWorktreeError("Worktree title is required")
       return
     }
-    
+
     // Validate worktree name: no slashes, spaces, or special symbols
     if (!/^[a-zA-Z0-9_-]+$/.test(trimmedPath)) {
-      setCreateWorktreeError("Worktree name can only contain letters, numbers, hyphens, and underscores")
+      setCreateWorktreeError(
+        "Worktree name can only contain letters, numbers, hyphens, and underscores"
+      )
       return
     }
 
@@ -253,10 +266,11 @@ export default function ProjectDashboard() {
     [projectId, removeWorktreeApi, loadWorktrees, resolvedWorktreeId, navigate]
   )
 
-  const loadProjectDetails = useCallback(async (projectIdParam: string, projectPath: string) => {
-    try {
-      // Get SDK client for this project
-      const client = await getClient(projectIdParam, projectPath)
+  const loadProjectDetails = useCallback(
+    async (projectIdParam: string, projectPath: string) => {
+      try {
+        // Get SDK client for this project
+        const client = await getClient(projectIdParam, projectPath)
 
         // Sessions are already loaded via store; avoid redundant list calls here to reduce network load
 
@@ -316,25 +330,27 @@ export default function ProjectDashboard() {
             setActivityFeed(activityData)
           } else {
             // Enhanced error logging for HTTP failures
-            const responseText = await response.text().catch(() => 'Unable to read response body')
+            const responseText = await response.text().catch(() => "Unable to read response body")
             const responseHeaders = Object.fromEntries(response.headers.entries())
-            console.error('Failed to load activity feed:', {
-              method: 'GET',
+            console.error("Failed to load activity feed:", {
+              method: "GET",
               url: `/api/projects/${projectIdParam}/activity`,
               status: response.status,
               statusText: response.statusText,
               headers: responseHeaders,
-              body: responseText
+              body: responseText,
             })
           }
         } catch (error) {
           console.error("Failed to load activity feed:", error)
           setActivityFeed([])
         }
-    } catch (error) {
-      console.error("Failed to load project details:", error)
-    }
-  }, [getClient])
+      } catch (error) {
+        console.error("Failed to load project details:", error)
+      }
+    },
+    [getClient]
+  )
 
   const loadProjectData = useCallback(
     async (targetProjectId: string) => {
@@ -355,7 +371,8 @@ export default function ProjectDashboard() {
 
         if (project?.path) {
           await loadWorktrees(targetProjectId)
-          const worktreeList = useWorktreesStore.getState().worktreesByProject.get(targetProjectId) || []
+          const worktreeList =
+            useWorktreesStore.getState().worktreesByProject.get(targetProjectId) || []
           const desiredId = resolvedWorktreeId
           const matchingWorktree =
             desiredId === "default"
@@ -521,11 +538,7 @@ export default function ProjectDashboard() {
                     </SelectTrigger>
                     <SelectContent position="popper" align="start">
                       {projects.map((project) => (
-                        <SelectItem
-                          key={project.id}
-                          value={project.id}
-                          textValue={project.name}
-                        >
+                        <SelectItem key={project.id} value={project.id} textValue={project.name}>
                           <div className="flex items-center gap-2">
                             <FolderOpen className="h-4 w-4" />
                             <span>{project.name}</span>
@@ -577,7 +590,9 @@ export default function ProjectDashboard() {
                 <FileText className="text-muted-foreground h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{gitStatus ? gitStatus.changedFiles : "N/A"}</div>
+                <div className="text-2xl font-bold">
+                  {gitStatus ? gitStatus.changedFiles : "N/A"}
+                </div>
                 <p className="text-muted-foreground text-xs">
                   Branch: {gitStatus ? gitStatus.branch : "Unknown"}
                 </p>
@@ -601,11 +616,11 @@ export default function ProjectDashboard() {
             </CardHeader>
             <CardContent>
               {worktreesLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="text-muted-foreground flex items-center gap-2 text-sm">
                   <RefreshCw className="h-4 w-4 animate-spin" /> Loading worktrees...
                 </div>
               ) : sortedWorktrees.length === 0 ? (
-                <div className="border border-dashed border-muted p-6 text-center text-sm text-muted-foreground">
+                <div className="border-muted text-muted-foreground border border-dashed p-6 text-center text-sm">
                   No worktrees found. Create one to start a focused branch.
                 </div>
               ) : (
@@ -619,16 +634,16 @@ export default function ProjectDashboard() {
                       >
                         <div className="min-w-0 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium truncate max-w-[220px]">{worktree.title}</span>
-                            {worktree.id === "default" && (
-                              <Badge variant="outline">Default</Badge>
-                            )}
-                            {isActive && (
-                              <Badge variant="secondary">Active</Badge>
-                            )}
+                            <span className="max-w-[220px] truncate font-medium">
+                              {worktree.title}
+                            </span>
+                            {worktree.id === "default" && <Badge variant="outline">Default</Badge>}
+                            {isActive && <Badge variant="secondary">Active</Badge>}
                           </div>
                           {worktree.branch && (
-                            <p className="text-muted-foreground text-sm">Branch: {worktree.branch}</p>
+                            <p className="text-muted-foreground text-sm">
+                              Branch: {worktree.branch}
+                            </p>
                           )}
                           <p className="text-muted-foreground text-xs break-all">
                             {worktree.relativePath || "(project root)"}
@@ -676,7 +691,7 @@ export default function ProjectDashboard() {
               <CardDescription>Common tasks and shortcuts for this project</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 place-items-stretch">
+              <div className="grid grid-cols-2 place-items-stretch gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                 <Button
                   data-testid="button-new-chat"
                   variant="outline"
@@ -778,7 +793,10 @@ export default function ProjectDashboard() {
                     {gitStatus.lastCommit && (
                       <div className="border-t pt-2">
                         <p className="mb-1 text-sm font-medium">Last Commit</p>
-                        <p className="text-muted-foreground truncate text-sm" title={gitStatus.lastCommit.message}>
+                        <p
+                          className="text-muted-foreground truncate text-sm"
+                          title={gitStatus.lastCommit.message}
+                        >
                           {gitStatus.lastCommit.message}
                         </p>
                         <p className="text-muted-foreground mt-1 text-xs">
@@ -794,7 +812,7 @@ export default function ProjectDashboard() {
                         <ul className="space-y-2">
                           {additionalRecentCommits.map((commit) => (
                             <li key={commit.hash} className="text-sm">
-                              <p className="truncate text-muted-foreground" title={commit.message}>
+                              <p className="text-muted-foreground truncate" title={commit.message}>
                                 {commit.message}
                               </p>
                               <p className="text-muted-foreground mt-0.5 text-xs">
@@ -905,7 +923,6 @@ export default function ProjectDashboard() {
               </CardContent>
             </Card>
           </div>
-
         </div>
       </div>
       <Dialog open={showWorktreeDialog} onOpenChange={setShowWorktreeDialog}>
@@ -936,12 +953,12 @@ export default function ProjectDashboard() {
                 value={newWorktreePath}
                 onChange={(event) => setNewWorktreePath(event.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 Will be created as: worktrees/{newWorktreePath || "name"}
               </p>
             </div>
             {createWorktreeError && (
-              <p className="text-sm text-destructive">{createWorktreeError}</p>
+              <p className="text-destructive text-sm">{createWorktreeError}</p>
             )}
           </div>
           <DialogFooter>

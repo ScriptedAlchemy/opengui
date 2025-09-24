@@ -6,4 +6,3 @@ declare module "xterm-addon-web-links" {
     dispose(): void
   }
 }
-

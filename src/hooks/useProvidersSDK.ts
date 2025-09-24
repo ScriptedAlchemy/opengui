@@ -113,10 +113,16 @@ export function useProvidersSDK(
 
           // 2) Regex match for Sonnet 4, then any Sonnet
           const sonnet4 = models.find(
-            (m) => /(^|[^a-z])sonnet\s*[-_\s]*4([^0-9]|$)/i.test(m.id) || /(^|[^a-z])sonnet\s*[-_\s]*4([^0-9]|$)/i.test(m.name || "")
+            (m) =>
+              /(^|[^a-z])sonnet\s*[-_\s]*4([^0-9]|$)/i.test(m.id) ||
+              /(^|[^a-z])sonnet\s*[-_\s]*4([^0-9]|$)/i.test(m.name || "")
           )
           if (sonnet4) return sonnet4.id
-          const anySonnet = models.find((m) => /(^|[^a-z])sonnet([^a-z]|$)/i.test(m.id) || /(^|[^a-z])sonnet([^a-z]|$)/i.test(m.name || ""))
+          const anySonnet = models.find(
+            (m) =>
+              /(^|[^a-z])sonnet([^a-z]|$)/i.test(m.id) ||
+              /(^|[^a-z])sonnet([^a-z]|$)/i.test(m.name || "")
+          )
           if (anySonnet) return anySonnet.id
 
           // 3) Backend default for provider
@@ -129,21 +135,30 @@ export function useProvidersSDK(
         // Resolve provider deterministically to avoid stale stored provider
         const preferred = pickPreferredProvider()
         const storedProvider = initialSelection.provider
-        const storedValid = storedProvider && formattedProviders.some((p) => p.id === storedProvider)
-        const currentValid = selectedProvider && formattedProviders.some((p) => p.id === selectedProvider)
-        const resolvedProviderId = (currentValid && selectedProvider) || (storedValid && storedProvider) || preferred?.id || ""
+        const storedValid =
+          storedProvider && formattedProviders.some((p) => p.id === storedProvider)
+        const currentValid =
+          selectedProvider && formattedProviders.some((p) => p.id === selectedProvider)
+        const resolvedProviderId =
+          (currentValid && selectedProvider) ||
+          (storedValid && storedProvider) ||
+          preferred?.id ||
+          ""
 
         if (resolvedProviderId && resolvedProviderId !== selectedProvider) {
           setSelectedProvider(resolvedProviderId)
         }
 
         // Resolve model for the resolved provider (avoid using stale initial provider)
-        const modelsForResolved = formattedProviders.find((p) => p.id === resolvedProviderId)?.models || []
+        const modelsForResolved =
+          formattedProviders.find((p) => p.id === resolvedProviderId)?.models || []
         const storedModel = initialSelection.model
         const storedModelValid = storedModel && modelsForResolved.some((m) => m.id === storedModel)
-        const currentModelValid = selectedModel && modelsForResolved.some((m) => m.id === selectedModel)
+        const currentModelValid =
+          selectedModel && modelsForResolved.some((m) => m.id === selectedModel)
         const backendDefault = defaultModels[resolvedProviderId]
-        const backendDefaultValid = backendDefault && modelsForResolved.some((m) => m.id === backendDefault)
+        const backendDefaultValid =
+          backendDefault && modelsForResolved.some((m) => m.id === backendDefault)
         const preferredModel = pickPreferredModel(resolvedProviderId)
 
         const resolvedModelId =

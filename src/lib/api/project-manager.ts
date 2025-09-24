@@ -90,15 +90,15 @@ export class ProjectManagerClient {
         }
 
         // Log detailed HTTP error information
-        console.error('HTTP Error Details:', {
-          method: options?.method || 'GET',
+        console.error("HTTP Error Details:", {
+          method: options?.method || "GET",
           url,
           status: response.status,
           statusText: response.statusText,
           headers: Object.fromEntries(response.headers.entries()),
           body: responseBody,
           requestHeaders: options?.headers,
-          requestBody: options?.body
+          requestBody: options?.body,
         })
 
         const errorMessage = (() => {
@@ -120,7 +120,7 @@ export class ProjectManagerClient {
           }
           return `HTTP ${response.status}: ${response.statusText}`
         })()
-        throw new Error(`${errorMessage} (${options?.method || 'GET'} ${url})`)
+        throw new Error(`${errorMessage} (${options?.method || "GET"} ${url})`)
       }
 
       return response.json()
@@ -295,22 +295,22 @@ export class ProjectManagerClient {
       const response = await fetch(`/api/projects/${projectId}/status`)
       if (!response.ok) {
         // Enhanced error logging for HTTP failures
-        const responseText = await response.text().catch(() => 'Unable to read response body')
+        const responseText = await response.text().catch(() => "Unable to read response body")
         const responseHeaders = Object.fromEntries(response.headers.entries())
-        console.error('Health check failed:', {
-          method: 'GET',
+        console.error("Health check failed:", {
+          method: "GET",
           url: `/api/projects/${projectId}/status`,
           status: response.status,
           statusText: response.statusText,
           headers: responseHeaders,
-          body: responseText
+          body: responseText,
         })
         return false
       }
       const data = await response.json()
       return data.status === "running"
     } catch (error) {
-      console.error('Health check error:', error)
+      console.error("Health check error:", error)
       return false
     }
   }
@@ -335,7 +335,11 @@ export class ProjectManagerClient {
   /**
    * Update worktree metadata
    */
-  async updateWorktree(projectId: string, worktreeId: string, updates: { title: string }): Promise<Worktree> {
+  async updateWorktree(
+    projectId: string,
+    worktreeId: string,
+    updates: { title: string }
+  ): Promise<Worktree> {
     return this.request<Worktree>(`/projects/${projectId}/worktrees/${worktreeId}`, {
       method: "PATCH",
       body: JSON.stringify(updates),

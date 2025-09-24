@@ -6,4 +6,3 @@ declare module "xterm-addon-fit" {
     fit(): void
   }
 }
-

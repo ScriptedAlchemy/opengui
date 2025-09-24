@@ -52,9 +52,9 @@ function DashboardLayout() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 min-h-0 flex-col">
-          <div className="@container/main flex flex-1 min-h-0 flex-col">
-            <main className="flex-1 min-h-0 overflow-auto">
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="@container/main flex min-h-0 flex-1 flex-col">
+            <main className="min-h-0 flex-1 overflow-auto">
               <Routes>
                 {/* Root route - Project list */}
                 <Route index element={<ProjectList />} />
@@ -111,9 +111,7 @@ function App() {
             <div className="bg-background text-foreground min-h-screen">
               <DashboardLayout />
               {/* Global toast notifications */}
-              {disableToasts ? null : (
-                <Toaster position="top-right" richColors />
-              )}
+              {disableToasts ? null : <Toaster position="top-right" richColors />}
             </div>
           </BrowserRouter>
         </ThemeProvider>

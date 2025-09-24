@@ -6,7 +6,11 @@ import { ChevronDown, ChevronUp } from "lucide-react"
 import type { DiffChunk, DiffData, DiffLine } from "@/types/diff"
 import { cn } from "@/lib/utils"
 
-function generateExpandedLines(chunk: DiffChunk, fullOldFile?: string[], fullNewFile?: string[]): DiffLine[] {
+function generateExpandedLines(
+  chunk: DiffChunk,
+  fullOldFile?: string[],
+  fullNewFile?: string[]
+): DiffLine[] {
   if (!fullOldFile || !fullNewFile) {
     const lines: DiffLine[] = []
     const lineCount = chunk.hiddenLines ?? 10
@@ -69,7 +73,10 @@ function generateExpandedLines(chunk: DiffChunk, fullOldFile?: string[], fullNew
   return lines
 }
 
-function useLineNumberWidth(diff: DiffData | null | undefined, expandedChunks: Set<number>): number {
+function useLineNumberWidth(
+  diff: DiffData | null | undefined,
+  expandedChunks: Set<number>
+): number {
   return useMemo(() => {
     if (!diff) return 3
 
@@ -124,8 +131,8 @@ export function DiffPreview({ diff, rawDiff, className }: DiffPreviewProps) {
       return (
         <pre
           className={cn(
-            "rounded-md border border-border bg-input/30 p-4 text-xs font-mono whitespace-pre-wrap",
-            className,
+            "border-border bg-input/30 rounded-md border p-4 font-mono text-xs whitespace-pre-wrap",
+            className
           )}
         >
           {rawDiff}
@@ -136,8 +143,8 @@ export function DiffPreview({ diff, rawDiff, className }: DiffPreviewProps) {
     return (
       <div
         className={cn(
-          "rounded-md border border-border bg-input/30 p-4 text-xs text-muted-foreground",
-          className,
+          "border-border bg-input/30 text-muted-foreground rounded-md border p-4 text-xs",
+          className
         )}
       >
         No diff available.
@@ -148,43 +155,47 @@ export function DiffPreview({ diff, rawDiff, className }: DiffPreviewProps) {
   return (
     <div
       className={cn(
-        "rounded-md border border-border bg-card text-xs text-foreground", 
+        "border-border bg-card text-foreground rounded-md border text-xs",
         "overflow-hidden font-mono",
-        className,
+        className
       )}
     >
-      <div className="divide-y divide-border/50">
+      <div className="divide-border/50 divide-y">
         {diff.chunks.map((chunk, chunkIndex) => (
           <div key={`${chunk.type}-${chunkIndex}`}>
             {chunk.type === "expand" ? (
               <div>
                 {expandedChunks.has(chunkIndex) ? (
                   <div>
-                    {generateExpandedLines(chunk, diff.fullOldFile, diff.fullNewFile).map((line, lineIndex) => (
-                      <div key={`expanded-${chunkIndex}-${lineIndex}`} className="flex">
-                        <div className="flex bg-muted/60 border-r border-border/70">
-                          <div
-                            className="px-2 py-1 text-right text-muted-foreground select-none"
-                            style={{ width: `${lineNumberWidth + 1}ch` }}
-                          >
-                            {line.oldLine ?? ""}
+                    {generateExpandedLines(chunk, diff.fullOldFile, diff.fullNewFile).map(
+                      (line, lineIndex) => (
+                        <div key={`expanded-${chunkIndex}-${lineIndex}`} className="flex">
+                          <div className="bg-muted/60 border-border/70 flex border-r">
+                            <div
+                              className="text-muted-foreground px-2 py-1 text-right select-none"
+                              style={{ width: `${lineNumberWidth + 1}ch` }}
+                            >
+                              {line.oldLine ?? ""}
+                            </div>
+                            <div
+                              className="text-muted-foreground px-2 py-1 text-right select-none"
+                              style={{ width: `${lineNumberWidth + 1}ch` }}
+                            >
+                              {line.newLine ?? ""}
+                            </div>
                           </div>
-                          <div
-                            className="px-2 py-1 text-right text-muted-foreground select-none"
-                            style={{ width: `${lineNumberWidth + 1}ch` }}
-                          >
-                            {line.newLine ?? ""}
+                          <div className="w-6" />
+                          <div className="flex-1 overflow-x-auto px-2 py-1 whitespace-pre">
+                            {line.content}
                           </div>
                         </div>
-                        <div className="w-6" />
-                        <div className="flex-1 px-2 py-1 whitespace-pre overflow-x-auto">{line.content}</div>
-                      </div>
-                    ))}
+                      )
+                    )}
 
                     <button
                       type="button"
                       onClick={() => toggleChunk(chunkIndex)}
-                      className="flex w-full items-center gap-2 border-t border-border/60 bg-muted/70 px-3 py-1 text-left text-[11px] text-muted-foreground transition hover:bg-muted"
+                      className="border-border/60 bg-muted/70 text-muted-foreground hover:bg-muted flex w-full items-center gap-2 border-t px-3 py-1 text-left text-[11px] transition"
                     >
                       <ChevronUp size={14} />
                       Collapse
@@ -194,21 +205,28 @@ export function DiffPreview({ diff, rawDiff, className }: DiffPreviewProps) {
                   <button
                     type="button"
                     onClick={() => toggleChunk(chunkIndex)}
-                    className="flex w-full items-center gap-2 border-t border-border/60 bg-muted/70 px-3 py-1 text-left text-[11px] text-muted-foreground transition hover:bg-muted"
+                    className="border-border/60 bg-muted/70 text-muted-foreground hover:bg-muted flex w-full items-center gap-2 border-t px-3 py-1 text-left text-[11px] transition"
                   >
-                    {chunk.expandDirection === "up" ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {chunk.expandDirection === "up" ? (
+                      <ChevronUp size={14} />
+                    ) : (
+                      <ChevronDown size={14} />
+                    )}
                     {chunk.expandDirection === "up" ? "Expand Up" : "Expand Down"}
                     {chunk.hiddenLines ? (
-                      <span className="ml-auto text-muted-foreground/70">{chunk.hiddenLines} hidden lines</span>
+                      <span className="text-muted-foreground/70 ml-auto">
+                        {chunk.hiddenLines} hidden lines
+                      </span>
                     ) : null}
                   </button>
                 )}
               </div>
             ) : (
               <div>
-                <div className="bg-muted/70 px-3 py-1 text-[11px] text-muted-foreground">
-                  @@ -{chunk.oldStart},{chunk.lines?.filter((l) => l.type !== "added").length ?? 0} +{chunk.newStart},
-                  {chunk.lines?.filter((l) => l.type !== "removed").length ?? 0} @@
+                <div className="bg-muted/70 text-muted-foreground px-3 py-1 text-[11px]">
+                  @@ -{chunk.oldStart},{chunk.lines?.filter((l) => l.type !== "added").length ?? 0}{" "}
+                  +{chunk.newStart},{chunk.lines?.filter((l) => l.type !== "removed").length ?? 0}{" "}
+                  @@
                 </div>
 
                 {chunk.lines?.map((line, lineIndex) => {
@@ -234,25 +252,35 @@ export function DiffPreview({ diff, rawDiff, className }: DiffPreviewProps) {
                         : "text-transparent"
 
                   return (
-                    <div key={`line-${chunkIndex}-${lineIndex}`} className={cn("flex", baseLineClass)}>
-                      <div className={cn("flex border-r border-border/70", gutterClass)}>
+                    <div
+                      key={`line-${chunkIndex}-${lineIndex}`}
+                      className={cn("flex", baseLineClass)}
+                    >
+                      <div className={cn("border-border/70 flex border-r", gutterClass)}>
                         <div
-                          className="px-2 py-1 text-right text-muted-foreground select-none"
+                          className="text-muted-foreground px-2 py-1 text-right select-none"
                           style={{ width: `${lineNumberWidth + 1}ch` }}
                         >
                           {line.oldLine ?? ""}
                         </div>
                         <div
-                          className="px-2 py-1 text-right text-muted-foreground select-none"
+                          className="text-muted-foreground px-2 py-1 text-right select-none"
                           style={{ width: `${lineNumberWidth + 1}ch` }}
                         >
                           {line.newLine ?? ""}
                         </div>
                       </div>
-                      <div className={cn("flex w-6 items-center justify-center text-[11px] font-semibold", indicatorClass)}>
+                      <div
+                        className={cn(
+                          "flex w-6 items-center justify-center text-[11px] font-semibold",
+                          indicatorClass
+                        )}
+                      >
                         {line.type === "added" ? "+" : line.type === "removed" ? "-" : ""}
                       </div>
-                      <div className="flex-1 px-2 py-1 whitespace-pre overflow-x-auto">{line.content}</div>
+                      <div className="flex-1 overflow-x-auto px-2 py-1 whitespace-pre">
+                        {line.content}
+                      </div>
                     </div>
                   )
                 })}

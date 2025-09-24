@@ -6,7 +6,12 @@ import {
   ToolOutput,
 } from "@/components/ui/shadcn-io/ai/tool"
 import { Loader } from "@/components/ui/shadcn-io/ai/loader"
-import { ToolPart, ToolStateCompleted, ToolStateError, ToolStateRunning } from "@opencode-ai/sdk/client"
+import {
+  ToolPart,
+  ToolStateCompleted,
+  ToolStateError,
+  ToolStateRunning,
+} from "@opencode-ai/sdk/client"
 
 export const renderDefaultTool = (message: ToolPart) => {
   const state = message.state

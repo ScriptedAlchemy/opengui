@@ -51,7 +51,9 @@ export class GhNotInstalledError extends GhCliError {
 }
 
 export class GhNotAuthenticatedError extends GhCliError {
-  constructor(message = "GitHub CLI is not authenticated. Run `gh auth login` or provide a token.") {
+  constructor(
+    message = "GitHub CLI is not authenticated. Run `gh auth login` or provide a token."
+  ) {
     super(message)
     this.name = "GhNotAuthenticatedError"
   }
@@ -155,13 +157,10 @@ const execGhCommand = async (args: string[], env: NodeJS.ProcessEnv): Promise<Ex
       throw new GhNotAuthenticatedError(stderr.trim() || undefined)
     }
 
-    throw new GhCliError(
-      stderr.trim() || `Failed to execute gh command: ${args.join(" ")}`,
-      {
-        exitCode,
-        stderr,
-      }
-    )
+    throw new GhCliError(stderr.trim() || `Failed to execute gh command: ${args.join(" ")}`, {
+      exitCode,
+      stderr,
+    })
   }
 }
 
@@ -521,7 +520,9 @@ interface GhReviewCommentNode {
 
 interface GhPullRequestView extends GhPullRequestListItem {
   comments?: { nodes?: GhIssueCommentNode[] } | GhIssueCommentNode[] | null
-  reviews?: { nodes?: { comments?: { nodes?: GhReviewCommentNode[] } | GhReviewCommentNode[] | null }[] } | null
+  reviews?: {
+    nodes?: { comments?: { nodes?: GhReviewCommentNode[] } | GhReviewCommentNode[] | null }[]
+  } | null
   commits?: { nodes?: { oid: string }[] } | null
   statusCheckRollup?: { state?: string | null } | null
 }
@@ -585,12 +586,14 @@ const toGitHubPullRequest = (
   head: {
     sha: pull.headRefOid ?? "",
     ref: pull.headRefName ?? "",
-    label: pull.headRefName ? `${pull.author?.login ?? repo.owner}:${pull.headRefName}` : pull.headRefName ?? "",
+    label: pull.headRefName
+      ? `${pull.author?.login ?? repo.owner}:${pull.headRefName}`
+      : (pull.headRefName ?? ""),
   },
   base: {
     sha: pull.baseRefOid ?? "",
     ref: pull.baseRefName ?? "",
-    label: pull.baseRefName ? `${repo.owner}:${pull.baseRefName}` : pull.baseRefName ?? "",
+    label: pull.baseRefName ? `${repo.owner}:${pull.baseRefName}` : (pull.baseRefName ?? ""),
   },
 })
 
@@ -695,14 +698,17 @@ export class GitHubCliClient {
     return rateLimitTracker.getSnapshot(this.token)
   }
 
-  async listIssues(repo: GitHubRepoRef, params: {
-    state?: "open" | "closed" | "all"
-    labels?: string[]
-    sort?: "created" | "updated" | "comments"
-    direction?: "asc" | "desc"
-    perPage?: number
-    assignee?: string
-  } = {}): Promise<GitHubIssue[]> {
+  async listIssues(
+    repo: GitHubRepoRef,
+    params: {
+      state?: "open" | "closed" | "all"
+      labels?: string[]
+      sort?: "created" | "updated" | "comments"
+      direction?: "asc" | "desc"
+      perPage?: number
+      assignee?: string
+    } = {}
+  ): Promise<GitHubIssue[]> {
     const fields = [
       "id",
       "number",
@@ -797,7 +803,10 @@ export class GitHubCliClient {
     return toGitHubIssue(issue)
   }
 
-  async fetchIssueComments(repo: GitHubRepoRef, issueNumber: number): Promise<GitHubIssueComment[]> {
+  async fetchIssueComments(
+    repo: GitHubRepoRef,
+    issueNumber: number
+  ): Promise<GitHubIssueComment[]> {
     const issue = await this.loadIssue(repo, issueNumber)
     return nodesToArray<GhIssueCommentNode>(issue.comments).map(toIssueComment)
   }
@@ -868,7 +877,10 @@ export class GitHubCliClient {
     return payload.map((pull) => toGitHubPullRequest(repo, pull))
   }
 
-  private async loadPullRequest(repo: GitHubRepoRef, pullNumber: number): Promise<GhPullRequestView> {
+  private async loadPullRequest(
+    repo: GitHubRepoRef,
+    pullNumber: number
+  ): Promise<GhPullRequestView> {
     const cacheKey = `${repo.owner}/${repo.repo}#pr-${pullNumber}`
     if (this.pullViewCache.has(cacheKey)) {
       return this.pullViewCache.get(cacheKey)!
@@ -918,7 +930,10 @@ export class GitHubCliClient {
     return toGitHubPullRequest(repo, pull)
   }
 
-  async fetchPullRequestComments(repo: GitHubRepoRef, pullNumber: number): Promise<GitHubIssueComment[]> {
+  async fetchPullRequestComments(
+    repo: GitHubRepoRef,
+    pullNumber: number
+  ): Promise<GitHubIssueComment[]> {
     const pull = await this.loadPullRequest(repo, pullNumber)
     return nodesToArray<GhIssueCommentNode>(pull.comments).map(toIssueComment)
   }
@@ -928,9 +943,9 @@ export class GitHubCliClient {
     pullNumber: number
   ): Promise<GitHubReviewComment[]> {
     const pull = await this.loadPullRequest(repo, pullNumber)
-    const reviewNodes = nodesToArray<{ comments?: { nodes?: GhReviewCommentNode[] } | GhReviewCommentNode[] | null }>(
-      pull.reviews
-    )
+    const reviewNodes = nodesToArray<{
+      comments?: { nodes?: GhReviewCommentNode[] } | GhReviewCommentNode[] | null
+    }>(pull.reviews)
     const comments: GitHubReviewComment[] = []
     for (const review of reviewNodes) {
       comments.push(...nodesToArray<GhReviewCommentNode>(review.comments).map(toReviewComment))
@@ -950,7 +965,9 @@ export class GitHubCliClient {
     repo: GitHubRepoRef,
     pullNumbers: number[]
   ): Promise<Map<number, PullRequestStatusSummary>> {
-    const uniqueNumbers = Array.from(new Set(pullNumbers)).filter((number) => Number.isInteger(number))
+    const uniqueNumbers = Array.from(new Set(pullNumbers)).filter((number) =>
+      Number.isInteger(number)
+    )
     if (!uniqueNumbers.length) {
       return new Map()
     }

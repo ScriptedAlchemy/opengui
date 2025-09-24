@@ -50,4 +50,3 @@ export const MonacoEditor: React.FC<MonacoEditorProps> = ({
 }
 
 export default MonacoEditor
-

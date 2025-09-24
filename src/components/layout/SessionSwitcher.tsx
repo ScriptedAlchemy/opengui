@@ -18,7 +18,10 @@ import { useCurrentProject } from "@/stores/projects"
 import { useParams, useNavigate } from "react-router-dom"
 import { resolveDate } from "@/lib/utils"
 
-export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: { projectId?: string; navigateOverride?: (path: string) => void } = {}) {
+export function SessionSwitcher({
+  projectId: projectIdProp,
+  navigateOverride,
+}: { projectId?: string; navigateOverride?: (path: string) => void } = {}) {
   const params = useParams<{ projectId: string; worktreeId: string }>()
   const projectIdParam = params.projectId ?? ""
   const activeWorktreeId = params.worktreeId ?? "default"
@@ -44,7 +47,9 @@ export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: 
     if (activeWorktreeId === "default") {
       return currentProject?.path
     }
-    return worktrees.find((worktree) => worktree.id === activeWorktreeId)?.path || currentProject?.path
+    return (
+      worktrees.find((worktree) => worktree.id === activeWorktreeId)?.path || currentProject?.path
+    )
   }, [activeWorktreeId, worktrees, currentProject?.path])
 
   const sessions = useSessionsForProject(pid, activeWorktreePath)
@@ -54,7 +59,14 @@ export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: 
 
   if (typeof process !== "undefined" && process.env.NODE_ENV === "test") {
     // Helpful debug in tests
-    console.debug("[SessionSwitcher] sessions count=", sessions.length, "projectId=", pid, "worktree=", activeWorktreeId)
+    console.debug(
+      "[SessionSwitcher] sessions count=",
+      sessions.length,
+      "projectId=",
+      pid,
+      "worktree=",
+      activeWorktreeId
+    )
   }
 
   const filteredSessions = sessions.filter((session) =>
@@ -141,7 +153,12 @@ export function SessionSwitcher({ projectId: projectIdProp, navigateOverride }: 
           )}
         </div>
         <DropdownMenuSeparator />
-        <DropdownMenuItem data-testid="new-session" onSelect={handleNewSession} onClick={handleNewSession} className="cursor-pointer">
+        <DropdownMenuItem
+          data-testid="new-session"
+          onSelect={handleNewSession}
+          onClick={handleNewSession}
+          className="cursor-pointer"
+        >
           <Plus className="mr-2 h-4 w-4" />
           New Session
         </DropdownMenuItem>

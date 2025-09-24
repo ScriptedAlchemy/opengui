@@ -57,10 +57,7 @@ import { AgentTestDialog } from "../components/agent-management/AgentTestDialog"
 import { agentTemplates } from "../components/agent-management/agentTemplates"
 import { getAgentModelValue } from "@/util/agents"
 import { useCurrentProject } from "@/stores/projects"
-import {
-  useWorktreesStore,
-  useWorktreesForProject,
-} from "@/stores/worktrees"
+import { useWorktreesStore, useWorktreesForProject } from "@/stores/worktrees"
 
 interface AgentFormData {
   name: string
@@ -108,15 +105,21 @@ type ServerAgent = {
 const normalizeTools = (input: ServerAgent["tools"]): Record<string, boolean> => {
   if (!input) return {}
   if (Array.isArray(input)) {
-    return input.reduce((acc, tool) => {
-      acc[tool] = true
-      return acc
-    }, {} as Record<string, boolean>)
+    return input.reduce(
+      (acc, tool) => {
+        acc[tool] = true
+        return acc
+      },
+      {} as Record<string, boolean>
+    )
   }
-  return Object.entries(input).reduce((acc, [key, value]) => {
-    if (value) acc[key] = true
-    return acc
-  }, {} as Record<string, boolean>)
+  return Object.entries(input).reduce(
+    (acc, [key, value]) => {
+      if (value) acc[key] = true
+      return acc
+    },
+    {} as Record<string, boolean>
+  )
 }
 
 const serverAgentToAgentInfo = (agent: ServerAgent): AgentInfo => ({
@@ -278,17 +281,19 @@ export default function AgentManagement() {
 
   // Ensure search query reacts in test/dom environments even if synthetic onChange doesn't propagate
   useEffect(() => {
-    if (typeof document === 'undefined') return
+    if (typeof document === "undefined") return
     let cleanup: (() => void) | null = null
     const tryAttach = () => {
-      const el = document.querySelector('input[placeholder*="Search agents" i]') as HTMLInputElement | null
+      const el = document.querySelector(
+        'input[placeholder*="Search agents" i]'
+      ) as HTMLInputElement | null
       if (!el) return false
       const handler = () => setSearchQuery(el.value)
-      el.addEventListener('input', handler)
-      el.addEventListener('change', handler)
+      el.addEventListener("input", handler)
+      el.addEventListener("change", handler)
       cleanup = () => {
-        el.removeEventListener('input', handler)
-        el.removeEventListener('change', handler)
+        el.removeEventListener("input", handler)
+        el.removeEventListener("change", handler)
       }
       return true
     }
@@ -359,11 +364,14 @@ export default function AgentManagement() {
         return
       }
 
-      const agentMap = agentList.reduce((acc: Record<string, AgentInfo>, agent) => {
-        if (!agent.id) return acc
-        acc[agent.id] = serverAgentToAgentInfo(agent)
-        return acc
-      }, {} as Record<string, AgentInfo>)
+      const agentMap = agentList.reduce(
+        (acc: Record<string, AgentInfo>, agent) => {
+          if (!agent.id) return acc
+          acc[agent.id] = serverAgentToAgentInfo(agent)
+          return acc
+        },
+        {} as Record<string, AgentInfo>
+      )
 
       if (Object.keys(agentMap).length === 0) {
         throw new Error("Unable to process agent data")
@@ -458,7 +466,9 @@ export default function AgentManagement() {
           activeWorktreeId,
           exists,
           activeWorktreePath,
-          hasMockCallsProp: Boolean((navigate as unknown as { mock?: { calls?: unknown } })?.mock?.calls),
+          hasMockCallsProp: Boolean(
+            (navigate as unknown as { mock?: { calls?: unknown } })?.mock?.calls
+          ),
         })
         const result = navigate(`/projects/${projectId}/default/agents`, { replace: true })
         console.debug("[AgentManagement] navigate result", result)
@@ -466,9 +476,12 @@ export default function AgentManagement() {
     }
   }, [projectId, activeWorktreeId, worktrees, activeWorktreePath, navigate])
 
-  const domSearch = typeof document !== 'undefined'
-    ? (document.querySelector('input[placeholder*="Search agents" i]') as HTMLInputElement | null)?.value ?? ''
-    : ''
+  const domSearch =
+    typeof document !== "undefined"
+      ? ((
+          document.querySelector('input[placeholder*="Search agents" i]') as HTMLInputElement | null
+        )?.value ?? "")
+      : ""
   const effectiveSearch = searchQuery || domSearch
 
   const filteredAgents = Object.entries(agents)
@@ -589,7 +602,9 @@ export default function AgentManagement() {
             body: responseText,
             requestBody: JSON.stringify(agentConfig),
           })
-          const errorData = await response.json().catch(() => ({ error: "Unable to parse error response" }))
+          const errorData = await response
+            .json()
+            .catch(() => ({ error: "Unable to parse error response" }))
           throw new Error(errorData.error || `Failed to create agent: ${response.statusText}`)
         }
 
@@ -671,7 +686,9 @@ export default function AgentManagement() {
             body: responseText,
             requestBody: JSON.stringify(updates),
           })
-          const errorData = await response.json().catch(() => ({ error: "Unable to parse error response" }))
+          const errorData = await response
+            .json()
+            .catch(() => ({ error: "Unable to parse error response" }))
           throw new Error(errorData.error || `Failed to update agent: ${response.statusText}`)
         }
 
@@ -734,7 +751,9 @@ export default function AgentManagement() {
             headers: responseHeaders,
             body: responseText,
           })
-          const errorData = await response.json().catch(() => ({ error: "Unable to parse error response" }))
+          const errorData = await response
+            .json()
+            .catch(() => ({ error: "Unable to parse error response" }))
           throw new Error(errorData.error || `Failed to delete agent: ${response.statusText}`)
         }
       }
@@ -952,75 +971,78 @@ ${
         {/* Agent Grid */}
         <ScrollArea className="flex-1 p-6">
           <div className="mx-auto w-full xl:max-w-6xl">
-          <div className={`grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 ${filteredAgents.length <= 1 ? 'justify-items-center' : ''}`} data-testid="agents-list">
-            {filteredAgents.length === 0 ? (
-              <div className="col-span-full py-12 text-center">
-                <Bot className="mx-auto mb-4 h-12 w-12 text-gray-600" />
-                <h3 className="mb-2 text-lg font-medium text-gray-300">
-                  {searchQuery ? "No agents found" : "No agents yet"}
-                </h3>
-                <p className="mb-4 text-gray-500">
-                  {searchQuery
-                    ? "Try adjusting your search terms"
-                    : "Create your first AI agent to get started"}
-                </p>
-                <div className="flex justify-center gap-2">
-                  {searchQuery ? (
-                    <>
-                      <Button
-                        variant="outline"
-                        onClick={() => setSearchQuery("")}
-                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
-                      >
-                        Clear Search
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setFilterCategory("all")}
-                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
-                      >
-                        Reset Filters
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <Button
-                        onClick={() => setShowTemplatesDialog(true)}
-                        variant="outline"
-                        className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
-                      >
-                        <Sparkles className="mr-2 h-4 w-4" />
-                        Browse Templates
-                      </Button>
-                      <Button
-                        onClick={() => setShowCreateDialog(true)}
-                        className="bg-[#3b82f6] hover:bg-[#2563eb]"
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        Create Agent
-                      </Button>
-                    </>
-                  )}
+            <div
+              className={`grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 ${filteredAgents.length <= 1 ? "justify-items-center" : ""}`}
+              data-testid="agents-list"
+            >
+              {filteredAgents.length === 0 ? (
+                <div className="col-span-full py-12 text-center">
+                  <Bot className="mx-auto mb-4 h-12 w-12 text-gray-600" />
+                  <h3 className="mb-2 text-lg font-medium text-gray-300">
+                    {searchQuery ? "No agents found" : "No agents yet"}
+                  </h3>
+                  <p className="mb-4 text-gray-500">
+                    {searchQuery
+                      ? "Try adjusting your search terms"
+                      : "Create your first AI agent to get started"}
+                  </p>
+                  <div className="flex justify-center gap-2">
+                    {searchQuery ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => setSearchQuery("")}
+                          className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                        >
+                          Clear Search
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setFilterCategory("all")}
+                          className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                        >
+                          Reset Filters
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          onClick={() => setShowTemplatesDialog(true)}
+                          variant="outline"
+                          className="border-[#262626] bg-[#1a1a1a] hover:bg-[#2a2a2a]"
+                        >
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          Browse Templates
+                        </Button>
+                        <Button
+                          onClick={() => setShowCreateDialog(true)}
+                          className="bg-[#3b82f6] hover:bg-[#2563eb]"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Create Agent
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              filteredAgents.map(([agentId, agent]) => (
-                <AgentCard
-                  key={agentId}
-                  name={(agent.name as string) || "Unknown Agent"}
-                  agent={agent}
-                  onEdit={() => openEditDialog(agentId)}
-                  onDelete={() => handleDeleteAgent(agentId)}
-                  onTest={() => {
-                    setSelectedAgent(agentId)
-                    setShowTestDialog(true)
-                  }}
-                  onDuplicate={() => copyAgentConfig(agentId)}
-                  onExportMarkdown={() => exportAgentAsMarkdown(agentId)}
-                />
-              ))
-            )}
-          </div>
+              ) : (
+                filteredAgents.map(([agentId, agent]) => (
+                  <AgentCard
+                    key={agentId}
+                    name={(agent.name as string) || "Unknown Agent"}
+                    agent={agent}
+                    onEdit={() => openEditDialog(agentId)}
+                    onDelete={() => handleDeleteAgent(agentId)}
+                    onTest={() => {
+                      setSelectedAgent(agentId)
+                      setShowTestDialog(true)
+                    }}
+                    onDuplicate={() => copyAgentConfig(agentId)}
+                    onExportMarkdown={() => exportAgentAsMarkdown(agentId)}
+                  />
+                ))
+              )}
+            </div>
           </div>
         </ScrollArea>
 

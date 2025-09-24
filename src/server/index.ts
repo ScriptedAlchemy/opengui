@@ -58,7 +58,7 @@ export function createServer(config: ServerConfig = {}) {
   const resolvedStaticDir = path.isAbsolute(staticDir)
     ? staticDir
     : path.resolve(__dirname, staticDir)
-  
+
   // Check if static directory exists
   const staticDirExists = fs.existsSync(resolvedStaticDir)
 
@@ -137,7 +137,7 @@ export function createServer(config: ServerConfig = {}) {
           "access-control-allow-credentials": "true",
           "access-control-allow-methods": reqMethod || "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
           "access-control-allow-headers": reqHeaders,
-          "vary": "Origin, Access-Control-Request-Headers, Access-Control-Request-Method",
+          vary: "Origin, Access-Control-Request-Headers, Access-Control-Request-Method",
         },
       })
     }
@@ -271,11 +271,11 @@ export function createServer(config: ServerConfig = {}) {
   if (staticDirExists) {
     app.get("*", async (c) => {
       const indexPath = path.join(resolvedStaticDir, "index.html")
-      
+
       try {
         const fsPromises = require("fs/promises")
         const content = await fsPromises.readFile(indexPath, "utf-8")
-        
+
         return new Response(content, {
           headers: {
             "Content-Type": "text/html; charset=utf-8",

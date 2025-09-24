@@ -399,9 +399,10 @@ const parseWorktreeOutput = (output: string, projectPath: string): ParsedWorktre
   }
 
   return result.map((item) => {
-    const relative = normalizePath(item.path!) === normalizedProject
-      ? ""
-      : nodePath.relative(normalizedProject, item.path!)
+    const relative =
+      normalizePath(item.path!) === normalizedProject
+        ? ""
+        : nodePath.relative(normalizedProject, item.path!)
     return {
       path: item.path!,
       branch: item.branch,
@@ -496,7 +497,10 @@ const buildWorktreeResponses = async (projectId: string): Promise<WorktreeRespon
     // Only override when the existing title looks like a default placeholder.
     if (entry.isPrimary) {
       const desired = entry.branch || "main"
-      const looksDefault = !metadata.title || /\(default\)\s*$/i.test(metadata.title) || metadata.title.toLowerCase() === "default"
+      const looksDefault =
+        !metadata.title ||
+        /\(default\)\s*$/i.test(metadata.title) ||
+        metadata.title.toLowerCase() === "default"
       if (looksDefault && metadata.title !== desired) {
         try {
           projectManager.updateWorktreeTitle(projectId, metadata.id, desired)
@@ -777,7 +781,8 @@ export function addIntegratedProjectRoutes(app: Hono) {
               .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
               .slice(0, DIRECTORY_ENTRY_LIMIT)
 
-            const parent = target === HOME_DIRECTORY ? null : normalizePath(nodePath.dirname(target))
+            const parent =
+              target === HOME_DIRECTORY ? null : normalizePath(nodePath.dirname(target))
 
             return c.json({
               path: target,
@@ -1752,7 +1757,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
             : projectManager.findWorktreeById(id, "default")
 
           const agents = getProjectAgents(id, metadata?.path)
-          const agentId = (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`)
+          const agentId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`
           const record: AgentRecord = {
             id: agentId,
             name: body.name,
@@ -1803,14 +1808,8 @@ export function addIntegratedProjectRoutes(app: Hono) {
             ...ERRORS,
           },
         }),
-        zValidator(
-          "param",
-          z.object({ id: z.string(), agentId: z.string() })
-        ),
-        zValidator(
-          "query",
-          z.object({ worktree: z.string().optional() })
-        ),
+        zValidator("param", z.object({ id: z.string(), agentId: z.string() })),
+        zValidator("query", z.object({ worktree: z.string().optional() })),
         async (c) => {
           const { id, agentId } = c.req.valid("param")
           const { worktree } = c.req.valid("query")
@@ -1858,14 +1857,8 @@ export function addIntegratedProjectRoutes(app: Hono) {
             ...ERRORS,
           },
         }),
-        zValidator(
-          "param",
-          z.object({ id: z.string(), agentId: z.string() })
-        ),
-        zValidator(
-          "query",
-          z.object({ worktree: z.string().optional() })
-        ),
+        zValidator("param", z.object({ id: z.string(), agentId: z.string() })),
+        zValidator("query", z.object({ worktree: z.string().optional() })),
         zValidator(
           "json",
           z.object({
@@ -1920,14 +1913,8 @@ export function addIntegratedProjectRoutes(app: Hono) {
             ...ERRORS,
           },
         }),
-        zValidator(
-          "param",
-          z.object({ id: z.string(), agentId: z.string() })
-        ),
-        zValidator(
-          "query",
-          z.object({ worktree: z.string().optional() })
-        ),
+        zValidator("param", z.object({ id: z.string(), agentId: z.string() })),
+        zValidator("query", z.object({ worktree: z.string().optional() })),
         async (c) => {
           const { id, agentId } = c.req.valid("param")
           const { worktree } = c.req.valid("query")
@@ -1985,12 +1972,12 @@ export function addIntegratedProjectRoutes(app: Hono) {
           if (!agent) return c.json({ success: false, error: "Agent not found" }, 404)
 
           // Minimal stubbed behavior
-        return c.json({
-          success: true,
-          response: `Agent ${agent.name} received: ${prompt}`,
-        })
-      }
-    )
+          return c.json({
+            success: true,
+            response: `Agent ${agent.name} received: ${prompt}`,
+          })
+        }
+      )
       .post(
         "/api/projects/:id/github/issues/list",
         describeRoute({
@@ -2364,13 +2351,17 @@ export function addIntegratedProjectRoutes(app: Hono) {
                 return { hash, author, date, message }
               })
               .filter(
-                (commit): commit is {
+                (
+                  commit
+                ): commit is {
                   hash: string
                   author: string
                   date: string
                   message: string
                 } =>
-                  Boolean(commit.hash && commit.author && commit.date && commit.message !== undefined)
+                  Boolean(
+                    commit.hash && commit.author && commit.date && commit.message !== undefined
+                  )
               )
 
             if (recentCommits.length > 0) {

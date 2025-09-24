@@ -38,7 +38,7 @@ export function useSSESDK(
       hasClient: !!client,
       projectPath,
       currentSessionId: currentSession?.id,
-      instanceStatus
+      instanceStatus,
     })
 
     if (!client || !projectPath || !currentSession || instanceStatus !== "running") {
@@ -46,7 +46,7 @@ export function useSSESDK(
         hasClient: !!client,
         hasProjectPath: !!projectPath,
         hasCurrentSession: !!currentSession,
-        instanceStatus
+        instanceStatus,
       })
       return
     }
@@ -62,7 +62,10 @@ export function useSSESDK(
     const abortController = new AbortController()
     abortControllerRef.current = abortController
 
-    const findLastTemporaryUserMessageIndex = (messagesList: MessageResponse[], sessionID: string) => {
+    const findLastTemporaryUserMessageIndex = (
+      messagesList: MessageResponse[],
+      sessionID: string
+    ) => {
       for (let index = messagesList.length - 1; index >= 0; index -= 1) {
         const message = messagesList[index]
         if (message._isTemporary && message.role === "user" && message.sessionID === sessionID) {
@@ -178,9 +181,8 @@ export function useSSESDK(
               currentSessionId: currentSession?.id,
             })
             if (part.sessionID === currentSession?.id && part.messageID) {
-              if (part.type === "step-start" || part.type === "step-finish") {
-                break
-              }
+              // Allow step-start and step-finish events to be processed for tool call visibility
+              // These events contain important tool call information that should be displayed during streaming
 
               setMessages((prev) =>
                 prev.map((message) => {
@@ -188,7 +190,9 @@ export function useSSESDK(
                     return message
                   }
 
-                  const existingPartIndex = message.parts.findIndex((existingPart) => existingPart.id === part.id)
+                  const existingPartIndex = message.parts.findIndex(
+                    (existingPart) => existingPart.id === part.id
+                  )
                   if (existingPartIndex >= 0) {
                     const updatedParts = [...message.parts]
                     updatedParts[existingPartIndex] = part
@@ -206,8 +210,7 @@ export function useSSESDK(
 
                     if (existingPart.type === "file" && part.type === "file") {
                       return !(
-                        existingPart.filename === part.filename &&
-                        existingPart.mime === part.mime
+                        existingPart.filename === part.filename && existingPart.mime === part.mime
                       )
                     }
 
@@ -226,7 +229,11 @@ export function useSSESDK(
           }
 
           case "session.error": {
-            const { sessionID, messageID, error: sessionError } = event.properties as SessionErrorProperties
+            const {
+              sessionID,
+              messageID,
+              error: sessionError,
+            } = event.properties as SessionErrorProperties
             if (!sessionID) break
             if (sessionID === currentSession?.id) {
               console.error("Session error:", sessionError)
@@ -235,11 +242,16 @@ export function useSSESDK(
               const resolveErrorText = (error?: { message?: string; name?: string }) => {
                 return (
                   error?.message ||
-                  (error?.name ? `${error.name}: Something went wrong while generating a response.` : "Something went wrong while generating a response.")
+                  (error?.name
+                    ? `${error.name}: Something went wrong while generating a response.`
+                    : "Something went wrong while generating a response.")
                 )
               }
 
-              const createErrorPart = (meta: { sessionID: string; messageID: string }, errorText: string): Part => ({
+              const createErrorPart = (
+                meta: { sessionID: string; messageID: string },
+                errorText: string
+              ): Part => ({
                 id: `error-part-${meta.messageID}-${now}`,
                 sessionID: meta.sessionID,
                 messageID: meta.messageID,
@@ -276,7 +288,9 @@ export function useSSESDK(
                     (existingPart) => !existingPart.id?.startsWith("temp-part-")
                   )
 
-                  const hasErrorPart = filteredParts.some((existingPart) => existingPart.id === errorPart.id)
+                  const hasErrorPart = filteredParts.some(
+                    (existingPart) => existingPart.id === errorPart.id
+                  )
                   const parts = hasErrorPart ? filteredParts : [...filteredParts, errorPart]
 
                   withAppliedError[assistantIndex] = {
@@ -284,7 +298,8 @@ export function useSSESDK(
                     _error: sessionError,
                     time: {
                       ...target.time,
-                      completed: (target.time as { completed?: number } | undefined)?.completed ?? now,
+                      completed:
+                        (target.time as { completed?: number } | undefined)?.completed ?? now,
                     } as MessageResponse["time"],
                     parts,
                     _isTemporary: false,

@@ -93,7 +93,10 @@ export function parseGitHubRemote(remoteUrl: string): GitHubRepoRef | null {
       if (!url.hostname.toLowerCase().endsWith("github.com")) {
         return null
       }
-      const segments = url.pathname.replace(/^\/+|\.git$/g, "").split("/").filter(Boolean)
+      const segments = url.pathname
+        .replace(/^\/+|\.git$/g, "")
+        .split("/")
+        .filter(Boolean)
       if (segments.length >= 2) {
         return { owner: segments[0], repo: segments[1] }
       }
@@ -110,7 +113,10 @@ export function parseGitHubRemote(remoteUrl: string): GitHubRepoRef | null {
     if (!url.hostname.toLowerCase().endsWith("github.com")) {
       return null
     }
-    const segments = url.pathname.replace(/^\/+|\.git$/g, "").split("/").filter(Boolean)
+    const segments = url.pathname
+      .replace(/^\/+|\.git$/g, "")
+      .split("/")
+      .filter(Boolean)
     if (segments.length >= 2) {
       return { owner: segments[0], repo: segments[1] }
     }
@@ -141,9 +147,7 @@ async function postProjectJson<T>(
   if (!response.ok) {
     const details = await response.text().catch(() => "")
     const suffix = details ? `: ${details}` : ""
-    throw new Error(
-      `GitHub request failed (${response.status} ${response.statusText})${suffix}`
-    )
+    throw new Error(`GitHub request failed (${response.status} ${response.statusText})${suffix}`)
   }
 
   return (await response.json()) as T

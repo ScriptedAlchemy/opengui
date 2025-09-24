@@ -375,7 +375,9 @@ export default function GitOperations() {
       } catch (err) {
         console.error(`Failed to fetch diff for ${filePath}:`, err)
       }
-  }, [client, workingPath, runGitCommand])
+    },
+    [client, workingPath, runGitCommand]
+  )
 
   // Git operations
   const stageFile = async (filePath: string) => {
@@ -647,7 +649,7 @@ export default function GitOperations() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center bg-background text-foreground">
+      <div className="bg-background text-foreground flex h-full items-center justify-center">
         <div className="flex items-center gap-3">
           <Loader2 className="h-6 w-6 animate-spin" />
           <span>Loading Git information...</span>
@@ -667,7 +669,7 @@ export default function GitOperations() {
       case "??":
         return <Plus className="h-4 w-4 text-blue-500" />
       default:
-        return <FileText className="h-4 w-4 text-muted-foreground" />
+        return <FileText className="text-muted-foreground h-4 w-4" />
     }
   }
 
@@ -688,12 +690,15 @@ export default function GitOperations() {
 
   return (
     <TooltipProvider>
-      <div data-testid="git-operations-page" className="h-full overflow-hidden bg-background text-foreground">
+      <div
+        data-testid="git-operations-page"
+        className="bg-background text-foreground h-full overflow-hidden"
+      >
         <div className="flex h-full flex-col">
           {error && (
             <div
               role="alert"
-              className="mx-6 mt-4 flex items-start justify-between gap-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+              className="border-destructive/30 bg-destructive/10 text-destructive mx-6 mt-4 flex items-start justify-between gap-4 rounded-md border px-4 py-3 text-sm"
             >
               <div>
                 <div className="font-medium">Git Error</div>
@@ -712,10 +717,10 @@ export default function GitOperations() {
           )}
 
           {/* Header */}
-          <div className="flex-shrink-0 border-b border-border p-6">
+          <div className="border-border flex-shrink-0 border-b p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <GitBranch className="h-6 w-6 text-primary" />
+                <GitBranch className="text-primary h-6 w-6" />
                 <div>
                   <h1 className="text-2xl font-bold">Git Operations</h1>
                   <p className="text-muted-foreground">
@@ -724,7 +729,7 @@ export default function GitOperations() {
                   <p className="text-muted-foreground text-xs">
                     Path: <span className="font-mono">{displayPath || "(unknown)"}</span>
                     {workingPath && displayPath !== workingPath && (
-                      <span className="ml-1 text-muted-foreground/70">({workingPath})</span>
+                      <span className="text-muted-foreground/70 ml-1">({workingPath})</span>
                     )}
                   </p>
                 </div>
@@ -834,10 +839,10 @@ export default function GitOperations() {
 
             {/* Status Bar */}
             {status && (
-              <div className="mt-4 flex items-center gap-6 text-sm text-muted-foreground">
+              <div className="text-muted-foreground mt-4 flex items-center gap-6 text-sm">
                 <div className="flex items-center gap-2">
                   <GitBranch className="h-4 w-4" />
-                  <span className="font-medium text-foreground">{status.branch}</span>
+                  <span className="text-foreground font-medium">{status.branch}</span>
                 </div>
 
                 {status.remoteUrl && (
@@ -891,7 +896,10 @@ export default function GitOperations() {
               <div className="flex-1 overflow-hidden px-6 pb-6">
                 {/* Status Tab */}
                 <TabsContent value="status" className="h-full">
-                  <div data-testid="git-status" className="grid h-full grid-cols-1 gap-6 pt-4 lg:grid-cols-3">
+                  <div
+                    data-testid="git-status"
+                    className="grid h-full grid-cols-1 gap-6 pt-4 lg:grid-cols-3"
+                  >
                     {/* Changes Panel */}
                     <div className="space-y-6 lg:col-span-2">
                       {/* Status content will be here - keeping existing status content */}
@@ -899,9 +907,9 @@ export default function GitOperations() {
                         status.staged.length === 0 &&
                         status.modified.length === 0 &&
                         status.untracked.length === 0 && (
-                          <div className="rounded-lg border border-border bg-card p-8 text-center">
+                          <div className="border-border bg-card rounded-lg border p-8 text-center">
                             <CheckCircle className="mx-auto mb-4 h-12 w-12 text-green-500" />
-                            <h3 className="mb-2 text-lg font-semibold text-foreground">
+                            <h3 className="text-foreground mb-2 text-lg font-semibold">
                               Working tree clean
                             </h3>
                             <p className="text-muted-foreground">No changes to commit</p>
@@ -912,31 +920,38 @@ export default function GitOperations() {
                     {/* Sidebar */}
                     <div className="space-y-6">
                       {/* Recent Commits */}
-                      <div data-testid="commit-history" className="rounded-lg border border-border bg-card">
-                        <div className="border-b border-border p-4">
+                      <div
+                        data-testid="commit-history"
+                        className="border-border bg-card rounded-lg border"
+                      >
+                        <div className="border-border border-b p-4">
                           <h3 className="flex items-center gap-2 font-semibold">
-                            <Clock className="h-5 w-5 text-primary" />
+                            <Clock className="text-primary h-5 w-5" />
                             Recent Commits
                           </h3>
                         </div>
                         <ScrollArea className="max-h-96">
                           <div className="divide-y divide-[#262626]">
                             {recentCommitSummaries.slice(0, 5).map((commit) => (
-                              <div key={commit.hash} className="p-3" data-testid="recent-commit-item">
+                              <div
+                                key={commit.hash}
+                                className="p-3"
+                                data-testid="recent-commit-item"
+                              >
                                 <div className="space-y-2">
-                                  <p className="line-clamp-2 text-sm font-medium text-foreground">
+                                  <p className="text-foreground line-clamp-2 text-sm font-medium">
                                     {commit.message}
                                   </p>
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <div className="text-muted-foreground flex items-center gap-2 text-xs">
                                     <User className="h-3 w-3" />
                                     <span>{commit.author}</span>
                                   </div>
                                   <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    <div className="text-muted-foreground flex items-center gap-2 text-xs">
                                       <Hash className="h-3 w-3" />
                                       <span className="font-mono">{commit.shortHash}</span>
                                     </div>
-                                    <span className="text-xs text-muted-foreground">
+                                    <span className="text-muted-foreground text-xs">
                                       {new Date(commit.date).toLocaleDateString()}
                                     </span>
                                   </div>
@@ -949,8 +964,8 @@ export default function GitOperations() {
                     </div>
                     {/* Staged Changes */}
                     {status && status.staged.length > 0 && (
-                      <div className="rounded-lg border border-border bg-card">
-                        <div className="border-b border-border p-4">
+                      <div className="border-border bg-card rounded-lg border">
+                        <div className="border-border border-b p-4">
                           <h3 className="flex items-center gap-2 font-semibold">
                             <CheckCircle className="h-5 w-5 text-green-500" />
                             Staged Changes ({status.staged.length})
@@ -970,12 +985,16 @@ export default function GitOperations() {
                                 <div className="flex items-center gap-2">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                  <Button
-                                    onClick={() => toggleFileExpansion(file.path)}
-                                    variant="ghost"
-                                    size="sm"
-                                    aria-label={expandedFiles.has(file.path) ? "Hide file diff" : "Show file diff"}
-                                  >
+                                      <Button
+                                        onClick={() => toggleFileExpansion(file.path)}
+                                        variant="ghost"
+                                        size="sm"
+                                        aria-label={
+                                          expandedFiles.has(file.path)
+                                            ? "Hide file diff"
+                                            : "Show file diff"
+                                        }
+                                      >
                                         {expandedFiles.has(file.path) ? (
                                           <EyeOff className="h-4 w-4" />
                                         ) : (
@@ -1006,7 +1025,7 @@ export default function GitOperations() {
 
                               {expandedFiles.has(file.path) && diffs[file.path] && (
                                 <div className="mt-3 space-y-2">
-                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <div className="text-muted-foreground flex items-center justify-between text-xs">
                                     <div className="flex items-center gap-4">
                                       <span className="text-emerald-400">
                                         +{diffs[file.path].additions}
@@ -1024,7 +1043,10 @@ export default function GitOperations() {
                                       <Copy className="h-3 w-3" />
                                     </Button>
                                   </div>
-                                  <DiffPreview diff={diffs[file.path].parsed} rawDiff={diffs[file.path].content} />
+                                  <DiffPreview
+                                    diff={diffs[file.path].parsed}
+                                    rawDiff={diffs[file.path].content}
+                                  />
                                 </div>
                               )}
                             </div>
@@ -1035,8 +1057,8 @@ export default function GitOperations() {
 
                     {/* Modified Files */}
                     {status && (status.modified.length > 0 || status.untracked.length > 0) && (
-                      <div className="rounded-lg border border-border bg-card">
-                        <div className="border-b border-border p-4">
+                      <div className="border-border bg-card rounded-lg border">
+                        <div className="border-border border-b p-4">
                           <h3 className="flex items-center gap-2 font-semibold">
                             <AlertCircle className="h-5 w-5 text-yellow-500" />
                             Changes ({status.modified.length + status.untracked.length})
@@ -1056,12 +1078,16 @@ export default function GitOperations() {
                                 <div className="flex items-center gap-2">
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                  <Button
-                                    onClick={() => toggleFileExpansion(file.path)}
-                                    variant="ghost"
-                                    size="sm"
-                                    aria-label={expandedFiles.has(file.path) ? "Hide file diff" : "Show file diff"}
-                                  >
+                                      <Button
+                                        onClick={() => toggleFileExpansion(file.path)}
+                                        variant="ghost"
+                                        size="sm"
+                                        aria-label={
+                                          expandedFiles.has(file.path)
+                                            ? "Hide file diff"
+                                            : "Show file diff"
+                                        }
+                                      >
                                         {expandedFiles.has(file.path) ? (
                                           <EyeOff className="h-4 w-4" />
                                         ) : (
@@ -1092,7 +1118,7 @@ export default function GitOperations() {
 
                               {expandedFiles.has(file.path) && diffs[file.path] && (
                                 <div className="mt-3 space-y-2">
-                                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                  <div className="text-muted-foreground flex items-center justify-between text-xs">
                                     <div className="flex items-center gap-4">
                                       <span className="text-emerald-400">
                                         +{diffs[file.path].additions}
@@ -1110,7 +1136,10 @@ export default function GitOperations() {
                                       <Copy className="h-3 w-3" />
                                     </Button>
                                   </div>
-                                  <DiffPreview diff={diffs[file.path].parsed} rawDiff={diffs[file.path].content} />
+                                  <DiffPreview
+                                    diff={diffs[file.path].parsed}
+                                    rawDiff={diffs[file.path].content}
+                                  />
                                 </div>
                               )}
                             </div>
@@ -1121,9 +1150,9 @@ export default function GitOperations() {
 
                     {/* Commit Interface */}
                     {status && status.staged.length > 0 && (
-                      <div className="rounded-lg border border-border bg-card p-4">
+                      <div className="border-border bg-card rounded-lg border p-4">
                         <h3 className="mb-3 flex items-center gap-2 font-semibold">
-                          <GitCommit className="h-5 w-5 text-primary" />
+                          <GitCommit className="text-primary h-5 w-5" />
                           Commit Changes
                         </h3>
 
@@ -1154,7 +1183,6 @@ export default function GitOperations() {
                         </div>
                       </div>
                     )}
-
                   </div>
 
                   {/* Sidebar */}
@@ -1162,12 +1190,12 @@ export default function GitOperations() {
                     {/* Branches */}
                     <div
                       data-testid="branch-selector"
-                      className="rounded-lg border border-border bg-card"
+                      className="border-border bg-card rounded-lg border"
                       onClick={() => setShowNewBranchDialog(true)}
                     >
-                      <div className="flex items-center justify-between border-b border-border p-4">
+                      <div className="border-border flex items-center justify-between border-b p-4">
                         <h3 className="flex items-center gap-2 font-semibold">
-                          <GitBranch className="h-5 w-5 text-primary" />
+                          <GitBranch className="text-primary h-5 w-5" />
                           Branches
                         </h3>
 
@@ -1236,16 +1264,15 @@ export default function GitOperations() {
                                 <span
                                   className={cn(
                                     "truncate font-mono text-sm",
-                                    branch.current ? "font-medium text-foreground" : "text-muted-foreground"
+                                    branch.current
+                                      ? "text-foreground font-medium"
+                                      : "text-muted-foreground"
                                   )}
                                 >
                                   {branch.name}
                                 </span>
                                 {branch.current && (
-                                  <Badge
-                                    variant="outline"
-                                    className="border-primary text-primary"
-                                  >
+                                  <Badge variant="outline" className="border-primary text-primary">
                                     current
                                   </Badge>
                                 )}
@@ -1297,10 +1324,10 @@ export default function GitOperations() {
                     </div>
 
                     {/* Recent Commits */}
-                    <div className="rounded-lg border border-border bg-card">
-                      <div className="border-b border-border p-4">
+                    <div className="border-border bg-card rounded-lg border">
+                      <div className="border-border border-b p-4">
                         <h3 className="flex items-center gap-2 font-semibold">
-                          <Clock className="h-5 w-5 text-primary" />
+                          <Clock className="text-primary h-5 w-5" />
                           Recent Commits
                         </h3>
                       </div>
@@ -1311,7 +1338,7 @@ export default function GitOperations() {
                             <div key={commit.hash} className="p-3">
                               <div className="space-y-2">
                                 <div className="flex items-start justify-between gap-2">
-                                  <p className="line-clamp-2 text-sm font-medium text-foreground">
+                                  <p className="text-foreground line-clamp-2 text-sm font-medium">
                                     {commit.message}
                                   </p>
                                   <Tooltip>
@@ -1328,17 +1355,17 @@ export default function GitOperations() {
                                   </Tooltip>
                                 </div>
 
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <div className="text-muted-foreground flex items-center gap-2 text-xs">
                                   <User className="h-3 w-3" />
                                   <span>{commit.author}</span>
                                 </div>
 
                                 <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <div className="text-muted-foreground flex items-center gap-2 text-xs">
                                     <Hash className="h-3 w-3" />
                                     <span className="font-mono">{commit.shortHash}</span>
                                   </div>
-                                  <span className="text-xs text-muted-foreground">
+                                  <span className="text-muted-foreground text-xs">
                                     {new Date(commit.date).toLocaleDateString()}
                                   </span>
                                 </div>
@@ -1362,11 +1389,11 @@ export default function GitOperations() {
                           placeholder="Search commits..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="border-border bg-input/30 pl-10 text-foreground"
+                          className="border-border bg-input/30 text-foreground pl-10"
                         />
                       </div>
                       <Select defaultValue="50">
-                        <SelectTrigger className="w-32 border-border bg-input/30 text-foreground">
+                        <SelectTrigger className="border-border bg-input/30 text-foreground w-32">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="border-border bg-card text-foreground">
@@ -1391,7 +1418,7 @@ export default function GitOperations() {
                           .map((commit, index) => (
                             <div
                               key={commit.hash}
-                              className="relative rounded-lg border border-border bg-card p-4 transition-colors hover:bg-card/80"
+                              className="border-border bg-card hover:bg-card/80 relative rounded-lg border p-4 transition-colors"
                             >
                               {/* Commit Graph Line */}
                               {index < commits.length - 1 && (
@@ -1406,10 +1433,10 @@ export default function GitOperations() {
                                 <div className="min-w-0 flex-1">
                                   <div className="mb-2 flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-2">
-                                      <span className="rounded bg-input/30 px-2 py-1 font-mono text-xs text-muted-foreground">
+                                      <span className="bg-input/30 text-muted-foreground rounded px-2 py-1 font-mono text-xs">
                                         {commit.shortHash}
                                       </span>
-                                      <span className="text-xs text-muted-foreground">
+                                      <span className="text-muted-foreground text-xs">
                                         {formatDateTime(new Date(commit.date).getTime())}
                                       </span>
                                     </div>
@@ -1426,9 +1453,11 @@ export default function GitOperations() {
                                     </Button>
                                   </div>
 
-                                  <h4 className="mb-1 font-medium text-foreground">{commit.message}</h4>
+                                  <h4 className="text-foreground mb-1 font-medium">
+                                    {commit.message}
+                                  </h4>
 
-                                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                  <div className="text-muted-foreground flex items-center gap-4 text-sm">
                                     <div className="flex items-center gap-1">
                                       <User className="h-3 w-3" />
                                       <span>{commit.author}</span>
@@ -1441,15 +1470,15 @@ export default function GitOperations() {
 
                                   {/* Expanded Content */}
                                   {expandedCommits.has(commit.hash) && commit.files && (
-                                    <div className="mt-4 border-t border-border pt-4">
+                                    <div className="border-border mt-4 border-t pt-4">
                                       <div className="space-y-2">
-                                        <h5 className="text-sm font-medium text-foreground">
+                                        <h5 className="text-foreground text-sm font-medium">
                                           Changed Files:
                                         </h5>
                                         {commit.files.map((file) => (
                                           <div
                                             key={file.path}
-                                            className="flex items-center justify-between rounded bg-input/30 p-2 text-sm"
+                                            className="bg-input/30 flex items-center justify-between rounded p-2 text-sm"
                                           >
                                             <div className="flex items-center gap-2">
                                               {getStatusIcon(file.status)}
@@ -1504,7 +1533,7 @@ export default function GitOperations() {
                             placeholder="New branch name..."
                             value={newBranchName}
                             onChange={(e) => setNewBranchName(e.target.value)}
-                            className="w-64 border-border bg-input/30 text-foreground"
+                            className="border-border bg-input/30 text-foreground w-64"
                           />
                           <Button onClick={createBranch} disabled={!newBranchName.trim()}>
                             <Plus className="mr-2 h-4 w-4" />
@@ -1521,8 +1550,8 @@ export default function GitOperations() {
                           <div
                             key={branch.name}
                             className={cn(
-                              "rounded-lg border border-border bg-card p-4 transition-colors hover:bg-card/80",
-                              branch.current && "bg-primary/5 ring-2 ring-primary/20"
+                              "border-border bg-card hover:bg-card/80 rounded-lg border p-4 transition-colors",
+                              branch.current && "bg-primary/5 ring-primary/20 ring-2"
                             )}
                           >
                             <div className="flex items-center justify-between">
@@ -1558,7 +1587,7 @@ export default function GitOperations() {
                                     )}
                                   </div>
                                   {branch.lastCommit && (
-                                    <div className="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
+                                    <div className="text-muted-foreground mt-1 flex items-center gap-4 text-sm">
                                       <span>{branch.lastCommit.message}</span>
                                       <span>by {branch.lastCommit.author}</span>
                                       <span>
@@ -1623,7 +1652,7 @@ export default function GitOperations() {
                   <div className="flex h-full flex-col space-y-4 pt-4">
                     {/* Stash Actions */}
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-foreground">Stashed Changes</h3>
+                      <h3 className="text-foreground text-lg font-semibold">Stashed Changes</h3>
                       <Button onClick={() => stashChanges()}>
                         <Archive className="mr-2 h-4 w-4" />
                         Stash Changes
@@ -1634,32 +1663,34 @@ export default function GitOperations() {
                     <ScrollArea className="flex-1">
                       {stashes.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 text-center">
-                          <Archive className="mb-4 h-12 w-12 text-muted-foreground" />
-                          <h3 className="mb-2 text-lg font-semibold text-foreground">
+                          <Archive className="text-muted-foreground mb-4 h-12 w-12" />
+                          <h3 className="text-foreground mb-2 text-lg font-semibold">
                             No stashed changes
                           </h3>
-                          <p className="text-muted-foreground">Stash your changes to save them for later</p>
+                          <p className="text-muted-foreground">
+                            Stash your changes to save them for later
+                          </p>
                         </div>
                       ) : (
                         <div className="space-y-2">
                           {stashes.map((stash) => (
                             <div
                               key={stash.index}
-                              className="rounded-lg border border-border bg-card p-4 transition-colors hover:bg-card/80"
+                              className="border-border bg-card hover:bg-card/80 rounded-lg border p-4 transition-colors"
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
-                                  <Archive className="h-4 w-4 text-muted-foreground" />
+                                  <Archive className="text-muted-foreground h-4 w-4" />
                                   <div>
                                     <div className="flex items-center gap-2">
-                                      <span className="font-medium text-foreground">
+                                      <span className="text-foreground font-medium">
                                         {stash.message}
                                       </span>
                                       <Badge variant="outline" className="text-xs">
                                         stash@{`{${stash.index}}`}
                                       </Badge>
                                     </div>
-                                    <div className="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
+                                    <div className="text-muted-foreground mt-1 flex items-center gap-4 text-sm">
                                       <span>on {stash.branch}</span>
                                       <span>
                                         {formatRelativeTime(new Date(stash.date).getTime())}
@@ -1701,7 +1732,7 @@ export default function GitOperations() {
         {/* Diff viewer placeholder to satisfy e2e selector */}
         <div
           data-testid="file-changes-diff"
-          className="border-t border-border px-6 py-4 text-xs text-muted-foreground"
+          className="border-border text-muted-foreground border-t px-6 py-4 text-xs"
         >
           Diff Viewer
         </div>

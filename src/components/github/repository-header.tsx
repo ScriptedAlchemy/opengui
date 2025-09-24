@@ -67,10 +67,11 @@ export function RepositoryHeader({
   })
 
   const fallbackInitials = owner?.slice(0, 2).toUpperCase() || "GH"
-  const computedAvatarUrl = ownerAvatarUrl ?? (owner ? `https://avatars.githubusercontent.com/${owner}` : undefined)
+  const computedAvatarUrl =
+    ownerAvatarUrl ?? (owner ? `https://avatars.githubusercontent.com/${owner}` : undefined)
 
   return (
-    <div className="border-b border-border bg-background">
+    <div className="border-border bg-background border-b">
       <div className="flex flex-col gap-4 px-6 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -80,7 +81,7 @@ export function RepositoryHeader({
             </Avatar>
             <span className="text-muted-foreground">{owner}</span>
             <span className="text-muted-foreground">/</span>
-            <span className="font-semibold text-foreground">{name}</span>
+            <span className="text-foreground font-semibold">{name}</span>
             {isPrivate ? (
               <Badge className="ml-2 bg-purple-100 font-normal text-purple-800">Private</Badge>
             ) : null}
@@ -89,7 +90,7 @@ export function RepositoryHeader({
             <Button
               variant="outline"
               size="sm"
-              className="hidden h-8 w-8 p-0 text-foreground hover:bg-accent md:inline-flex"
+              className="text-foreground hover:bg-accent hidden h-8 w-8 p-0 md:inline-flex"
             >
               <Search className="h-3.5 w-3.5" />
             </Button>
@@ -97,7 +98,7 @@ export function RepositoryHeader({
               <Button
                 variant="outline"
                 size="sm"
-                className="hidden h-8 w-8 p-0 text-foreground hover:bg-accent md:inline-flex"
+                className="text-foreground hover:bg-accent hidden h-8 w-8 p-0 md:inline-flex"
                 onClick={onRefresh}
               >
                 <RefreshCw className="h-3.5 w-3.5" />
@@ -120,14 +121,16 @@ export function RepositoryHeader({
                 variant="ghost"
                 size="sm"
                 className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
-                  isActive ? "bg-secondary text-secondary-foreground" : "text-muted-foreground hover:bg-accent"
+                  isActive
+                    ? "bg-secondary text-secondary-foreground"
+                    : "text-muted-foreground hover:bg-accent"
                 }`}
                 onClick={() => onTabChange(tab.key)}
               >
                 <Icon className="h-3.5 w-3.5" />
                 {tab.label}
                 {typeof tab.count === "number" ? (
-                  <Badge variant="secondary" className="ml-2 bg-muted text-muted-foreground">
+                  <Badge variant="secondary" className="bg-muted text-muted-foreground ml-2">
                     {tab.count}
                   </Badge>
                 ) : null}

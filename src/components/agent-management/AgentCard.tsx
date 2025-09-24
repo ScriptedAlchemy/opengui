@@ -64,19 +64,19 @@ export function AgentCard({
   const modelLabel = formatAgentModelLabel(agent)
   return (
     <div
-      className="bg-card text-card-foreground rounded-lg border border-border p-6 transition-colors hover:border-primary/30 bg-[#1a1a1a] border-[#262626]"
+      className="bg-card text-card-foreground border-border hover:border-primary/30 rounded-lg border border-[#262626] bg-[#1a1a1a] p-6 transition-colors"
       data-testid="agent-item"
     >
       <div className="mb-4 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20">
-            <Bot className="h-5 w-5 text-primary" />
+          <div className="bg-primary/20 flex h-10 w-10 items-center justify-center rounded-lg">
+            <Bot className="text-primary h-5 w-5" />
           </div>
           <div className="flex-1">
             <div className="mb-2 flex items-center gap-2">
               <h3 className="text-lg font-semibold">{name}</h3>
               {agent.builtIn ? (
-                <Badge variant="outline" className="border-primary text-xs text-primary">
+                <Badge variant="outline" className="border-primary text-primary text-xs">
                   Built-in
                 </Badge>
               ) : null}
@@ -85,10 +85,10 @@ export function AgentCard({
               </Badge>
             </div>
             {agent.description && (
-              <p className="mb-1 line-clamp-2 text-sm text-muted-foreground">{agent.description}</p>
+              <p className="text-muted-foreground mb-1 line-clamp-2 text-sm">{agent.description}</p>
             )}
             {modelLabel ? (
-              <div className="mb-3 text-xs text-muted-foreground">{modelLabel}</div>
+              <div className="text-muted-foreground mb-3 text-xs">{modelLabel}</div>
             ) : null}
           </div>
         </div>
@@ -103,60 +103,60 @@ export function AgentCard({
             <Play className="mr-2 h-4 w-4" />
             Test
           </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="border-border bg-popover text-popover-foreground">
-            <DropdownMenuItem
-              onClick={() => onTest(name)}
-              aria-label="Test agent"
-              className="hover:bg-accent/10"
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="More actions">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="border-border bg-popover text-popover-foreground"
             >
-              <Play className="mr-2 h-4 w-4" />
-              Test Agent
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => onDuplicate(name)}
-              aria-label="Copy config"
-              className="hover:bg-accent/10"
-            >
-              <Copy className="mr-2 h-4 w-4" />
-              Copy Config
-            </DropdownMenuItem>
-            {onExportMarkdown && (
               <DropdownMenuItem
-                onClick={() => onExportMarkdown(name)}
-                aria-label="Export as markdown"
+                onClick={() => onTest(name)}
+                aria-label="Test agent"
                 className="hover:bg-accent/10"
               >
-                <Download className="mr-2 h-4 w-4" />
-                Export as MD
+                <Play className="mr-2 h-4 w-4" />
+                Test Agent
               </DropdownMenuItem>
-            )}
-            {!agent.builtIn && (
-              <>
-                <DropdownMenuSeparator className="bg-border" />
+              <DropdownMenuItem
+                onClick={() => onDuplicate(name)}
+                aria-label="Copy config"
+                className="hover:bg-accent/10"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Copy Config
+              </DropdownMenuItem>
+              {onExportMarkdown && (
                 <DropdownMenuItem
-                  onClick={() => onEdit(name)}
+                  onClick={() => onExportMarkdown(name)}
+                  aria-label="Export as markdown"
                   className="hover:bg-accent/10"
                 >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Edit
+                  <Download className="mr-2 h-4 w-4" />
+                  Export as MD
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onDelete(name)}
-                  className="text-red-400 hover:bg-accent/10 hover:text-red-300"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              )}
+              {!agent.builtIn && (
+                <>
+                  <DropdownMenuSeparator className="bg-border" />
+                  <DropdownMenuItem onClick={() => onEdit(name)} className="hover:bg-accent/10">
+                    <Edit className="mr-2 h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onDelete(name)}
+                    className="hover:bg-accent/10 text-red-400 hover:text-red-300"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -170,7 +170,7 @@ export function AgentCard({
             return (
               <Tooltip key={tool}>
                 <TooltipTrigger>
-                  <div className="flex items-center gap-1 rounded bg-muted/20 border border-border px-2 py-1 text-xs text-muted-foreground">
+                  <div className="bg-muted/20 border-border text-muted-foreground flex items-center gap-1 rounded border px-2 py-1 text-xs">
                     <Icon className="h-3 w-3" />
                     {tool}
                   </div>
@@ -182,7 +182,7 @@ export function AgentCard({
             )
           })}
         {Object.entries(agent.tools || {}).filter(([_, enabled]) => enabled).length > 4 && (
-          <div className="rounded bg-muted/20 border border-border px-2 py-1 text-xs text-muted-foreground">
+          <div className="bg-muted/20 border-border text-muted-foreground rounded border px-2 py-1 text-xs">
             +{Object.entries(agent.tools || {}).filter(([_, enabled]) => enabled).length - 4} more
           </div>
         )}
@@ -195,14 +195,14 @@ export function AgentCard({
             <Button
               variant="ghost"
               size="sm"
-              className="mb-2 h-auto p-0 text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground mb-2 h-auto p-0"
             >
               <Eye className="mr-2 h-4 w-4" />
               Show System Prompt
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <div className="mt-2 max-h-32 overflow-y-auto rounded border border-border bg-input/30 p-3 text-sm text-muted-foreground">
+            <div className="border-border bg-input/30 text-muted-foreground mt-2 max-h-32 overflow-y-auto rounded border p-3 text-sm">
               <pre className="font-mono text-xs whitespace-pre-wrap">{agent.prompt}</pre>
             </div>
           </CollapsibleContent>
@@ -210,21 +210,21 @@ export function AgentCard({
       )}
 
       {/* Quick Stats */}
-      <div className="mt-4 flex items-center justify-between border-t border-border pt-4 text-xs text-muted-foreground">
+      <div className="border-border text-muted-foreground mt-4 flex items-center justify-between border-t pt-4 text-xs">
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 rounded bg-muted/20 border border-border px-2 py-1">
+          <div className="bg-muted/20 border-border flex items-center gap-1 rounded border px-2 py-1">
             <Cpu className="h-3 w-3" />
             <span>Temp {agent.temperature || 0.7}</span>
           </div>
           {Object.values(agent.tools || {}).filter(Boolean).length > 0 && (
-            <div className="flex items-center gap-1 rounded bg-muted/20 border border-border px-2 py-1">
+            <div className="bg-muted/20 border-border flex items-center gap-1 rounded border px-2 py-1">
               <Activity className="h-3 w-3" />
               <span>Tools {Object.values(agent.tools || {}).filter(Boolean).length}</span>
             </div>
           )}
         </div>
         {!agent.builtIn && (
-          <div className="flex items-center gap-1 rounded bg-muted/20 border border-border px-2 py-1">
+          <div className="bg-muted/20 border-border flex items-center gap-1 rounded border px-2 py-1">
             <Clock className="h-3 w-3" />
             <span>Source Custom</span>
           </div>

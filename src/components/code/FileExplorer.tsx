@@ -1,5 +1,13 @@
 import type { MouseEvent as ReactMouseEvent } from "react"
-import { ChevronDown, ChevronRight, FileCode, FileText, Folder, FolderOpen, Loader2 } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronRight,
+  FileCode,
+  FileText,
+  Folder,
+  FolderOpen,
+  Loader2,
+} from "lucide-react"
 
 export interface FileTreeNode {
   name: string
@@ -19,7 +27,14 @@ export interface FileExplorerProps {
   className?: string
 }
 
-export function FileExplorer({ nodes, selectedPath, onSelect, onToggle, onContextMenu, className }: FileExplorerProps) {
+export function FileExplorer({
+  nodes,
+  selectedPath,
+  onSelect,
+  onToggle,
+  onContextMenu,
+  className,
+}: FileExplorerProps) {
   const renderNode = (node: FileTreeNode, level = 0) => {
     const isDir = node.type === "directory"
     const isOpen = !!node.isExpanded
@@ -27,8 +42,30 @@ export function FileExplorer({ nodes, selectedPath, onSelect, onToggle, onContex
     const indentPx = level * 12 + 8
 
     const ext = node.name.split(".").pop()?.toLowerCase()
-    const codeExts = ["js", "jsx", "ts", "tsx", "py", "java", "c", "cpp", "cs", "php", "rb", "go", "rs", "swift", "kt"]
-    const Icon = isDir ? (isOpen ? FolderOpen : Folder) : codeExts.includes(ext || "") ? FileCode : FileText
+    const codeExts = [
+      "js",
+      "jsx",
+      "ts",
+      "tsx",
+      "py",
+      "java",
+      "c",
+      "cpp",
+      "cs",
+      "php",
+      "rb",
+      "go",
+      "rs",
+      "swift",
+      "kt",
+    ]
+    const Icon = isDir
+      ? isOpen
+        ? FolderOpen
+        : Folder
+      : codeExts.includes(ext || "")
+        ? FileCode
+        : FileText
 
     return (
       <div key={node.path}>
@@ -36,7 +73,7 @@ export function FileExplorer({ nodes, selectedPath, onSelect, onToggle, onContex
           role="treeitem"
           aria-expanded={isDir ? isOpen : undefined}
           data-testid={isDir ? "folder-item" : "file-item"}
-          className={`group flex cursor-pointer items-center gap-1 px-2 py-1 text-sm transition-colors hover:bg-accent/30 ${
+          className={`group hover:bg-accent/30 flex cursor-pointer items-center gap-1 px-2 py-1 text-sm transition-colors ${
             isSelected ? "bg-accent/20 text-accent" : ""
           }`}
           style={{ paddingLeft: `${indentPx}px` }}
@@ -63,7 +100,7 @@ export function FileExplorer({ nodes, selectedPath, onSelect, onToggle, onContex
                 onToggle(node)
               }}
               aria-label={isOpen ? "Collapse folder" : "Expand folder"}
-              className="rounded p-0.5 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="hover:bg-accent/30 focus-visible:ring-ring rounded p-0.5 focus-visible:ring-2 focus-visible:outline-none"
             >
               {node.isLoading ? (
                 <Loader2 className="h-3 w-3 animate-spin" />

@@ -61,7 +61,11 @@ export function ChatHeader({
             Provider:
           </Label>
           <Select value={selectedProvider} onValueChange={onProviderChange}>
-            <SelectTrigger id="provider-select" data-testid="provider-select" className="w-48 min-w-[12rem]">
+            <SelectTrigger
+              id="provider-select"
+              data-testid="provider-select"
+              className="w-48 min-w-[12rem]"
+            >
               <SelectValue placeholder="Select provider" />
             </SelectTrigger>
             <SelectContent>
@@ -80,7 +84,11 @@ export function ChatHeader({
             Model:
           </Label>
           <Select value={selectedModel} onValueChange={onModelChange}>
-            <SelectTrigger id="model-select" data-testid="model-select" className="w-60 min-w-[14rem]">
+            <SelectTrigger
+              id="model-select"
+              data-testid="model-select"
+              className="w-60 min-w-[14rem]"
+            >
               <SelectValue placeholder="Select model" />
             </SelectTrigger>
             <SelectContent>

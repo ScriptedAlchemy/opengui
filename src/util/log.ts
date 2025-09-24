@@ -1,6 +1,6 @@
 // Simple logging utility for the app package
 export namespace Log {
-  type Level = 'silent' | 'error' | 'warn' | 'info' | 'debug'
+  type Level = "silent" | "error" | "warn" | "info" | "debug"
 
   const levelOrder: Record<Level, number> = {
     silent: 0,
@@ -18,9 +18,10 @@ export namespace Log {
   }
 
   const envLevel = (() => {
-    const v = (getEnv("LOG_LEVEL") || getEnv("OPENCODE_LOG_LEVEL") || '').toLowerCase()
-    if (v === 'silent' || v === 'error' || v === 'warn' || v === 'info' || v === 'debug') return v as Level
-    return 'info' as Level
+    const v = (getEnv("LOG_LEVEL") || getEnv("OPENCODE_LOG_LEVEL") || "").toLowerCase()
+    if (v === "silent" || v === "error" || v === "warn" || v === "info" || v === "debug")
+      return v as Level
+    return "info" as Level
   })()
   export interface LogOptions {
     service?: string
@@ -34,7 +35,7 @@ export namespace Log {
     }
 
     info(message: string, ...args: unknown[]) {
-      if (getEnv("NODE_ENV") === 'test') return
+      if (getEnv("NODE_ENV") === "test") return
       if (levelOrder[envLevel] >= levelOrder.info) {
         console.log(`[${this.service}] INFO:`, message, ...args)
       }
@@ -47,7 +48,7 @@ export namespace Log {
     }
 
     warn(message: string, ...args: unknown[]) {
-      if (getEnv("NODE_ENV") === 'test') return
+      if (getEnv("NODE_ENV") === "test") return
       if (levelOrder[envLevel] >= levelOrder.warn) {
         console.warn(`[${this.service}] WARN:`, message, ...args)
       }

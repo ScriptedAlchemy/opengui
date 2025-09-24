@@ -60,8 +60,14 @@ interface OpenFile {
 
 type FileApi = NonNullable<OpencodeClient["file"]>
 type FileApiWithExtensions = FileApi & {
-  write?: (options: { body: { path: string; content: string }; query: { directory: string } }) => Promise<unknown>
-  rename?: (options: { body: { oldPath: string; newPath: string }; query: { directory: string } }) => Promise<unknown>
+  write?: (options: {
+    body: { path: string; content: string }
+    query: { directory: string }
+  }) => Promise<unknown>
+  rename?: (options: {
+    body: { oldPath: string; newPath: string }
+    query: { directory: string }
+  }) => Promise<unknown>
   delete?: (options: { query: { path: string; directory: string } }) => Promise<unknown>
 }
 
@@ -296,7 +302,11 @@ const Breadcrumb: React.FC<{
   items: BreadcrumbItem[]
   onNavigate: (path: string) => void
 }> = ({ items, onNavigate }) => (
-  <div data-testid="breadcrumb-navigation" data-ui="breadcrumb" className="border-border flex items-center gap-1 border-b px-4 py-2 text-sm">
+  <div
+    data-testid="breadcrumb-navigation"
+    data-ui="breadcrumb"
+    className="border-border flex items-center gap-1 border-b px-4 py-2 text-sm"
+  >
     <Home className="h-4 w-4" />
     {items.map((item) => (
       <React.Fragment key={item.path}>
@@ -385,7 +395,10 @@ export default function FileBrowser() {
   }, [projectId, activeWorktreeId, worktrees, currentProject?.path, navigate])
 
   const { client } = useProjectSDK(projectId, resolvedPath)
-  const activeFile = useMemo(() => openFiles.find((file) => file.path === activeTab) ?? null, [openFiles, activeTab])
+  const activeFile = useMemo(
+    () => openFiles.find((file) => file.path === activeTab) ?? null,
+    [openFiles, activeTab]
+  )
   const makeListQuery = useCallback(
     (path: string): FileListQuery => ({
       path,
@@ -419,11 +432,7 @@ export default function FileBrowser() {
   }, [client, resolvedPath, showHidden, makeListQuery])
 
   const updateNodeInTree = useCallback(
-    (
-      tree: FileTreeNode[],
-      path: string,
-      updates: Partial<FileTreeNode>
-    ): FileTreeNode[] => {
+    (tree: FileTreeNode[], path: string, updates: Partial<FileTreeNode>): FileTreeNode[] => {
       return tree.map((node) => {
         if (node.path === path) {
           return { ...node, ...updates }
@@ -465,7 +474,7 @@ export default function FileBrowser() {
         console.error("Failed to load directory:", error)
         setFileTree((prev) => updateNodeInTree(prev, node.path, { isLoading: false }))
       }
-  },
+    },
     [client, resolvedPath, updateNodeInTree, makeListQuery]
   )
 
@@ -561,7 +570,11 @@ export default function FileBrowser() {
       if (!session.data) throw new Error("Failed to create session")
       await client.session.prompt({
         path: { id: session.data.id },
-        body: { parts: [{ type: "text", text: `Write file ${path} with the following content:\n\n${content}` }] },
+        body: {
+          parts: [
+            { type: "text", text: `Write file ${path} with the following content:\n\n${content}` },
+          ],
+        },
         query: { directory: resolvedPath },
       })
     },
@@ -651,15 +664,7 @@ export default function FileBrowser() {
       setNewFileName("")
       setTargetNode(null)
     }
-  }, [
-    targetNode,
-    newFileName,
-    client,
-    resolvedPath,
-    performWrite,
-    updateNodeInTree,
-    makeListQuery,
-  ])
+  }, [targetNode, newFileName, client, resolvedPath, performWrite, updateNodeInTree, makeListQuery])
 
   const handleRename = useCallback(async () => {
     if (!targetNode || !newFileName.trim() || !client || !resolvedPath) return
@@ -715,7 +720,8 @@ export default function FileBrowser() {
 
   const handleDelete = useCallback(
     async (node: FileTreeNode) => {
-      if (!client || !resolvedPath || !confirm(`Are you sure you want to delete ${node.name}?`)) return
+      if (!client || !resolvedPath || !confirm(`Are you sure you want to delete ${node.name}?`))
+        return
 
       try {
         await performDelete(node.path)
@@ -799,7 +805,9 @@ export default function FileBrowser() {
 
   // Handle code edits in Monaco
   const handleCodeChange = useCallback((path: string, newContent: string) => {
-    setOpenFiles((prev) => prev.map((f) => (f.path === path ? { ...f, content: newContent, isDirty: true } : f)))
+    setOpenFiles((prev) =>
+      prev.map((f) => (f.path === path ? { ...f, content: newContent, isDirty: true } : f))
+    )
   }, [])
 
   const handleTabClose = useCallback(
@@ -865,11 +873,11 @@ export default function FileBrowser() {
 
   if (error) {
     return (
-      <div className="flex h-full items-center justify-center bg-background text-foreground">
+      <div className="bg-background text-foreground flex h-full items-center justify-center">
         <div className="text-center">
           <AlertCircle className="mx-auto mb-4 h-12 w-12 text-red-500" />
           <h2 className="mb-2 text-xl font-semibold">Failed to load files</h2>
-          <p className="mb-4 text-muted-foreground">{error}</p>
+          <p className="text-muted-foreground mb-4">{error}</p>
           <Button onClick={() => window.location.reload()}>Retry</Button>
         </div>
       </div>
@@ -879,12 +887,15 @@ export default function FileBrowser() {
   return (
     <div
       data-testid="file-browser-page"
-      className={cn("flex h-full bg-background text-foreground", isFullscreen && "fixed inset-0 z-50")}
+      className={cn(
+        "bg-background text-foreground flex h-full",
+        isFullscreen && "fixed inset-0 z-50"
+      )}
     >
       {/* Left Panel - File Tree */}
-      <div className="flex w-80 flex-col border-r border-border bg-card">
+      <div className="border-border bg-card flex w-80 flex-col border-r">
         {/* Controls */}
-        <div data-testid="file-browser-controls" className="border-b border-border p-4 space-y-3">
+        <div data-testid="file-browser-controls" className="border-border space-y-3 border-b p-4">
           <div className="relative">
             <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform" />
             <Input
@@ -892,7 +903,7 @@ export default function FileBrowser() {
               placeholder="Search files..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="border-input bg-background pl-10 placeholder:text-muted-foreground"
+              className="border-input bg-background placeholder:text-muted-foreground pl-10"
             />
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -914,7 +925,7 @@ export default function FileBrowser() {
                 Grid View
               </Button>
             </div>
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <label className="text-muted-foreground flex items-center gap-2 text-sm">
               <Checkbox
                 checked={showHidden}
                 onCheckedChange={(value) => setShowHidden(value === true)}
@@ -959,7 +970,10 @@ export default function FileBrowser() {
         <div data-testid="breadcrumb-navigation" className="px-4 py-2" />
 
         {/* Editor Header */}
-        <div data-testid="breadcrumb-navigation" className="flex items-center justify-between border-b border-border px-4 py-2">
+        <div
+          data-testid="breadcrumb-navigation"
+          className="border-border flex items-center justify-between border-b px-4 py-2"
+        >
           <div className="flex items-center gap-2">
             <h2 className="font-semibold">Code Editor</h2>
             {openFiles.some((f) => f.isDirty) && (
@@ -1005,7 +1019,9 @@ export default function FileBrowser() {
               <div className="text-center">
                 <FileText className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
                 <h3 className="mb-2 text-lg font-medium">No files open</h3>
-                <p className="text-muted-foreground">Select a file from the tree to start editing</p>
+                <p className="text-muted-foreground">
+                  Select a file from the tree to start editing
+                </p>
               </div>
             </div>
           ) : (
@@ -1019,7 +1035,9 @@ export default function FileBrowser() {
                     className="flex items-center gap-2"
                   >
                     <div className="flex items-center gap-2">
-                      {React.createElement(getFileIcon(file.name, "file"), { className: "w-4 h-4" })}
+                      {React.createElement(getFileIcon(file.name, "file"), {
+                        className: "w-4 h-4",
+                      })}
                       <span>{file.name}</span>
                       {file.isDirty && <div className="h-1.5 w-1.5 rounded-full bg-yellow-500" />}
                       <button
@@ -1029,7 +1047,7 @@ export default function FileBrowser() {
                           handleTabClose(file.path)
                         }}
                         aria-label="Close tab"
-                        className="ml-1 rounded p-0.5 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="hover:bg-accent/30 focus-visible:ring-ring ml-1 rounded p-0.5 focus-visible:ring-2 focus-visible:outline-none"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -1043,26 +1061,33 @@ export default function FileBrowser() {
                   <div data-testid="file-editor" className="h-full min-h-0">
                     <div data-testid="file-editor-inner" className="h-full">
                       <div data-testid="editor-container" className="h-full">
-                      <MonacoEditor
-                        filePath={file.path}
-                        content={file.content}
-                        language={file.language}
-                        onChange={(val) => handleCodeChange(file.path, val)}
-                        onMount={(editor, monaco) => {
-                          editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, async () => {
-                            // Save active file via direct write
-                            const f = openFiles.find((of) => of.path === file.path)
-                            if (!f || !f.isDirty) return
-                            try {
-                              await performWrite(f.path, f.content)
-                              setOpenFiles((prev) => prev.map((x) => (x.path === f.path ? { ...x, isDirty: false } : x)))
-                            } catch (e) {
-                              console.error("Save failed", e)
-                            }
-                          })
-                        }}
-                        className="h-full"
-                      />
+                        <MonacoEditor
+                          filePath={file.path}
+                          content={file.content}
+                          language={file.language}
+                          onChange={(val) => handleCodeChange(file.path, val)}
+                          onMount={(editor, monaco) => {
+                            editor.addCommand(
+                              monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
+                              async () => {
+                                // Save active file via direct write
+                                const f = openFiles.find((of) => of.path === file.path)
+                                if (!f || !f.isDirty) return
+                                try {
+                                  await performWrite(f.path, f.content)
+                                  setOpenFiles((prev) =>
+                                    prev.map((x) =>
+                                      x.path === f.path ? { ...x, isDirty: false } : x
+                                    )
+                                  )
+                                } catch (e) {
+                                  console.error("Save failed", e)
+                                }
+                              }
+                            )
+                          }}
+                          className="h-full"
+                        />
                       </div>
                     </div>
                   </div>
@@ -1076,7 +1101,7 @@ export default function FileBrowser() {
       {/* Context Menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 rounded-md border border-border bg-popover py-1 text-popover-foreground shadow-lg"
+          className="border-border bg-popover text-popover-foreground fixed z-50 rounded-md border py-1 shadow-lg"
           style={{
             left: contextMenu.x,
             top: contextMenu.y,

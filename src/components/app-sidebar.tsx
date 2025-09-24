@@ -57,45 +57,80 @@ const globalMainNav = [
 ] as const
 
 const projectMainNav: readonly ProjectLink[] = [
-  { title: "Dashboard", icon: LayoutDashboardIcon, path: (id, worktree) => `/projects/${id}/${worktree}` },
-  { title: "Chat Sessions", icon: MessageSquareIcon, path: (id, worktree) => `/projects/${id}/${worktree}/sessions` },
-  { title: "Git Operations", icon: GitBranchIcon, path: (id, worktree) => `/projects/${id}/${worktree}/git` },
-  { title: "GitHub", icon: GithubIcon, path: (id, worktree) => `/projects/${id}/${worktree}/github` },
+  {
+    title: "Dashboard",
+    icon: LayoutDashboardIcon,
+    path: (id, worktree) => `/projects/${id}/${worktree}`,
+  },
+  {
+    title: "Chat Sessions",
+    icon: MessageSquareIcon,
+    path: (id, worktree) => `/projects/${id}/${worktree}/sessions`,
+  },
+  {
+    title: "Git Operations",
+    icon: GitBranchIcon,
+    path: (id, worktree) => `/projects/${id}/${worktree}/git`,
+  },
+  {
+    title: "GitHub",
+    icon: GithubIcon,
+    path: (id, worktree) => `/projects/${id}/${worktree}/github`,
+  },
   { title: "Agents", icon: BotIcon, path: (id, worktree) => `/projects/${id}/${worktree}/agents` },
 ]
 
 const projectDocuments: readonly DocumentLink[] = [
-  { name: "File Browser", icon: CodeIcon, path: (id, worktree) => `/projects/${id}/${worktree}/files` },
-  { name: "Terminal", icon: TerminalIcon, path: (id, worktree) => `/projects/${id}/${worktree}/terminal` },
+  {
+    name: "File Browser",
+    icon: CodeIcon,
+    path: (id, worktree) => `/projects/${id}/${worktree}/files`,
+  },
+  {
+    name: "Terminal",
+    icon: TerminalIcon,
+    path: (id, worktree) => `/projects/${id}/${worktree}/terminal`,
+  },
 ]
 
 const projectSecondary: readonly ProjectLink[] = [
-  { title: "Settings", icon: SettingsIcon, path: (id, worktree) => `/projects/${id}/${worktree}/settings` },
+  {
+    title: "Settings",
+    icon: SettingsIcon,
+    path: (id, worktree) => `/projects/${id}/${worktree}/settings`,
+  },
   { title: "Help", icon: HelpCircleIcon, path: (_id, _worktree) => `#` },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const currentProject = useCurrentProject()
   const location = useLocation()
-  const match = React.useMemo(() => /\/projects\/([^/]+)/.exec(location.pathname), [location.pathname])
+  const match = React.useMemo(
+    () => /\/projects\/([^/]+)/.exec(location.pathname),
+    [location.pathname]
+  )
   const projectIdFromPath = match?.[1]
   const isProjectRoute = Boolean(projectIdFromPath)
   const projectId = projectIdFromPath ?? currentProject?.id ?? null
   const worktreeMatch = React.useMemo(
-    () => (/\/projects\/[^/]+\/([^/]+)/.exec(location.pathname) ?? null),
-    [location.pathname],
+    () => /\/projects\/[^/]+\/([^/]+)/.exec(location.pathname) ?? null,
+    [location.pathname]
   )
   const activeWorktreeId = worktreeMatch?.[1] || "default"
   const hasProject = isProjectRoute && Boolean(projectId)
   const instanceRunning = Boolean(
-    currentProject?.id === projectId && currentProject.instance?.status === "running",
+    currentProject?.id === projectId && currentProject.instance?.status === "running"
   )
 
   const mainItems = React.useMemo(() => {
     if (!hasProject || !projectId) return [...globalMainNav]
     return [
       ...globalMainNav,
-      ...projectMainNav.map((item) => ({ title: item.title, url: item.path(projectId, activeWorktreeId), icon: item.icon })),
+      ...projectMainNav.map((item) => ({
+        title: item.title,
+        url: item.path(projectId, activeWorktreeId),
+        icon: item.icon,
+      })),
     ]
   }, [hasProject, projectId, activeWorktreeId])
 
@@ -107,13 +142,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         if (doc.name === "Terminal" && !instanceRunning) return false
         return true
       })
-      .map((doc) => ({ name: doc.name, url: doc.path(projectId, activeWorktreeId), icon: doc.icon }))
+      .map((doc) => ({
+        name: doc.name,
+        url: doc.path(projectId, activeWorktreeId),
+        icon: doc.icon,
+      }))
     return docs
   }, [hasProject, projectId, instanceRunning, activeWorktreeId])
 
   const secondaryItems = React.useMemo(() => {
     if (!hasProject || !projectId) return [] as { title: string; url: string; icon: LucideIcon }[]
-    return projectSecondary.map((item) => ({ title: item.title, url: item.path(projectId, activeWorktreeId), icon: item.icon }))
+    return projectSecondary.map((item) => ({
+      title: item.title,
+      url: item.path(projectId, activeWorktreeId),
+      icon: item.icon,
+    }))
   }, [hasProject, projectId, activeWorktreeId])
 
   return (

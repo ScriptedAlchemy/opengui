@@ -13,47 +13,47 @@
 
   /* Colors (HSL tokens for shadcn/Tailwind compatibility) */
   --background: 0 0% 100%; /* #ffffff */
-  --foreground: 0 0% 0%;   /* #000000 */
+  --foreground: 0 0% 0%; /* #000000 */
 
   /* Card & Surfaces */
-  --card: 0 0% 98%;            /* #fafafa */
-  --card-foreground: 0 0% 0%;  /* #000000 */
+  --card: 0 0% 98%; /* #fafafa */
+  --card-foreground: 0 0% 0%; /* #000000 */
 
   /* Popover */
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 0%;
 
   /* Sidebar (for shadcn sidebar components) */
-  --sidebar: 0 0% 96%;                 /* #f5f5f5 */
+  --sidebar: 0 0% 96%; /* #f5f5f5 */
   --sidebar-foreground: 0 0% 0%;
-  --sidebar-accent: 0 0% 90%;          /* #e5e5e5 */
+  --sidebar-accent: 0 0% 90%; /* #e5e5e5 */
   --sidebar-accent-foreground: 0 0% 0%;
-  --sidebar-border: 0 0% 90%;          /* #e5e5e5 */
+  --sidebar-border: 0 0% 90%; /* #e5e5e5 */
   --sidebar-ring: 0 0% 0%;
- 
+
   /* Borders & Inputs */
-  --border: 0 0% 90%;        /* #e5e5e5 */
-  --input: 0 0% 90%;         /* #e5e5e5 */
-  --ring: 0 0% 0%;           /* #000000 */
+  --border: 0 0% 90%; /* #e5e5e5 */
+  --input: 0 0% 90%; /* #e5e5e5 */
+  --ring: 0 0% 0%; /* #000000 */
 
   /* Brand/semantic */
-  --primary: 221 83% 53%;       /* brand blue */
+  --primary: 221 83% 53%; /* brand blue */
   --primary-foreground: 0 0% 100%;
-  --secondary: 0 0% 45%;        /* #737373 */
+  --secondary: 0 0% 45%; /* #737373 */
   --secondary-foreground: 0 0% 100%;
-  --muted: 0 0% 96%;            /* #f5f5f5 */
+  --muted: 0 0% 96%; /* #f5f5f5 */
   --muted-foreground: 0 0% 45%;
   --accent: 0 0% 96%;
   --accent-foreground: 0 0% 0%;
-  --destructive: 0 84% 65%;      /* #ef4444 */
+  --destructive: 0 84% 65%; /* #ef4444 */
   --destructive-foreground: 0 0% 100%;
 
   /* Charts (shadcn convention) */
-  --chart-1: 221 83% 53%;   /* blue-600 */
-  --chart-2: 142 76% 36%;   /* green-600 */
-  --chart-3: 27 96% 61%;    /* amber-500 */
-  --chart-4: 262 83% 58%;   /* violet-600 */
-  --chart-5: 348 83% 47%;   /* rose-600 */
+  --chart-1: 221 83% 53%; /* blue-600 */
+  --chart-2: 142 76% 36%; /* green-600 */
+  --chart-3: 27 96% 61%; /* amber-500 */
+  --chart-4: 262 83% 58%; /* violet-600 */
+  --chart-5: 348 83% 47%; /* rose-600 */
 
   /* Spacing */
   --spacing: 0.25rem;
@@ -78,32 +78,32 @@
 
 /* Dark Mode Support */
 .dark {
-  --background: 0 0% 0%;     /* #000 */
-  --foreground: 0 0% 100%;   /* #fff */
+  --background: 0 0% 0%; /* #000 */
+  --foreground: 0 0% 100%; /* #fff */
 
-  --card: 0 0% 3.9%;         /* #0a0a0a */
+  --card: 0 0% 3.9%; /* #0a0a0a */
   --card-foreground: 0 0% 100%;
 
   --popover: 0 0% 3.9%;
   --popover-foreground: 0 0% 100%;
 
-  --border: 0 0% 15%;        /* #262626 */
+  --border: 0 0% 15%; /* #262626 */
   --input: 0 0% 15%;
   --ring: 0 0% 100%;
 
   --primary: 221 83% 53%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 0 0% 64%;     /* #a3a3a3 */
+  --secondary: 0 0% 64%; /* #a3a3a3 */
   --secondary-foreground: 0 0% 0%;
 
-  --muted: 0 0% 9%;          /* #171717 */
+  --muted: 0 0% 9%; /* #171717 */
   --muted-foreground: 0 0% 64%;
 
   --accent: 0 0% 9%;
   --accent-foreground: 0 0% 100%;
 
-  --destructive: 0 72% 50%;  /* #dc2626 approx */
+  --destructive: 0 72% 50%; /* #dc2626 approx */
   --destructive-foreground: 0 0% 100%;
 
   /* Sidebar (dark) */
@@ -116,8 +116,8 @@
   /* Optional sidebar primary emphasis */
   --sidebar-primary: 221 83% 53%;
   --sidebar-primary-foreground: 0 0% 100%;
- }
- 
+}
+
 /* Base Styles */
 * {
   border-color: var(--border);

@@ -64,11 +64,13 @@ export class ProjectManager {
   }
 
   private slugify(value: string): string {
-    return value
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 64) || "worktree"
+    return (
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 64) || "worktree"
+    )
   }
 
   private ensureDefaultWorktree(info: ProjectInfo): void {
@@ -87,7 +89,7 @@ export class ProjectManager {
       info.worktrees.push({
         id: "default",
         path: normalizedProjectPath,
-        title: `${info.name} (default)`
+        title: `${info.name} (default)`,
       })
     }
 
@@ -249,7 +251,12 @@ export class ProjectManager {
   private async findGitRoot(startPath: string): Promise<string | null> {
     try {
       const execFileAsync = promisify(execFile)
-      const { stdout } = await execFileAsync("git", ["-C", startPath, "rev-parse", "--show-toplevel"]) 
+      const { stdout } = await execFileAsync("git", [
+        "-C",
+        startPath,
+        "rev-parse",
+        "--show-toplevel",
+      ])
       return stdout.toString().trim()
     } catch {
       return null
@@ -259,7 +266,13 @@ export class ProjectManager {
   private async getInitialCommitHash(gitRoot: string): Promise<string | null> {
     try {
       const execFileAsync = promisify(execFile)
-      const { stdout } = await execFileAsync("git", ["-C", gitRoot, "rev-list", "--max-parents=0", "HEAD"]) 
+      const { stdout } = await execFileAsync("git", [
+        "-C",
+        gitRoot,
+        "rev-list",
+        "--max-parents=0",
+        "HEAD",
+      ])
       const hash = stdout.toString().trim().split("\n")[0]
       return hash ? hash.substring(0, 16) : null
     } catch {
@@ -331,8 +344,7 @@ export class ProjectManager {
         {
           id: "default",
           path: normalizedPath,
-          title: `${name || normalizedPath.split("/").pop() || "Unknown Project"} (default)`
-            .trim(),
+          title: `${name || normalizedPath.split("/").pop() || "Unknown Project"} (default)`.trim(),
         },
       ],
     }

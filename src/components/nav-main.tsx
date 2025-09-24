@@ -48,29 +48,31 @@ export function NavMain({
         </SidebarMenu>
         <SidebarMenu data-testid="main-navigation">
           {items.map((item) => {
-            const isActive = location.pathname === item.url || location.pathname.startsWith(item.url + "/")
+            const isActive =
+              location.pathname === item.url || location.pathname.startsWith(item.url + "/")
             return (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                data-testid={
-                  item.title === "Dashboard"
-                    ? "dashboard-nav"
-                    : item.title.toLowerCase().includes("sessions")
-                    ? "nav-sessions"
-                    : `nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`
-                }
-                tooltip={item.title}
-                isActive={isActive}
-                onClick={() => {
-                  console.log("navigation to", item)
-                  return navigate(item.url)
-                }}
-              >
-                {item.icon && <item.icon />}
-                <span>{item.title}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          )})}
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  data-testid={
+                    item.title === "Dashboard"
+                      ? "dashboard-nav"
+                      : item.title.toLowerCase().includes("sessions")
+                        ? "nav-sessions"
+                        : `nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`
+                  }
+                  tooltip={item.title}
+                  isActive={isActive}
+                  onClick={() => {
+                    console.log("navigation to", item)
+                    return navigate(item.url)
+                  }}
+                >
+                  {item.icon && <item.icon />}
+                  <span>{item.title}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

@@ -39,7 +39,7 @@ export class OpencodeSDKService {
 
     // Create a new promise and store it
     this.backendUrlPromise = this.fetchBackendUrl()
-    
+
     try {
       const url = await this.backendUrlPromise
       this.backendUrl = url
@@ -57,14 +57,14 @@ export class OpencodeSDKService {
   private async fetchBackendUrl(): Promise<string> {
     try {
       // Fetch backend URL (the server returns a proxied path like "/opencode")
-      const response = await fetch('/api/backend-url')
+      const response = await fetch("/api/backend-url")
       if (!response.ok) {
         throw new Error(`Failed to fetch backend URL: ${response.statusText}`)
       }
-      
+
       const data = await response.json()
-      if (!data.url || typeof data.url !== 'string') {
-        throw new Error('Invalid backend URL received from server')
+      if (!data.url || typeof data.url !== "string") {
+        throw new Error("Invalid backend URL received from server")
       }
       logger.info("Fetched OpenCode backend URL", {
         sensitive: { baseUrl: data.url },
@@ -72,7 +72,7 @@ export class OpencodeSDKService {
       return data.url
     } catch (error) {
       logger.error("Failed to fetch backend URL", { error })
-      throw new Error('Unable to connect to OpenCode backend. Please ensure the server is running.')
+      throw new Error("Unable to connect to OpenCode backend. Please ensure the server is running.")
     }
   }
 
@@ -100,7 +100,7 @@ export class OpencodeSDKService {
     try {
       // Get the backend URL
       const baseUrl = await this.getBackendUrl()
-      
+
       // Create SDK client with the proxied base URL
       const client = createOpencodeClient({ baseUrl })
 
@@ -140,7 +140,7 @@ export class OpencodeSDKService {
     try {
       // Get the backend URL
       const baseUrl = await this.getBackendUrl()
-      
+
       // Create SDK client with the proxied base URL
       const client = createOpencodeClient({ baseUrl })
 

@@ -22,15 +22,17 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
         if (!apiResponse.ok) {
           // Enhanced error logging for HTTP failures
           const responseClone = apiResponse.clone()
-          const responseText = await responseClone.text().catch(() => "Unable to read response body")
+          const responseText = await responseClone
+            .text()
+            .catch(() => "Unable to read response body")
           const responseHeaders = Object.fromEntries(apiResponse.headers.entries())
-          console.error('Failed to fetch projects:', {
-            method: 'GET',
-            url: '/api/projects',
+          console.error("Failed to fetch projects:", {
+            method: "GET",
+            url: "/api/projects",
             status: apiResponse.status,
             statusText: apiResponse.statusText,
             headers: responseHeaders,
-            body: responseText
+            body: responseText,
           })
           // Do not throw in UI hook; proceed with SDK fallback
           return

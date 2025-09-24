@@ -352,7 +352,7 @@ const baseComponents: Options["components"] = {
     <summary
       className={cn(
         "text-muted-foreground/90 bg-muted/50 px-3 py-2 text-sm font-medium",
-        "hover:bg-muted/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "hover:bg-muted/70 focus-visible:ring-ring focus:outline-none focus-visible:ring-2",
         className
       )}
       {...props}
@@ -447,12 +447,14 @@ export const Response = memo(
     const resolvedAllowedImages = allowedImagePrefixes ?? options?.allowedImagePrefixes ?? ["*"]
     markdownOptions.allowedImagePrefixes = resolvedAllowedImages
 
-    const resolvedAllowedLinks =
-      allowedLinkPrefixes ?? options?.allowedLinkPrefixes ?? ["http", "https", "mailto", "tel"]
+    const resolvedAllowedLinks = allowedLinkPrefixes ??
+      options?.allowedLinkPrefixes ?? ["http", "https", "mailto", "tel"]
     markdownOptions.allowedLinkPrefixes = resolvedAllowedLinks
 
     const resolvedOrigin =
-      defaultOrigin ?? options?.defaultOrigin ?? (typeof window !== "undefined" ? window.location.origin : "")
+      defaultOrigin ??
+      options?.defaultOrigin ??
+      (typeof window !== "undefined" ? window.location.origin : "")
     if (resolvedOrigin) {
       markdownOptions.defaultOrigin = resolvedOrigin
     }
