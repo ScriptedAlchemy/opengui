@@ -1,3 +1,4 @@
+import WorktreeSessionSync from "./components/system/WorktreeSessionSync"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { useEffect } from "react"
 import { loader as monacoLoader } from "@monaco-editor/react"
@@ -109,6 +110,7 @@ function App() {
             }}
           >
             <div className="bg-background text-foreground min-h-screen">
+              <WorktreeSessionSync />
               <DashboardLayout />
               {/* Global toast notifications */}
               {disableToasts ? null : <Toaster position="top-right" richColors />}
