@@ -79,7 +79,7 @@ async function main(): Promise<void> {
     process.exit(1)
   }
 
-  const paths = files.map((f) => `${tdir}/${f}`)
+  // Note: files resolved relative to test directory when passed to rstest
   const usePool = opts.includes("--pool")
   const isIntegration = cat === "integration" || files.some((f) => f.includes("integration/"))
 

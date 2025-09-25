@@ -423,4 +423,3 @@ describe("Thinking Component Tests", () => {
     })
   })
 })
-import React from "react"

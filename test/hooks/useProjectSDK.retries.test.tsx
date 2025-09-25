@@ -8,11 +8,10 @@ import { opencodeSDKService } from "@/services/opencode-sdk-service"
 const mockClient = {} as OpencodeClient
 
 let getClientSpy: ReturnType<typeof rstest.spyOn>
-let stopAllSpy: ReturnType<typeof rstest.spyOn>
 
 beforeEach(() => {
   getClientSpy = rstest.spyOn(opencodeSDKService, "getClient").mockResolvedValue(mockClient)
-  stopAllSpy = rstest.spyOn(opencodeSDKService, "stopAll").mockResolvedValue()
+  rstest.spyOn(opencodeSDKService, "stopAll").mockResolvedValue()
 })
 
 afterEach(() => {

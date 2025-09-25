@@ -110,20 +110,29 @@ export function spawnAdvanced(options: {
 /**
  * Node.js replacement for Bun.$`` template literal commands
  */
-export async function $(command: string, options?: {
-  cwd?: string
-  env?: Record<string, string>
-}): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+// Support both forms: $("cmd", options?) and $`cmd ${expr}`
+export async function $(
+  ...args:
+    | [command: string, options?: { cwd?: string; env?: Record<string, string> }]
+    | [strings: TemplateStringsArray, ...expr: unknown[]]
+): Promise<{ exitCode: number; stdout: string; stderr: string }> {
+  let command: string
+  let options: { cwd?: string; env?: Record<string, string> } | undefined
+  if (Array.isArray(args[0])) {
+    const strings = args[0] as TemplateStringsArray
+    const expr = args.slice(1)
+    command = strings.reduce((acc, s, i) => acc + s + (i < expr.length ? String(expr[i]) : ''), '')
+    options = undefined // options not supported in tagged form
+  } else {
+    command = args[0] as string
+    options = (args[1] as { cwd?: string; env?: Record<string, string> }) || undefined
+  }
   try {
     const { stdout, stderr } = await execAsync(command, {
       cwd: options?.cwd,
       env: { ...process.env, ...options?.env }
     })
-    return {
-      exitCode: 0,
-      stdout: stdout || '',
-      stderr: stderr || ''
-    }
+    return { exitCode: 0, stdout: stdout || '', stderr: stderr || '' }
   } catch (error: any) {
     return {
       exitCode: error.code || 1,
@@ -174,7 +183,7 @@ export function serve(options: { port: number; fetch: () => Response }): { port:
   const http = require('http')
   
   const server = http.createServer((_req: any, res: any) => {
-    const response = options.fetch()
+    options.fetch()
     res.writeHead(200, { 'Content-Type': 'text/plain' })
     res.end('ok')
   })

@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test"
 
-const DEFAULT_WORKTREE = "default"
+
 
 test("Chat workflow", async ({ page }) => {
   // No stubs: real provider usage

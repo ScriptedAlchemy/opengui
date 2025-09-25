@@ -102,7 +102,7 @@ const server = setupServer(
       return HttpResponse.json({ error: "Invalid content type" }, { status: 400 })
     }
 
-    let payload: { title?: string } | null = null
+    let payload: any = null
     try {
       payload = await request.json()
     } catch (error) {
@@ -144,7 +144,7 @@ const server = setupServer(
       return HttpResponse.json({ error: "Session not found" }, { status: 404 })
     }
 
-    let payload: { title?: string } | null = null
+    let payload: any = null
     try {
       payload = await request.json()
     } catch (error) {
@@ -239,7 +239,7 @@ const server = setupServer(
   ),
 
   http.post(`${MOCK_BASE_URL}/log`, async ({ request }) => {
-    let payload: { service?: string; level?: string; message?: string; extra?: unknown } | null = null
+    let payload: any = null
     try {
       payload = await request.json()
     } catch (error) {
@@ -253,7 +253,7 @@ const server = setupServer(
   }),
 
   http.put(`${MOCK_BASE_URL}/auth/:provider`, async ({ request }) => {
-    let payload: { type?: string; token?: string } | null = null
+    let payload: any = null
     try {
       payload = await request.json()
     } catch (error) {

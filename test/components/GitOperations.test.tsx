@@ -1,7 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach, rstest } from "@rstest/core"
 import { waitFor, act, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import * as React from "react"
 import type { ReactNode, ReactElement } from "react"
 let GitOperations: any
 let OpencodeSDKProvider: any

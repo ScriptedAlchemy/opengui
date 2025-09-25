@@ -360,7 +360,8 @@ describe("FileBrowser Component", () => {
       { projectId: "test-project", worktreeId: "default" }
     )
 
-    const [firstFile] = await findAllByTestId("file-item")
+    const items = (await findAllByTestId("file-item")) as unknown as HTMLElement[]
+    const firstFile = items[0]!
     fireEvent.contextMenu(firstFile)
 
     expect(await findByText("New File")).toBeTruthy()
@@ -386,21 +387,22 @@ describe("FileBrowser Component", () => {
         throw new Error("createSession not called yet")
       }
     })
-    const [projectArg, pathArg, titleArg] = mockCreateSession.mock.calls.at(-1) ?? []
+    const [projectArg, pathArg, titleArg] = (mockCreateSession.mock.calls.at(-1) ?? []) as any[]
     expect(projectArg).toBe("test-project")
     expect(pathArg).toBe("/project")
     expect(typeof titleArg).toBe("string")
 
     await waitFor(() => {
-      const promptArgs = mockSessionPrompt.mock.calls.at(-1)?.[0]
+      const promptArgs = (mockSessionPrompt as any).mock.calls.at(-1)?.[0]
       expect(promptArgs?.query?.directory).toBe("/project")
     })
   })
 
   test("creates session with worktree path when asking AI", async () => {
     mockFileList.mockClear()
-    mockFileList.mockImplementationOnce(({ query }) => {
-      const directory = query?.directory ?? "/project-feature"
+    ;(mockFileList as any).mockImplementationOnce((args: any) => {
+      const query = (args?.query ?? {}) as { directory?: string }
+      const directory = query.directory ?? "/project-feature"
       return Promise.resolve({
         data: mockFiles.map((file) => ({
           ...file,
@@ -428,12 +430,12 @@ describe("FileBrowser Component", () => {
         throw new Error("createSession not called yet")
       }
     })
-    const [projectArg, pathArg] = mockCreateSession.mock.calls.at(-1) ?? []
+    const [projectArg, pathArg] = (mockCreateSession.mock.calls.at(-1) ?? []) as any[]
     expect(projectArg).toBe("test-project")
     expect(pathArg).toBe("/project-feature")
 
     await waitFor(() => {
-      const promptArgs = mockSessionPrompt.mock.calls.at(-1)?.[0]
+      const promptArgs = (mockSessionPrompt as any).mock.calls.at(-1)?.[0]
       expect(promptArgs?.query?.directory).toBe("/project-feature")
     })
   })
@@ -486,7 +488,7 @@ describe("FileBrowser Component", () => {
     const tree = await findByTestId("file-tree")
     expect(tree.getAttribute("role")).toBe("tree")
 
-    const items = await findAllByTestId("file-item")
+    const items = (await findAllByTestId("file-item")) as unknown as HTMLElement[]
     expect(items.length).toBeGreaterThan(0)
     expect(items[0].getAttribute("role")).toBe("treeitem")
   })

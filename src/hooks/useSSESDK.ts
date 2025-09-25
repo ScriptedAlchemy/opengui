@@ -239,13 +239,25 @@ export function useSSESDK(
               console.error("Session error:", sessionError)
               setIsStreaming(false)
               const now = Math.floor(Date.now() / 1000)
-              const resolveErrorText = (error?: { message?: string; name?: string }) => {
-                return (
-                  error?.message ||
-                  (error?.name
-                    ? `${error.name}: Something went wrong while generating a response.`
-                    : "Something went wrong while generating a response.")
-                )
+              const resolveErrorText = (error?: {
+                message?: string
+                name?: string
+                data?: unknown
+              }) => {
+                if (typeof error?.message === "string" && error.message.trim().length > 0) {
+                  return error.message
+                }
+
+                if (error?.data && typeof error.data === "object") {
+                  const nestedMessage = (error.data as { message?: unknown }).message
+                  if (typeof nestedMessage === "string" && nestedMessage.trim().length > 0) {
+                    return nestedMessage
+                  }
+                }
+
+                return error?.name
+                  ? `${error.name}: Something went wrong while generating a response.`
+                  : "Something went wrong while generating a response."
               }
 
               const createErrorPart = (

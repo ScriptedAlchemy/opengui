@@ -1,4 +1,4 @@
-import React from "react"
+import React from 'react'
 import { describe, test, beforeEach, afterEach, expect, rstest } from "@rstest/core"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { screen, waitFor, within } from "@testing-library/react"
@@ -13,7 +13,7 @@ let GitHubIntegration: GitHubIntegrationComponent
 
 const mockNavigate = rstest.fn((path?: string) => path)
 const mockCreateWorktree = rstest.fn(
-  async (projectId: string, params: { branch: string; path: string; title: string }) => {
+  async (_projectId: string, params: { branch: string; path: string; title: string }) => {
     const sanitizedId = params.branch.replace(/[\\/\s]+/g, "-")
     const worktree: Worktree = {
       id: `wt-${sanitizedId}`,
@@ -310,12 +310,12 @@ const NavigationSpy: React.FC<{ children: React.ReactNode }> = ({ children }) =>
     const originalPush = navigator.push.bind(navigator)
     const originalReplace = navigator.replace.bind(navigator)
 
-    navigator.push = ((to: any, options?: any) => {
-      mockNavigate(serializeTo(to), options)
+    navigator.push = ((to: any) => {
+      mockNavigate(serializeTo(to))
     }) as typeof navigator.push
 
-    navigator.replace = ((to: any, options?: any) => {
-      mockNavigate(serializeTo(to), options)
+    navigator.replace = ((to: any) => {
+      mockNavigate(serializeTo(to))
     }) as typeof navigator.replace
 
     return () => {
@@ -511,7 +511,7 @@ describe("GitHubIntegration", () => {
     mockCreateSession.mockClear()
     mockFetchGitStatus.mockClear()
     mockFetchGitStatus.mockImplementation(async () => gitStatusResponse)
-    const componentModule = await import("../../src/pages/GitHubIntegration")
+    const componentModule: any = await import("../../src/pages/GitHubIntegration")
     GitHubIntegration = componentModule.default ?? componentModule.GitHubIntegration
   })
 

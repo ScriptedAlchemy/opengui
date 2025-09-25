@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach, rstest } from "@rstest/core"
+declare const mock: { restore: () => void }
 import { ProjectManagerClient } from "../../src/lib/api/project-manager"
 
 const ok = (b: unknown, s = 200) =>

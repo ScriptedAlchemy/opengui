@@ -1,12 +1,6 @@
 import { describe, test, expect, beforeEach, afterAll } from "@rstest/core"
 import { Log } from "../../src/util/log"
 
-const getEnv = (key: string): string | undefined => {
-  const proc = Reflect.get(globalThis, "process") as
-    | { env?: Record<string, string | undefined> }
-    | undefined
-  return proc?.env?.[key]
-}
 
 const setEnv = (key: string, value: string | undefined) => {
   const proc = Reflect.get(globalThis, "process") as

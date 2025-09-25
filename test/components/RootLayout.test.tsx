@@ -1,5 +1,4 @@
 import { describe, test, expect } from "@rstest/core"
-import React from "react"
 import { MemoryRouter, Routes, Route } from "react-router-dom"
 
 import { render, fireEvent } from "@testing-library/react"

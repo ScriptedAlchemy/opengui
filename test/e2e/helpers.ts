@@ -141,7 +141,7 @@ export async function openFirstProjectAndGetId(page: Page): Promise<string> {
     await page.waitForURL(/\/projects\/[^/]+\/[^/]+/, { timeout: 20000 })
     const match = page.url().match(/\/projects\/([^/]+)\/([^/]+)/)
     projectId = match?.[1] || ""
-    const worktree = match?.[2] || DEFAULT_WORKTREE
+    const _worktree = match?.[2] || DEFAULT_WORKTREE
     if (projectId) {
       await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}`)
     }

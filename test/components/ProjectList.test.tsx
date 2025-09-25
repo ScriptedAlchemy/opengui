@@ -20,7 +20,12 @@ const mockDirectoryListing = {
 }
 
 const mockFetch = rstest.fn(async (input: RequestInfo | URL) => {
-  const url = typeof input === "string" ? input : input.url
+  const url =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+      ? input.toString()
+      : (input as Request).url
   if (url.includes("/api/system/home")) {
     return new Response(JSON.stringify({ path: mockHomePath }), {
       status: 200,
@@ -378,4 +383,3 @@ describe("ProjectList Component", () => {
     }
   })
 })
-import React from "react"

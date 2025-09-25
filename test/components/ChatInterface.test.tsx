@@ -27,12 +27,11 @@ let mockCurrentProject: any = {
 rstest.mock("../../src/stores/projects", () => ({
   useCurrentProject: () => mockCurrentProject,
 }))
-type InstanceStatus = "running" | "starting" | "stopped" | "error"
+// type alias removed; not used
 let mockProjectData: { id: string; path: string } | null = {
   id: "test-project",
   path: "/test/path",
 }
-let mockInstanceStatus: InstanceStatus = "running"
 type MockSession = {
   id: string
   title: string
@@ -82,8 +81,6 @@ const createMockSession = (): MockSession => ({
 let mockSessions: MockSession[] = [createMockSession()]
 let mockCurrentSession: MockSession | null = mockSessions[0] ?? null
 let mockMessages: MockMessage[] = []
-let mockIsStreaming = false
-let mockInputValue = ""
 const originalGetClient = opencodeSDKService.getClient
 const originalStopAll = opencodeSDKService.stopAll
 function createMockSdkClient() {
@@ -150,12 +147,9 @@ function resetChatMocks() {
     id: "test-project",
     path: "/test/path",
   }
-  mockInstanceStatus = "running"
   mockSessions = [createMockSession()]
   mockCurrentSession = mockSessions[0] ?? null
   mockMessages = []
-  mockIsStreaming = false
-  mockInputValue = ""
   mockSdkClient = createMockSdkClient()
 }
 // Test wrapper component with routes

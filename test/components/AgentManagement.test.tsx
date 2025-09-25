@@ -1,7 +1,6 @@
 import { describe, test, beforeEach, expect, rstest } from "@rstest/core"
 import { screen, waitFor } from "@testing-library/react"
 import { renderWithRouter } from "../utils/test-router"
-import React from "react"
 
 const mockNavigate = rstest.fn(() => {})
 

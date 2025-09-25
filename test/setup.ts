@@ -1,6 +1,6 @@
 // Test setup for rstest with DOM support
-import { expect, beforeAll, beforeEach, afterAll, rstest } from "@rstest/core"
-import React from "react"
+import React from 'react'
+import { beforeAll, beforeEach, afterAll, rstest } from "@rstest/core"
 // import { setupApiMocks } from "./mocks/api-client" -- Disabled: using real servers
 import "./mocks/sse" // Import SSE mock that matches OpenCode format
 // Disable TestServerPool in unit runs to avoid SDK/server dependency
@@ -96,7 +96,7 @@ rstest.mock("../src/server/project-manager", () => {
       // Mock implementation - no operation needed
     }
 
-    async routeRequest(projectId: string, path: string, request: Request): Promise<Response> {
+  async routeRequest(_projectId: string, _path: string, _request: Request): Promise<Response> {
       return new Response("Mock response", { status: 200 })
     }
   }
@@ -295,7 +295,6 @@ const createMockStorage = (): Storage => {
   const mockStorage: Storage = {
     getItem: (key: string) => storage.get(key) ?? null,
     setItem: (key: string, value: string) => {
-      const oldValue = storage.get(key) ?? null
       storage.set(key, value)
       // Dispatch storage event for Zustand persist
       if (typeof window !== "undefined") {
@@ -307,7 +306,6 @@ const createMockStorage = (): Storage => {
       }
     },
     removeItem: (key: string) => {
-      const oldValue = storage.get(key) ?? null
       storage.delete(key)
       // Dispatch storage event for Zustand persist
       if (typeof window !== "undefined") {

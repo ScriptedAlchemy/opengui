@@ -50,7 +50,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     // Use consistent data-testid for input (chat-input-textarea, not chat-input)
     expect(await chatInput.isVisible({ timeout: 10000 })).toBe(true)
     await ensureAnthropicSonnet(page)
-    const sidebarVisible = await chatSidebar.isVisible()
+    await chatSidebar.isVisible()
     
 
     // Send a message using proper data-testid
@@ -69,7 +69,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       )
       
       if (criticalErrors.length > 0) {
-        const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
+        const _errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
         
         // Temporarily disable failing on API errors to focus on UI functionality
         // throw new Error(`Critical API calls failed: ${errorDetails}. Test should fail when API returns error status codes.`)

@@ -117,16 +117,17 @@ function setResourceNotFoundTracker(tracker: { issueCalls: number } | null) {
   resourceNotFoundTracker = tracker
 }
 
+type ErrorCtor = new (message?: string) => Error
 type GhErrorClasses = {
-  cli: typeof Error
-  notInstalled: typeof Error
-  notAuthenticated: typeof Error
+  cli: ErrorCtor
+  notInstalled: ErrorCtor
+  notAuthenticated: ErrorCtor
 }
 
 function createGhErrorClasses(): GhErrorClasses {
-  class LocalGhCliError extends Error {}
-  class LocalGhNotInstalledError extends LocalGhCliError {}
-  class LocalGhNotAuthenticatedError extends LocalGhCliError {}
+  class LocalGhCliError extends Error { constructor(message?: string){ super(message) } }
+  class LocalGhNotInstalledError extends LocalGhCliError { constructor(message?: string){ super(message) } }
+  class LocalGhNotAuthenticatedError extends LocalGhCliError { constructor(message?: string){ super(message) } }
 
   return {
     cli: LocalGhCliError,

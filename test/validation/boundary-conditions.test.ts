@@ -47,6 +47,7 @@ const boundaryValidator = {
   sanitizeFilename: (filename: string): string => {
     if (typeof filename !== "string") return ""
     return filename
+      // eslint-disable-next-line no-control-regex
       .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
       .replace(/^\.+/, "")
       .replace(/\.+$/, "")
@@ -59,6 +60,7 @@ const boundaryValidator = {
     return path
       .replace(/<[^>]*>/g, "")
       .replace(/\.\./g, "")
+      // eslint-disable-next-line no-control-regex
       .replace(/[<>"|?*\x00-\x1f]/g, "")
       .replace(/\/+/g, "/")
   },
@@ -67,8 +69,10 @@ const boundaryValidator = {
     if (typeof input !== "string") return false
     const sqlPatterns = [
       /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION)\b)/i,
+      // eslint-disable-next-line no-useless-escape
       /(;|\-\-|\/\*|\*\/)/,
       /(\b(OR|AND)\s+\d+\s*=\s*\d+)/i,
+      // eslint-disable-next-line no-useless-escape
       /('|\"|`)(.*?)(\1)/,
     ]
     return sqlPatterns.some((pattern) => pattern.test(input))
