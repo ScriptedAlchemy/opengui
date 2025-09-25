@@ -1,14 +1,15 @@
 import { describe, expect, test, beforeEach, afterEach, rstest } from "@rstest/core"
 import { renderHook } from "@testing-library/react"
+declare const mock: { restore: () => void }
 import type { Session } from "@opencode-ai/sdk"
 
 // Create mock functions for SDK session methods
 const mockGetSessions = rstest.fn((): Promise<Session[]> => Promise.resolve([]))
-const mockCreateSession = rstest.fn((params?: { title?: string }): Promise<Session> =>
+const mockCreateSession = rstest.fn((_params?: { title?: string }): Promise<Session> =>
   Promise.resolve({} as Session)
 )
-const mockUpdateSession = rstest.fn((): Promise<Session> => Promise.resolve({} as Session))
-const mockDeleteSession = rstest.fn((): Promise<boolean> => Promise.resolve(true))
+const mockUpdateSession = rstest.fn((_params?: any): Promise<Session> => Promise.resolve({} as Session))
+const mockDeleteSession = rstest.fn((_id?: string): Promise<boolean> => Promise.resolve(true))
 
 // Mock the opencode SDK service getClient -> returns a fake SDK client with session methods
 const mockGetClient = rstest.fn(async (_projectId: string, _projectPath: string) => {

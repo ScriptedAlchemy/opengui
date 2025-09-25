@@ -286,7 +286,7 @@ describe("ProjectSettings Component", () => {
       useNavigate: () => mockNavigate,
     }))
 
-    const { getByRole, getByText } = renderWithRouter(
+    const { getByRole } = renderWithRouter(
       <ProjectSettings />,
       { projectId: "test-project", worktreeId: "default" }
     )

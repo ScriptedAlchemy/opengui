@@ -13,9 +13,9 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
-    "lint": "eslint src --ext .ts,.tsx,.js,.jsx",
-    "lint:fix": "eslint src --ext .ts,.tsx,.js,.jsx --fix",
-    "test": "timeout 1200 rstest",
+    "lint": "eslint src test --ext .ts,.tsx,.js,.jsx",
+    "lint:fix": "eslint src test --ext .ts,.tsx,.js,.jsx --fix",
+    "test": "timeout 1200 rstest run --exclude test/integration --exclude test/e2e",
     "test:components": "rstest run test/components",
     "test:runtime": "rstest run test/runtime",
     "test:stores": "rstest run test/stores",
@@ -32,7 +32,11 @@
     "test:e2e": "pnpm build && timeout 1200 npx playwright test",
     "test:visual": "pnpm build && npx playwright test test/e2e/visual/ui-screenshots.e2e.ts --project=chromium --reporter=line",
     "test:e2e:ci": "pnpm build && npx playwright test",
-    "health-check": "tsx scripts/health-check.ts"
+    "health-check": "tsx scripts/health-check.ts",
+    "typecheck:src": "tsc --noEmit",
+    "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
+    "typecheck:tests": "tsc --noEmit -p tsconfig.tests.json",
+    "test:all": "timeout 1200 rstest"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.10.50",

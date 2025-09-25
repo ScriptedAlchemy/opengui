@@ -4,7 +4,6 @@ import { render, fireEvent, waitFor, act, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom"
 import { useEffect } from "react"
-import type { ComponentType, ReactNode } from "react"
 
  // Mock data
 const baseProject = () => ({
@@ -22,7 +21,11 @@ const baseProject = () => ({
   },
 })
 
-type ProjectShape = ReturnType<typeof baseProject>
+type ProjectShape = ReturnType<typeof baseProject> & {
+  instance: ReturnType<typeof baseProject>["instance"] & {
+    status: "running" | "stopped" | "starting" | "error"
+  }
+}
 
 let currentProject: ProjectShape | null = baseProject()
 let projectsList: ProjectShape[] = currentProject ? [currentProject] : []
@@ -306,8 +309,8 @@ const mockFetch = rstest.fn((url: string) => {
 })
 
 // Test wrapper
-let ProjectDashboard: ComponentType
-let OpencodeSDKProvider: ComponentType
+let ProjectDashboard: any
+let OpencodeSDKProvider: any
 let currentLocation: ReturnType<typeof useLocation> | null = null
 
 function LocationTracker() {
@@ -318,7 +321,7 @@ function LocationTracker() {
   return null
 }
 
-function TestWrapper({ children, initialEntry = "/projects/test-project/default" }: { children: ReactNode; initialEntry?: string }) {
+function TestWrapper({ children, initialEntry = "/projects/test-project/default" }: { children: any; initialEntry?: string }) {
   return (
     <OpencodeSDKProvider>
       <MemoryRouter
@@ -378,9 +381,9 @@ describe("ProjectDashboard", () => {
   })
 
   test("renders project dashboard with header", async () => {
-    let result: any
+    let _result: any
     await act(async () => {
-      result = render(
+      _result = render(
         <TestWrapper>
           <ProjectDashboard />
         </TestWrapper>,
@@ -388,23 +391,23 @@ describe("ProjectDashboard", () => {
     })
 
     await waitFor(() => {
-      const headers = result.getAllByText("Test Project")
+      const headers = _result.getAllByText("Test Project")
       expect(headers.length).toBeGreaterThan(0)
     })
 
     await waitFor(() => {
-      expect(result.getByText("/test/path")).toBeDefined()
+      expect(_result.getByText("/test/path")).toBeDefined()
     })
     // Status badge shows "Ready" in current UI
     await waitFor(() => {
-      expect(result.getByText(/ready/i)).toBeDefined()
+      expect(_result.getByText(/ready/i)).toBeDefined()
     })
   })
 
   test("shows loading indicator while project data loads", async () => {
     mockLoadSessions.mockImplementationOnce(() => new Promise((resolve) => setTimeout(resolve, 50)))
 
-    let result: any
+    let result!: ReturnType<typeof render>
     await act(async () => {
       result = render(
         <TestWrapper>
@@ -465,7 +468,7 @@ describe("ProjectDashboard", () => {
 
   test("updates git summary when switching worktrees", async () => {
     mockWorktrees = [
-      {
+      ({
         id: "default",
         title: "Default",
         path: "/test/path",
@@ -475,8 +478,8 @@ describe("ProjectDashboard", () => {
         isPrimary: true,
         isDetached: false,
         isLocked: false,
-      },
-      {
+      } as any),
+      ({
         id: "worktree-1",
         title: "Feature Branch",
         path: "/test/path/worktrees/worktree-1",
@@ -486,7 +489,7 @@ describe("ProjectDashboard", () => {
         isPrimary: false,
         isDetached: false,
         isLocked: false,
-      },
+      } as any),
     ]
 
     let result: any
@@ -545,6 +548,94 @@ describe("ProjectDashboard", () => {
     })
   })
 
+  test("selecting a worktree preloads and displays scoped sessions", async () => {
+    mockWorktrees = [
+      ({
+        id: "default",
+        title: "Default",
+        path: "/test/path",
+        relativePath: ".",
+        branch: "main",
+        head: "abc123",
+        isPrimary: true,
+        isDetached: false,
+        isLocked: false,
+      } as any),
+      ({
+        id: "worktree-1",
+        title: "Feature Branch",
+        path: "/test/path/worktrees/worktree-1",
+        relativePath: "worktrees/worktree-1",
+        branch: "somthing",
+        head: "def456",
+        isPrimary: false,
+        isDetached: false,
+        isLocked: false,
+      } as any),
+    ]
+
+    let result!: ReturnType<typeof render>
+    const user = userEvent.setup()
+
+    await act(async () => {
+      result = render(
+        <TestWrapper>
+          <ProjectDashboard />
+        </TestWrapper>,
+      )
+    })
+
+    await waitFor(() => {
+      const totalCard = result.getByTestId("total-sessions-stat")
+      expect(within(totalCard).getByText("2")).toBeDefined()
+      expect(result.getByText("Default Session 1")).toBeDefined()
+    })
+
+    await waitFor(() => {
+      expect(mockLoadSessions).toHaveBeenCalledWith("test-project", "/test/path")
+    })
+    mockLoadSessions.mockClear()
+
+    const openButtons = result.getAllByRole("button", { name: "Open" })
+    const worktreeButton =
+      openButtons.find((button) =>
+        button.parentElement?.previousElementSibling?.textContent?.includes("Feature Branch")
+      ) ?? openButtons[openButtons.length - 1]
+
+    await user.click(worktreeButton)
+
+    await waitFor(() => {
+      expect(mockLoadSessions).toHaveBeenCalledWith(
+        "test-project",
+        "/test/path/worktrees/worktree-1",
+      )
+    })
+
+    await waitFor(() => {
+      expect(currentLocation?.pathname).toBe("/projects/test-project/worktree-1")
+    })
+
+    await act(async () => {
+      result.unmount()
+    })
+
+    await act(async () => {
+      mockParams = { projectId: "test-project", worktreeId: "worktree-1" }
+      result = render(
+        <TestWrapper initialEntry="/projects/test-project/worktree-1">
+          <ProjectDashboard />
+        </TestWrapper>,
+      )
+    })
+
+    await waitFor(() => {
+      const totalCard = result.getByTestId("total-sessions-stat")
+      expect(within(totalCard).getByText("1")).toBeDefined()
+      expect(result.getByText("Worktree Session")).toBeDefined()
+      expect(result.queryByText("Default Session 1")).toBeNull()
+    })
+  })
+
   test("shows quick actions", async () => {
     let result: any
     await act(async () => {
@@ -591,11 +682,11 @@ describe("ProjectDashboard", () => {
 
   test("shows status for stopped project (no start/stop controls)", async () => {
     const stopped = baseProject()
-    currentProject = {
+    currentProject = ({
       ...stopped,
       instance: { ...stopped.instance, status: "stopped" as const },
-    }
-    projectsList = [currentProject]
+    } as any)
+    projectsList = [currentProject!]
 
     let result: any
     await act(async () => {
@@ -682,9 +773,8 @@ describe("ProjectDashboard", () => {
     currentProject = null
     projectsList = []
 
-    let result: any
     await act(async () => {
-      result = render(
+      render(
         <TestWrapper>
           <ProjectDashboard />
         </TestWrapper>,
