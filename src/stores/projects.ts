@@ -5,14 +5,15 @@ import type {
   Project,
   CreateProjectParams,
   UpdateProjectParams,
+  ProjectManagerClient,
 } from "../../src/lib/api/project-manager"
 // Note: Do not import ProjectManagerClient as a runtime value here.
 // We use dynamic import inside actions to allow tests to mock the module
 // before the first load and to avoid eager module caching between test files.
 
 // Lazily load and cache the ProjectManagerClient after tests have a chance to mock it
-let __pmc: any | null = null
-const getProjectClient = async () => {
+let __pmc: ProjectManagerClient | null = null
+const getProjectClient = async (): Promise<ProjectManagerClient> => {
   if (__pmc) return __pmc
   const mod = await import("../../src/lib/api/project-manager")
   __pmc = new mod.ProjectManagerClient()
@@ -51,6 +52,17 @@ interface ProjectsActions {
 
 type ProjectsStore = ProjectsState & ProjectsActions
 
+const detachImmerProxy = <T>(value: T): T => {
+  if (value && typeof value === "object") {
+    const candidate = value as { self?: unknown } & Record<string, unknown>
+    if (candidate.self === value) {
+      const { self: _self, ...rest } = candidate
+      return rest as T
+    }
+  }
+  return value
+}
+
 export const useProjectsStore = create<ProjectsStore>()(
   persist(
     immer((set, get) => ({
@@ -77,7 +89,9 @@ export const useProjectsStore = create<ProjectsStore>()(
 
             // Sync currentProject with server list; clear if missing
             if (state.currentProject) {
-              const updatedCurrent = projects.find((p: Project) => p.id === state.currentProject?.id)
+              const updatedCurrent = projects.find(
+                (p: Project) => p.id === state.currentProject?.id
+              )
               state.currentProject = updatedCurrent || null
             }
             // Optionally set a default current project when none is selected
@@ -96,13 +110,13 @@ export const useProjectsStore = create<ProjectsStore>()(
       // Select and load a specific project
       selectProject: async (id: string) => {
         let { projects } = get()
-        
+
         // If projects haven't been loaded yet, load them first
         if (projects.length === 0) {
           await get().loadProjects()
           projects = get().projects
         }
-        
+
         const project = projects.find((p: Project) => p.id === id)
 
         if (!project) {
@@ -134,7 +148,7 @@ export const useProjectsStore = create<ProjectsStore>()(
               state.projects[index] = updatedProject
             }
           })
-          
+
           // Return the updated project so callers can use it
           return updatedProject
         } catch (error) {
@@ -407,20 +421,12 @@ export const useProjectsStore = create<ProjectsStore>()(
     })),
     {
       name: "opencode-projects",
-      partialize: (state) => {
-        const list: any[] = Array.isArray((state as any).projects) ? (state as any).projects : []
-        const safeProjects = list.map((p: any) => {
-          if (p && typeof p === "object" && (p as any).self === p) {
-            const { self, ...rest } = p as any
-            return rest
-          }
-          return p
-        })
-        const cp = (state as any).currentProject as any
-        const safeCurrent = cp && typeof cp === "object" && cp.self === cp ? { ...cp, self: undefined } : cp
+      partialize: (state: ProjectsStore) => {
+        const safeProjects = state.projects.map((project) => detachImmerProxy(project))
+        const safeCurrent = state.currentProject ? detachImmerProxy(state.currentProject) : null
         return {
-          projects: safeProjects as any,
-          currentProject: safeCurrent as any,
+          projects: safeProjects,
+          currentProject: safeCurrent,
         }
       },
     }

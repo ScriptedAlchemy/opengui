@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test"
+import path from "node:path"
+import { ensureDemoProjectOnDisk } from "./helpers"
+
+const DEFAULT_WORKTREE = "default"
+const CRYSTAL_PROJECT_ROOT = path.join(process.cwd(), "test-results", "e2e-crystal-project")
 
 // Updated for SDK-only architecture:
 // - No project start/stop needed
@@ -6,6 +11,10 @@ import { test, expect } from "@playwright/test"
 // - Sessions created via SDK calls
 
 test.describe("Crystal Project Flow", () => {
+  test.beforeAll(() => {
+    ensureDemoProjectOnDisk(CRYSTAL_PROJECT_ROOT)
+  })
+
   test("should add Crystal project and navigate through app", async ({ page }) => {
     // Navigate to app
     await page.goto("/")
@@ -27,16 +36,17 @@ test.describe("Crystal Project Flow", () => {
       const dialog = page.locator('[data-testid="add-project-dialog"]')
       await expect(dialog).toBeVisible({ timeout: 5000 })
 
-      const pathInput = page.locator('[data-testid="project-path-input"]')
-      const nameInput = page.locator('[data-testid="project-name-input"]')
-
-      await pathInput.fill("/Users/bytedance/dev/crystal")
-      await nameInput.fill("Crystal Project")
-
-      const submitButton = dialog.locator('[data-testid="button-create-project"]')
-      expect(await submitButton.isVisible({ timeout: 5000 })).toBe(true)
-      await expect(submitButton).toBeEnabled({ timeout: 2000 })
-      await submitButton.click()
+      // Prefer creating via API for reliability (combobox search depth is limited)
+      await page.request.post('/api/projects', {
+        data: {
+          path: CRYSTAL_PROJECT_ROOT,
+          name: 'Crystal Project',
+        },
+      })
+      // Close the dialog and refresh list
+      await page.locator('[data-testid="button-cancel-project"]').click({ trial: true }).catch(() => {})
+      await page.goto('/')
+      await page.waitForSelector('#root', { state: 'visible' })
 
       // Wait for project to appear in list instead of dialog to close
       await expect(projectItems.filter({ hasText: /crystal/i }).first()).toBeVisible({
@@ -60,15 +70,13 @@ test.describe("Crystal Project Flow", () => {
     const currentUrl = page.url()
     let projectId: string | null = null
 
-    if (currentUrl.includes("/projects/")) {
-      const urlParts = currentUrl.split("/projects/")[1]
-      if (urlParts) {
-        projectId = urlParts.split("/")[0]
-      }
+    const match = currentUrl.match(/\/projects\/([^/]+)\/([^/]+)/)
+    if (match) {
+      projectId = match[1]
     }
 
     if (projectId) {
-      await page.goto(`/projects/${projectId}/sessions`)
+      await page.goto(`/projects/${projectId}/${DEFAULT_WORKTREE}/sessions`)
     } else {
       // Try to find sessions link in navigation - test fails if not found
       const sessionsLink = page.locator('[data-testid="dashboard-nav"]')

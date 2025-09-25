@@ -306,7 +306,7 @@ export const ProjectFactory = {
       name: "Running Project",
       path: "/tmp/running-project",
       status: "running",
-      port: 3001,
+      port: 3099,
       sessions: [getSequenceId("session", sequence)],
       createdAt: Date.now(),
       ...overrides,

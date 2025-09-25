@@ -5,26 +5,29 @@ export default {
   theme: {
     extend: {
       colors: {
-        border: "var(--border)",
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-        card: { DEFAULT: "var(--card)", foreground: "var(--card-foreground)" },
-        popover: { DEFAULT: "var(--popover)", foreground: "var(--popover-foreground)" },
-        primary: { DEFAULT: "var(--primary)", foreground: "var(--primary-foreground)" },
-        secondary: { DEFAULT: "var(--secondary)", foreground: "var(--secondary-foreground)" },
-        muted: { DEFAULT: "var(--muted)", foreground: "var(--muted-foreground)" },
-        accent: { DEFAULT: "var(--accent)", foreground: "var(--accent-foreground)" },
-        destructive: { DEFAULT: "var(--destructive)", foreground: "var(--destructive-foreground)" },
-        input: "var(--input)",
-        ring: "var(--ring)",
+        // Use HSL variable tokens to match shadcn/ui expectations
+        border: "hsl(var(--border))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
+        popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
+        primary: { DEFAULT: "hsl(var(--primary))", foreground: "hsl(var(--primary-foreground))" },
+        secondary: { DEFAULT: "hsl(var(--secondary))", foreground: "hsl(var(--secondary-foreground))" },
+        muted: { DEFAULT: "hsl(var(--muted))", foreground: "hsl(var(--muted-foreground))" },
+        accent: { DEFAULT: "hsl(var(--accent))", foreground: "hsl(var(--accent-foreground))" },
+        destructive: { DEFAULT: "hsl(var(--destructive))", foreground: "hsl(var(--destructive-foreground))" },
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
         // Sidebar semantic group for shadcn sidebar components
         sidebar: {
-          DEFAULT: "var(--sidebar)",
-          foreground: "var(--sidebar-foreground)",
-          accent: "var(--sidebar-accent)",
-          "accent-foreground": "var(--sidebar-accent-foreground)",
-          border: "var(--sidebar-border)",
-          ring: "var(--sidebar-ring)",
+          DEFAULT: "hsl(var(--sidebar))",
+          foreground: "hsl(var(--sidebar-foreground))",
+          accent: "hsl(var(--sidebar-accent))",
+          "accent-foreground": "hsl(var(--sidebar-accent-foreground))",
+          border: "hsl(var(--sidebar-border))",
+          ring: "hsl(var(--sidebar-ring))",
+          primary: "hsl(var(--sidebar-primary))",
+          "primary-foreground": "hsl(var(--sidebar-primary-foreground))",
         },
       },
       fontFamily: {
@@ -118,6 +121,10 @@ export default {
         },
       },
       borderRadius: {
+        // Align with shadcn radius tokens
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
         "4xl": "2rem",
         "5xl": "2.5rem",
         "6xl": "3rem",
@@ -168,19 +175,24 @@ export default {
             height: "6px",
           },
           "&::-webkit-scrollbar-track": {
-            background: "var(--border)",
+            background: "hsl(var(--border))",
             borderRadius: "3px",
           },
           "&::-webkit-scrollbar-thumb": {
-            background: "var(--muted-foreground)",
+            background: "hsl(var(--muted-foreground))",
             borderRadius: "3px",
             "&:hover": {
-              background: "var(--foreground)",
+              background: "hsl(var(--foreground))",
             },
           },
         },
         ".text-balance": {
           "text-wrap": "balance",
+        },
+        // Optional: break long unbroken strings (e.g., long tokens)
+        ".break-anywhere": {
+          "overflow-wrap": "anywhere",
+          "word-break": "break-word",
         },
       }
       addUtilities(newUtilities)

@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { immer } from "zustand/middleware/immer"
 import { enableMapSet } from "immer"
 import type { Session } from "@opencode-ai/sdk/client"
+import type { OpencodeSDKService } from "../services/opencode-sdk-service"
 
 // Enable MapSet plugin for Immer to handle Map data structures
 enableMapSet()
@@ -10,8 +11,8 @@ enableMapSet()
 export type { Session }
 
 // Lazily import the SDK service so test mocks can hook before first load
-let __sdkService: any | null = null
-const getSDKService = async () => {
+let __sdkService: OpencodeSDKService | null = null
+const getSDKService = async (): Promise<OpencodeSDKService> => {
   if (__sdkService) return __sdkService
   const mod = await import("../services/opencode-sdk-service")
   __sdkService = mod.opencodeSDKService
@@ -20,7 +21,7 @@ const getSDKService = async () => {
 
 interface SessionsState {
   // State
-  sessions: Map<string, Session[]> // Keyed by projectId
+  sessions: Map<string, Session[]>
   currentSession: Session | null
   // Separate loading states for better UX and e2e stability
   listLoading: boolean
@@ -41,6 +42,35 @@ interface SessionsState {
   clearSessions: (projectId: string) => void
   clearError: () => void
 }
+
+const normalizeWorktreePath = (projectPath?: string) => {
+  if (!projectPath) return ""
+  const trimmed = projectPath.trim()
+  if (!trimmed) return ""
+  return trimmed.replace(/\\/g, "/").replace(/\/+$/, "")
+}
+
+const makeSessionKey = (projectId: string, projectPath?: string) => {
+  const normalized = normalizeWorktreePath(projectPath)
+  return normalized ? `${projectId}::${normalized}` : projectId
+}
+
+const rebuildAggregatedSessions = (state: SessionsState, projectId: string) => {
+  const prefix = `${projectId}::`
+  const aggregated: Session[] = []
+  for (const [key, value] of state.sessions.entries()) {
+    if (key.startsWith(prefix)) {
+      aggregated.push(...value)
+    }
+  }
+  if (aggregated.length > 0) {
+    state.sessions.set(projectId, aggregated)
+  } else {
+    state.sessions.set(projectId, [])
+  }
+}
+
+export const sessionKeyForProjectPath = makeSessionKey
 
 export const useSessionsStore = create<SessionsState>()(
   immer((set, get) => ({
@@ -63,10 +93,14 @@ export const useSessionsStore = create<SessionsState>()(
         const client = await sdk.getClient(projectId, projectPath)
         const response = await client.session.list({ query: { directory: projectPath } })
         const sessions = response.data || []
+        const key = makeSessionKey(projectId, projectPath)
 
         set((state) => {
-          state.sessions.set(projectId, sessions)
+          state.sessions.set(key, sessions)
           state.listLoading = false
+          if (key !== projectId) {
+            rebuildAggregatedSessions(state as unknown as SessionsState, projectId)
+          }
         })
       } catch (error) {
         set((state) => {
@@ -110,11 +144,15 @@ export const useSessionsStore = create<SessionsState>()(
           throw new Error(errorMessage)
         }
 
+        const key = makeSessionKey(projectId, projectPath)
         set((state) => {
-          const projectSessions = state.sessions.get(projectId) || []
-          state.sessions.set(projectId, [...projectSessions, session])
+          const projectSessions = state.sessions.get(key) || []
+          state.sessions.set(key, [...projectSessions, session])
           state.currentSession = session
           state.createLoading = false
+          if (key !== projectId) {
+            rebuildAggregatedSessions(state as unknown as SessionsState, projectId)
+          }
         })
 
         return session
@@ -144,7 +182,8 @@ export const useSessionsStore = create<SessionsState>()(
     ) => {
       // Determine if this session exists locally to decide whether to call API
       const prevState = get()
-      const existsInList = !!prevState.sessions.get(projectId)?.some((s) => s.id === sessionId)
+      const key = makeSessionKey(projectId, projectPath)
+      const existsInList = !!prevState.sessions.get(key)?.some((s) => s.id === sessionId)
       const isCurrent = prevState.currentSession?.id === sessionId
       const shouldCallApi = existsInList || isCurrent
 
@@ -155,12 +194,15 @@ export const useSessionsStore = create<SessionsState>()(
             Object.assign(state.currentSession, updates)
           }
 
-          const sessions = state.sessions.get(projectId)
+          const sessions = state.sessions.get(key)
           if (sessions) {
             const index = sessions.findIndex((s) => s.id === sessionId)
             if (index !== -1) {
               Object.assign(sessions[index], updates)
             }
+          }
+          if (key !== projectId) {
+            rebuildAggregatedSessions(state as unknown as SessionsState, projectId)
           }
         })
       }
@@ -188,16 +230,20 @@ export const useSessionsStore = create<SessionsState>()(
     deleteSession: async (projectId: string, projectPath: string, sessionId: string) => {
       // Optimistic update
       set((state) => {
-        const sessions = state.sessions.get(projectId)
+        const key = makeSessionKey(projectId, projectPath)
+        const sessions = state.sessions.get(key)
         if (sessions) {
           state.sessions.set(
-            projectId,
+            key,
             sessions.filter((s) => s.id !== sessionId)
           )
         }
 
         if (state.currentSession?.id === sessionId) {
           state.currentSession = null
+        }
+        if (key !== projectId) {
+          rebuildAggregatedSessions(state as unknown as SessionsState, projectId)
         }
       })
 
@@ -215,7 +261,10 @@ export const useSessionsStore = create<SessionsState>()(
     // Clear sessions for a project
     clearSessions: (projectId: string) => {
       set((state) => {
-        state.sessions.delete(projectId)
+        const keys = Array.from(state.sessions.keys()).filter(
+          (key) => key === projectId || key.startsWith(`${projectId}::`)
+        )
+        keys.forEach((key) => state.sessions.delete(key))
         if (state.currentSession?.projectID === projectId) {
           state.currentSession = null
         }
@@ -235,8 +284,10 @@ export const useSessionsStore = create<SessionsState>()(
 const EMPTY_SESSIONS: Session[] = []
 
 // Selector hooks
-export const useSessionsForProject = (projectId: string) =>
-  useSessionsStore((state) => state.sessions.get(projectId) || EMPTY_SESSIONS)
+export const useSessionsForProject = (projectId: string, projectPath?: string) =>
+  useSessionsStore(
+    (state) => state.sessions.get(makeSessionKey(projectId, projectPath)) || EMPTY_SESSIONS
+  )
 
 export const useCurrentSession = () => useSessionsStore((state) => state.currentSession)
 
@@ -251,8 +302,12 @@ export const useSessionsCreateLoading = () => useSessionsStore((state) => state.
 export const useSessionsError = () => useSessionsStore((state) => state.error)
 
 // Utility selectors - simplified to avoid infinite loops
-export const useRecentSessions = (projectId: string, limit = 10): Session[] => {
-  const sessions = useSessionsForProject(projectId)
+export const useRecentSessions = (
+  projectId: string,
+  limit = 10,
+  projectPath?: string
+): Session[] => {
+  const sessions = useSessionsForProject(projectId, projectPath)
 
   // Return stable empty array if no sessions
   if (!sessions || sessions.length === 0) return EMPTY_SESSIONS
@@ -264,8 +319,8 @@ export const useRecentSessions = (projectId: string, limit = 10): Session[] => {
     .slice(0, limit)
 }
 
-export const useSessionById = (projectId: string, sessionId: string) =>
+export const useSessionById = (projectId: string, sessionId: string, projectPath?: string) =>
   useSessionsStore((state) => {
-    const sessions = state.sessions.get(projectId) || EMPTY_SESSIONS
+    const sessions = state.sessions.get(makeSessionKey(projectId, projectPath)) || EMPTY_SESSIONS
     return sessions.find((s) => s.id === sessionId)
   })

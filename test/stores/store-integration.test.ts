@@ -43,9 +43,9 @@ rstest.mock("../../src/lib/api/project-manager", () => ({
 }))
 
 const mockGetSessions = rstest.fn(() => Promise.resolve([] as any[]))
-const mockCreateSession = rstest.fn((params?: any) => Promise.resolve({} as any))
-const mockUpdateSession = rstest.fn((params?: any) => Promise.resolve({} as any))
-const mockDeleteSession = rstest.fn((params?: any) => Promise.resolve(true))
+const mockCreateSession = rstest.fn((_params?: any) => Promise.resolve({} as any))
+const mockUpdateSession = rstest.fn((_params?: any) => Promise.resolve({} as any))
+const mockDeleteSession = rstest.fn((_params?: any) => Promise.resolve(true))
 
 const mockGetClient = rstest.fn(async (_projectId: string, _projectPath: string) => {
   return {
@@ -78,14 +78,14 @@ describe("Store Integration", () => {
       loading: false,
       error: null,
       instanceOperations: {},
-    })
+    } as any)
 
     useSessionsStore.setState({
       sessions: new Map(),
       currentSession: null,
       loading: false,
       error: null,
-    })
+    } as any)
 
     // Clear all mocks
     mockGetProjects.mockClear()
@@ -108,7 +108,7 @@ describe("Store Integration", () => {
     mockCreateProject.mockResolvedValue(TestDataFactory.createProject())
     mockUpdateProject.mockResolvedValue(TestDataFactory.createProject())
     mockRemoveProject.mockResolvedValue(true)
-    mockStartInstance.mockResolvedValue({ id: "instance-1", port: 3001, status: "running", startedAt: new Date() })
+    mockStartInstance.mockResolvedValue({ id: "instance-1", port: 3099, status: "running", startedAt: new Date() })
     mockStopInstance.mockResolvedValue(true)
     mockGetInstanceStatus.mockResolvedValue(null)
     mockGetSessions.mockResolvedValue([])
@@ -431,7 +431,7 @@ describe("Store Integration", () => {
 
       expect(initialState.sessions.size).toBe(0)
       expect(initialState.currentSession).toBe(null)
-      expect(initialState.loading).toBe(false)
+      expect((initialState as any).loading).toBe(false)
       expect(initialState.error).toBe(null)
     })
 
@@ -511,7 +511,7 @@ describe("Store Integration", () => {
       expect(useSessionsStore.getState().sessions.get("project-1")).toEqual(sessions)
 
       // 4. User starts the project instance
-      const instance = { id: "instance-1", port: 3001, status: "running" as const, startedAt: new Date() }
+      const instance = { id: "instance-1", port: 3099, status: "running" as const, startedAt: new Date() }
       mockStartInstance.mockResolvedValue(instance)
 
       await useProjectsStore.getState().startInstance("project-1")

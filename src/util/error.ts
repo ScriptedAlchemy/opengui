@@ -3,7 +3,7 @@
  * Compatible with OpenCode core error system
  */
 
-import { z, type ZodSchema } from "zod"
+import { z, type ZodSchema, type ZodTypeAny } from "zod"
 
 // Add openapi method to z object if not available
 declare module "zod" {
@@ -13,15 +13,19 @@ declare module "zod" {
 }
 
 // Extend Zod with openapi functionality if not already available
-if (!("openapi" in z.object({}))) {
-  ;(z as any).ZodType.prototype.openapi = function (_options: { ref: string }) {
+const zodTypePrototype = z.ZodType.prototype as ZodTypeAny & {
+  openapi?: (options: { ref: string }) => ZodTypeAny
+}
+
+if (typeof zodTypePrototype.openapi !== "function") {
+  zodTypePrototype.openapi = function (this: ZodTypeAny) {
     return this
   }
 }
 
 export abstract class NamedError extends Error {
   abstract schema(): ZodSchema
-  abstract toObject(): { name: string; data: any }
+  abstract toObject(): { name: string; data: unknown }
 
   static create<Name extends string, Data extends ZodSchema>(name: Name, data: Data) {
     const schema = z
@@ -45,8 +49,13 @@ export abstract class NamedError extends Error {
         this.name = name
       }
 
-      static isInstance(input: any): input is InstanceType<typeof result> {
-        return "name" in input && input.name === name
+      static isInstance(input: unknown): input is InstanceType<typeof result> {
+        return (
+          typeof input === "object" &&
+          input !== null &&
+          "name" in input &&
+          (input as { name?: unknown }).name === name
+        )
       }
 
       schema() {

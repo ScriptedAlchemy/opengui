@@ -1,14 +1,15 @@
 import { describe, expect, test, beforeEach, afterEach, rstest } from "@rstest/core"
 import { renderHook } from "@testing-library/react"
+declare const mock: { restore: () => void }
 import type { Session } from "@opencode-ai/sdk"
 
 // Create mock functions for SDK session methods
 const mockGetSessions = rstest.fn((): Promise<Session[]> => Promise.resolve([]))
-const mockCreateSession = rstest.fn((params?: { title?: string }): Promise<Session> =>
+const mockCreateSession = rstest.fn((_params?: { title?: string }): Promise<Session> =>
   Promise.resolve({} as Session)
 )
-const mockUpdateSession = rstest.fn((): Promise<Session> => Promise.resolve({} as Session))
-const mockDeleteSession = rstest.fn((): Promise<boolean> => Promise.resolve(true))
+const mockUpdateSession = rstest.fn((_params?: any): Promise<Session> => Promise.resolve({} as Session))
+const mockDeleteSession = rstest.fn((_id?: string): Promise<boolean> => Promise.resolve(true))
 
 // Mock the opencode SDK service getClient -> returns a fake SDK client with session methods
 const mockGetClient = rstest.fn(async (_projectId: string, _projectPath: string) => {
@@ -43,7 +44,37 @@ import {
   useSessionsError,
   useRecentSessions,
   useSessionById,
+  sessionKeyForProjectPath,
 } from "../../src/stores/sessions"
+
+const PROJECT_ID = "project-1"
+const DEFAULT_PATH = "/test/path"
+
+const primeSessionsState = (
+  sessions: Session[],
+  options: { projectId?: string; projectPath?: string } = {}
+) => {
+  const projectId = options.projectId ?? PROJECT_ID
+  const projectPath = options.projectPath ?? DEFAULT_PATH
+  const key = sessionKeyForProjectPath(projectId, projectPath)
+
+  useSessionsStore.setState((state) => {
+    state.sessions.set(key, sessions)
+
+    if (key !== projectId) {
+      const prefix = `${projectId}::`
+      const aggregated: Session[] = []
+
+      for (const [mapKey, value] of state.sessions.entries()) {
+        if (mapKey.startsWith(prefix)) {
+          aggregated.push(...value)
+        }
+      }
+
+      state.sessions.set(projectId, aggregated)
+    }
+  })
+}
 
 describe("Enhanced Sessions Store", () => {
   beforeEach(() => {
@@ -122,16 +153,16 @@ describe("Enhanced Sessions Store", () => {
       const sessions: Session[] = [
         {
           id: "session-1",
-          projectID: "project-1",
-          directory: "/path",
+          projectID: PROJECT_ID,
+          directory: DEFAULT_PATH,
           title: "Session 1",
           version: "1.0.0",
           time: { created: Date.now(), updated: Date.now() },
         },
         {
           id: "session-2",
-          projectID: "project-1",
-          directory: "/path",
+          projectID: PROJECT_ID,
+          directory: DEFAULT_PATH,
           title: "Session 2",
           version: "1.0.0",
           time: { created: Date.now(), updated: Date.now() },
@@ -140,7 +171,7 @@ describe("Enhanced Sessions Store", () => {
       mockGetSessions.mockResolvedValue(sessions)
 
       // Test loading state
-      const loadPromise = useSessionsStore.getState().loadSessions("project-1", "/test/path")
+      const loadPromise = useSessionsStore.getState().loadSessions(PROJECT_ID, DEFAULT_PATH)
       expect(useSessionsStore.getState().listLoading).toBe(true)
       expect(useSessionsStore.getState().error).toBe(null)
 
@@ -148,26 +179,30 @@ describe("Enhanced Sessions Store", () => {
 
       const state = useSessionsStore.getState()
       expect(state.listLoading).toBe(false)
-      expect(state.sessions.get("project-1")).toEqual(sessions)
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      expect(state.sessions.get(worktreeKey)).toEqual(sessions)
+      expect(state.sessions.get(PROJECT_ID)).toEqual(sessions)
       expect(state.error).toBe(null)
     })
 
     test("createSession mutation adds session to state", async () => {
       const newSession: Session = {
         id: "new-session",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "New Session",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
       mockCreateSession.mockResolvedValue(newSession)
 
-      const result = await useSessionsStore.getState().createSession("project-1", "/test/path", "New Session")
+      const result = await useSessionsStore.getState().createSession(PROJECT_ID, DEFAULT_PATH, "New Session")
 
       expect(result).toEqual(newSession)
       const state = useSessionsStore.getState()
-      expect(state.sessions.get("project-1")).toContain(newSession)
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      expect(state.sessions.get(worktreeKey)).toContain(newSession)
+      expect(state.sessions.get(PROJECT_ID)).toContain(newSession)
       expect(state.currentSession).toEqual(newSession)
       expect(state.createLoading).toBe(false)
     })
@@ -175,24 +210,27 @@ describe("Enhanced Sessions Store", () => {
     test("updateSession mutation modifies existing session", async () => {
       const originalSession: Session = {
         id: "update-test",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Original Title",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
       const updatedSession = { ...originalSession, title: "Updated Title" }
 
+      primeSessionsState([originalSession])
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [originalSession])
         state.currentSession = originalSession
       })
       mockUpdateSession.mockResolvedValue(updatedSession)
 
-      await useSessionsStore.getState().updateSession("project-1", "/test/path", "update-test", { title: "Updated Title" })
+      await useSessionsStore
+        .getState()
+        .updateSession(PROJECT_ID, DEFAULT_PATH, "update-test", { title: "Updated Title" })
 
       const state = useSessionsStore.getState()
-      const sessions = state.sessions.get("project-1")
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      const sessions = state.sessions.get(worktreeKey)
       const found = sessions?.find((s) => s.id === "update-test")
       expect(found).toBeDefined()
       expect(found?.title).toBe("Updated Title")
@@ -203,30 +241,31 @@ describe("Enhanced Sessions Store", () => {
     test("deleteSession mutation removes session from state", async () => {
       const session1: Session = {
         id: "delete1",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Session 1",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
       const session2: Session = {
         id: "delete2",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Session 2",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
 
+      primeSessionsState([session1, session2])
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [session1, session2])
         state.currentSession = session1
       })
 
-      await useSessionsStore.getState().deleteSession("project-1", "/test/path", "delete1")
+      await useSessionsStore.getState().deleteSession(PROJECT_ID, DEFAULT_PATH, "delete1")
 
       const state = useSessionsStore.getState()
-      const sessions = state.sessions.get("project-1")
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      const sessions = state.sessions.get(worktreeKey)
       expect(sessions).toHaveLength(1)
       expect(sessions).toBeDefined()
       expect(sessions?.[0].id).toBe("delete2")
@@ -269,15 +308,17 @@ describe("Enhanced Sessions Store", () => {
         },
       ]
 
+      primeSessionsState(sessions)
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", sessions)
         state.currentSession = sessions[0]
       })
 
-      useSessionsStore.getState().clearSessions("project-1")
+      useSessionsStore.getState().clearSessions(PROJECT_ID)
 
       const state = useSessionsStore.getState()
-      expect(state.sessions.has("project-1")).toBe(false)
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      expect(state.sessions.has(PROJECT_ID)).toBe(false)
+      expect(state.sessions.has(worktreeKey)).toBe(false)
       expect(state.currentSession).toBe(null)
     })
   })
@@ -303,12 +344,46 @@ describe("Enhanced Sessions Store", () => {
         },
       ]
 
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", sessions)
-      })
+      primeSessionsState(sessions)
 
-      const { result } = renderHook(() => useSessionsForProject("project-1"))
+      const { result } = renderHook(() => useSessionsForProject(PROJECT_ID, DEFAULT_PATH))
       expect(result.current).toEqual(sessions)
+
+      const { result: aggregatedResult } = renderHook(() => useSessionsForProject(PROJECT_ID))
+      expect(aggregatedResult.current).toEqual(sessions)
+    })
+
+    test("useSessionsForProject handles different worktrees", () => {
+      const pathA = "/repo/path/a"
+      const pathB = "/repo/path/b"
+      const sessionA: Session = {
+        id: "session-a",
+        projectID: PROJECT_ID,
+        directory: pathA,
+        title: "Session A",
+        version: "1.0.0",
+        time: { created: Date.now(), updated: Date.now() },
+      }
+      const sessionB: Session = {
+        id: "session-b",
+        projectID: PROJECT_ID,
+        directory: pathB,
+        title: "Session B",
+        version: "1.0.0",
+        time: { created: Date.now(), updated: Date.now() },
+      }
+
+      primeSessionsState([sessionA], { projectPath: pathA })
+      primeSessionsState([sessionB], { projectPath: pathB })
+
+      const { result: worktreeA } = renderHook(() => useSessionsForProject(PROJECT_ID, pathA))
+      expect(worktreeA.current).toEqual([sessionA])
+
+      const { result: worktreeB } = renderHook(() => useSessionsForProject(PROJECT_ID, pathB))
+      expect(worktreeB.current).toEqual([sessionB])
+
+      const { result: aggregated } = renderHook(() => useSessionsForProject(PROJECT_ID))
+      expect(aggregated.current).toEqual([sessionA, sessionB])
     })
 
     test("useSessionsForProject returns empty array for non-existent project", () => {
@@ -321,35 +396,33 @@ describe("Enhanced Sessions Store", () => {
       const sessions: Session[] = [
         {
           id: "old",
-          projectID: "project-1",
-          directory: "/path",
+          projectID: PROJECT_ID,
+          directory: DEFAULT_PATH,
           title: "Old Session",
           version: "1.0.0",
           time: { created: now - 10000, updated: now - 10000 },
         },
         {
           id: "recent",
-          projectID: "project-1",
-          directory: "/path",
+          projectID: PROJECT_ID,
+          directory: DEFAULT_PATH,
           title: "Recent Session",
           version: "1.0.0",
           time: { created: now - 5000, updated: now - 1000 },
         },
         {
           id: "newest",
-          projectID: "project-1",
-          directory: "/path",
+          projectID: PROJECT_ID,
+          directory: DEFAULT_PATH,
           title: "Newest Session",
           version: "1.0.0",
           time: { created: now - 3000, updated: now - 500 },
         },
       ]
 
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", sessions)
-      })
+      primeSessionsState(sessions)
 
-      const { result } = renderHook(() => useRecentSessions("project-1", 2))
+      const { result } = renderHook(() => useRecentSessions(PROJECT_ID, 2, DEFAULT_PATH))
       expect(result.current).toHaveLength(2)
       expect(result.current[0].id).toBe("newest")
       expect(result.current[1].id).toBe("recent")
@@ -359,39 +432,37 @@ describe("Enhanced Sessions Store", () => {
       const sessions: Session[] = [
         {
           id: "find-me",
-          projectID: "project-1",
-          directory: "/path",
+          projectID: PROJECT_ID,
+          directory: DEFAULT_PATH,
           title: "Find Me",
           version: "1.0.0",
           time: { created: Date.now(), updated: Date.now() },
         },
         {
           id: "not-me",
-          projectID: "project-1",
-          directory: "/path",
+          projectID: PROJECT_ID,
+          directory: DEFAULT_PATH,
           title: "Not Me",
           version: "1.0.0",
           time: { created: Date.now(), updated: Date.now() },
         },
       ]
 
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", sessions)
-      })
+      primeSessionsState(sessions)
 
-      const { result: foundResult } = renderHook(() => useSessionById("project-1", "find-me"))
+      const { result: foundResult } = renderHook(() => useSessionById(PROJECT_ID, "find-me", DEFAULT_PATH))
       expect(foundResult.current).toBeDefined()
       expect(foundResult.current?.id).toBe("find-me")
 
-      const { result: notFoundResult } = renderHook(() => useSessionById("project-1", "missing"))
+      const { result: notFoundResult } = renderHook(() => useSessionById(PROJECT_ID, "missing", DEFAULT_PATH))
       expect(notFoundResult.current).toBeUndefined()
     })
 
     test("basic selectors return correct values", () => {
       const session: Session = {
         id: "current",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Current Session",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
@@ -417,20 +488,18 @@ describe("Enhanced Sessions Store", () => {
       const sessions: Session[] = [
         {
           id: "stable",
-          projectID: "project-1",
-          directory: "/path",
+          projectID: PROJECT_ID,
+          directory: DEFAULT_PATH,
           title: "Stable Session",
           version: "1.0.0",
           time: { created: Date.now(), updated: Date.now() },
         },
       ]
 
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", sessions)
-      })
+      primeSessionsState(sessions)
 
-      const { result: result1 } = renderHook(() => useSessionsForProject("project-1"))
-      const { result: result2 } = renderHook(() => useSessionsForProject("project-1"))
+      const { result: result1 } = renderHook(() => useSessionsForProject(PROJECT_ID, DEFAULT_PATH))
+      const { result: result2 } = renderHook(() => useSessionsForProject(PROJECT_ID, DEFAULT_PATH))
 
       // Should return same reference for same data
       expect(result1.current).toBe(result2.current)
@@ -450,8 +519,8 @@ describe("Enhanced Sessions Store", () => {
         },
       ]
 
+      primeSessionsState(sessions)
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", sessions)
         state.currentSession = sessions[0]
         state.listLoading = true
         state.error = "error"
@@ -459,7 +528,8 @@ describe("Enhanced Sessions Store", () => {
 
       // Sessions store doesn't use persistence, so all state is ephemeral
       const state = useSessionsStore.getState()
-      expect(state.sessions.get("project-1")).toEqual(sessions)
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      expect(state.sessions.get(worktreeKey)).toEqual(sessions)
       expect(state.currentSession).toEqual(sessions[0])
       expect(state.listLoading || state.createLoading).toBe(true)
       expect(state.error).toBe("error")
@@ -494,14 +564,15 @@ describe("Enhanced Sessions Store", () => {
         time: { created: Date.now(), updated: Date.now() },
       }
 
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [session1])
-        state.sessions.set("project-2", [session2])
-      })
+      primeSessionsState([session1])
+      primeSessionsState([session2], { projectId: "project-2", projectPath: "/path" })
 
       const state = useSessionsStore.getState()
-      expect(state.sessions.size).toBe(2)
-      expect(state.sessions.get("project-1")).toEqual([session1])
+      const project1Key = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      const project2Key = sessionKeyForProjectPath("project-2", "/path")
+      expect(state.sessions.get(project1Key)).toEqual([session1])
+      expect(state.sessions.get(PROJECT_ID)).toEqual([session1])
+      expect(state.sessions.get(project2Key)).toEqual([session2])
       expect(state.sessions.get("project-2")).toEqual([session2])
     })
   })
@@ -572,8 +643,8 @@ describe("Enhanced Sessions Store", () => {
     test("handles rapid state mutations correctly", () => {
       const sessions = Array.from({ length: 10 }, (_, i) => ({
         id: `rapid-${i}`,
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: `Session ${i}`,
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
@@ -582,27 +653,30 @@ describe("Enhanced Sessions Store", () => {
       // Perform rapid mutations
       sessions.forEach((session, i) => {
         useSessionsStore.setState((state) => {
-          state.sessions.set("project-1", [session])
+          const key = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+          state.sessions.set(key, [session])
+          state.sessions.set(PROJECT_ID, [session])
           state.listLoading = i % 2 === 0
         })
       })
 
       const state = useSessionsStore.getState()
-      expect(state.sessions.get("project-1")?.[0].title).toBe("Session 9")
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      expect(state.sessions.get(worktreeKey)?.[0].title).toBe("Session 9")
     })
 
     test("concurrent update and delete operations", async () => {
       const session: Session = {
         id: "concurrent-ops",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Concurrent Ops",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
 
+      primeSessionsState([session])
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [session])
         state.currentSession = session
       })
 
@@ -610,8 +684,10 @@ describe("Enhanced Sessions Store", () => {
       mockDeleteSession.mockResolvedValue(true)
 
       // Try to update and delete concurrently
-      const updatePromise = useSessionsStore.getState().updateSession("project-1", "/test/path", "concurrent-ops", { title: "Updated" })
-      const deletePromise = useSessionsStore.getState().deleteSession("project-1", "/test/path", "concurrent-ops")
+      const updatePromise = useSessionsStore
+        .getState()
+        .updateSession(PROJECT_ID, DEFAULT_PATH, "concurrent-ops", { title: "Updated" })
+      const deletePromise = useSessionsStore.getState().deleteSession(PROJECT_ID, DEFAULT_PATH, "concurrent-ops")
 
       await Promise.all([updatePromise, deletePromise])
 
@@ -648,16 +724,18 @@ describe("Enhanced Sessions Store", () => {
         time: { created: Date.now(), updated: Date.now() },
       }
 
+      primeSessionsState([session1])
+      primeSessionsState([session2], { projectId: "project-2", projectPath: "/path" })
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [session1])
-        state.sessions.set("project-2", [session2])
         state.currentSession = session1
       })
 
-      useSessionsStore.getState().clearSessions("project-1")
+      useSessionsStore.getState().clearSessions(PROJECT_ID)
 
       const state = useSessionsStore.getState()
-      expect(state.sessions.has("project-1")).toBe(false)
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      expect(state.sessions.has(PROJECT_ID)).toBe(false)
+      expect(state.sessions.has(worktreeKey)).toBe(false)
       expect(state.sessions.has("project-2")).toBe(true)
       expect(state.currentSession).toBe(null)
     })
@@ -672,8 +750,8 @@ describe("Enhanced Sessions Store", () => {
         time: { created: Date.now(), updated: Date.now() },
       }
 
+      primeSessionsState([session])
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [session])
         state.currentSession = session
         state.listLoading = true
         state.error = "error"
@@ -714,16 +792,18 @@ describe("Enhanced Sessions Store", () => {
         time: { created: Date.now(), updated: Date.now() },
       }
 
+      primeSessionsState([session1])
+      primeSessionsState([session2], { projectId: "project-2", projectPath: "/path" })
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [session1])
-        state.sessions.set("project-2", [session2])
         state.currentSession = session2
       })
 
-      useSessionsStore.getState().clearSessions("project-1")
+      useSessionsStore.getState().clearSessions(PROJECT_ID)
 
       const state = useSessionsStore.getState()
-      expect(state.sessions.has("project-1")).toBe(false)
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      expect(state.sessions.has(PROJECT_ID)).toBe(false)
+      expect(state.sessions.has(worktreeKey)).toBe(false)
       expect(state.currentSession).toEqual(session2) // Should remain unchanged
     })
   })
@@ -732,15 +812,15 @@ describe("Enhanced Sessions Store", () => {
     test("optimistic updates are reverted on API failures", async () => {
       const originalSession: Session = {
         id: "revert-test",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Original Title",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
 
+      primeSessionsState([originalSession])
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [originalSession])
         state.currentSession = originalSession
       })
 
@@ -748,7 +828,9 @@ describe("Enhanced Sessions Store", () => {
       mockGetSessions.mockResolvedValue([originalSession]) // For revert
 
       try {
-        await useSessionsStore.getState().updateSession("project-1", "/test/path", "revert-test", { title: "New Title" })
+        await useSessionsStore
+          .getState()
+          .updateSession(PROJECT_ID, DEFAULT_PATH, "revert-test", { title: "New Title" })
       } catch (error) {
         expect(error).toBeInstanceOf(Error)
       }
@@ -760,7 +842,7 @@ describe("Enhanced Sessions Store", () => {
     test("handles non-Error objects in API failures", async () => {
       mockGetSessions.mockRejectedValue("String error")
 
-      await useSessionsStore.getState().loadSessions("project-1", "/test/path")
+      await useSessionsStore.getState().loadSessions(PROJECT_ID, DEFAULT_PATH)
 
       const state = useSessionsStore.getState()
       expect(state.error).toBe("Failed to load sessions")
@@ -770,7 +852,7 @@ describe("Enhanced Sessions Store", () => {
       mockCreateSession.mockRejectedValue(new Error("Creation failed"))
 
       try {
-        await useSessionsStore.getState().createSession("project-1", "/test/path", "New Session")
+        await useSessionsStore.getState().createSession(PROJECT_ID, DEFAULT_PATH, "New Session")
       } catch (error) {
         expect(error).toBeInstanceOf(Error)
         expect((error as Error).message).toBe("Creation failed")
@@ -784,22 +866,20 @@ describe("Enhanced Sessions Store", () => {
     test("handles delete failure and revert state", async () => {
       const session: Session = {
         id: "delete-fail",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Delete Fail",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
 
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [session])
-      })
+      primeSessionsState([session])
 
       mockDeleteSession.mockRejectedValue(new Error("Delete failed"))
       mockGetSessions.mockResolvedValue([session]) // For revert
 
       try {
-        await useSessionsStore.getState().deleteSession("project-1", "/test/path", "delete-fail")
+        await useSessionsStore.getState().deleteSession(PROJECT_ID, DEFAULT_PATH, "delete-fail")
       } catch (error) {
         expect(error).toBeInstanceOf(Error)
       }
@@ -812,7 +892,9 @@ describe("Enhanced Sessions Store", () => {
       useSessionsStore.setState({ currentSession: null })
 
       // Should not throw or make API calls
-      await useSessionsStore.getState().updateSession("project-1", "/test/path", "session-123", { title: "New Title" })
+      await useSessionsStore
+        .getState()
+        .updateSession(PROJECT_ID, DEFAULT_PATH, "session-123", { title: "New Title" })
 
       expect(mockUpdateSession).not.toHaveBeenCalled()
     })
@@ -855,19 +937,17 @@ describe("Enhanced Sessions Store", () => {
     test("selector performance with large datasets", () => {
       const sessions: Session[] = Array.from({ length: 100 }, (_, i) => ({
         id: `perf-${i}`,
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: `Session ${i}`,
         version: "1.0.0",
         time: { created: Date.now() - i * 1000, updated: Date.now() - i * 1000 },
       }))
 
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", sessions)
-      })
+      primeSessionsState(sessions)
 
       const start = performance.now()
-      const { result } = renderHook(() => useRecentSessions("project-1", 10))
+      const { result } = renderHook(() => useRecentSessions(PROJECT_ID, 10, DEFAULT_PATH))
       const end = performance.now()
 
       expect(result.current).toHaveLength(10)
@@ -877,53 +957,52 @@ describe("Enhanced Sessions Store", () => {
     test("memory cleanup after session removal", async () => {
       const sessions: Session[] = Array.from({ length: 10 }, (_, i) => ({
         id: `cleanup-${i}`,
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: `Session ${i}`,
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }))
 
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", sessions)
-      })
+      primeSessionsState(sessions)
 
       // Remove all sessions
       for (const session of sessions) {
-        await useSessionsStore.getState().deleteSession("project-1", "/test/path", session.id)
+        await useSessionsStore.getState().deleteSession(PROJECT_ID, DEFAULT_PATH, session.id)
       }
 
       const state = useSessionsStore.getState()
-      expect(state.sessions.get("project-1")).toHaveLength(0)
+      const worktreeKey = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+      expect(state.sessions.get(worktreeKey)).toHaveLength(0)
     })
 
     test("handles Map operations correctly with immer", () => {
       const session1: Session = {
         id: "immer-1",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Session 1",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
       const session2: Session = {
         id: "immer-2",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Session 2",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
 
       // Add first session
-      useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [session1])
-      })
+      primeSessionsState([session1])
 
       // Add second session to same project
       useSessionsStore.setState((state) => {
-        const existing = state.sessions.get("project-1") || []
-        state.sessions.set("project-1", [...existing, session2])
+        const key = sessionKeyForProjectPath(PROJECT_ID, DEFAULT_PATH)
+        const existing = state.sessions.get(key) || []
+        state.sessions.set(key, [...existing, session2])
+        state.sessions.set(PROJECT_ID, [...existing, session2])
       })
 
       const state = useSessionsStore.getState()
@@ -1006,15 +1085,15 @@ describe("Enhanced Sessions Store", () => {
     test("handles session updates with optimistic updates", async () => {
       const originalSession: Session = {
         id: "lifecycle-update",
-        projectID: "project-1",
-        directory: "/path",
+        projectID: PROJECT_ID,
+        directory: DEFAULT_PATH,
         title: "Original Title",
         version: "1.0.0",
         time: { created: Date.now(), updated: Date.now() },
       }
 
+      primeSessionsState([originalSession])
       useSessionsStore.setState((state) => {
-        state.sessions.set("project-1", [originalSession])
         state.currentSession = originalSession
       })
 
@@ -1025,7 +1104,9 @@ describe("Enhanced Sessions Store", () => {
       })
       mockUpdateSession.mockReturnValue(slowUpdatePromise)
 
-      const updatePromise = useSessionsStore.getState().updateSession("project-1", "/test/path", "lifecycle-update", { title: "New Title" })
+      const updatePromise = useSessionsStore
+        .getState()
+        .updateSession(PROJECT_ID, DEFAULT_PATH, "lifecycle-update", { title: "New Title" })
 
       // Check optimistic update
       let state = useSessionsStore.getState()

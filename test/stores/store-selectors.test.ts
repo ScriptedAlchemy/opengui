@@ -89,7 +89,7 @@ describe("Store Selectors", () => {
     test("computed selectors work with direct state access", () => {
       const runningProject = TestDataFactory.createProject({
         id: "running-project",
-        instance: { id: "instance-1", port: 3001, status: "running", startedAt: new Date() },
+        instance: { id: "instance-1", port: 3099, status: "running", startedAt: new Date() },
       })
       const stoppedProject = TestDataFactory.createProject({ id: "stopped-project" })
 

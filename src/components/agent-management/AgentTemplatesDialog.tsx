@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react"
+import { Sparkles, type LucideIcon } from "lucide-react"
 import { Button } from "../ui/button"
 import { Badge } from "../ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../ui/dialog"
@@ -24,7 +24,7 @@ interface AgentTemplate {
   name: string
   description: string
   category: string
-  icon: any
+  icon: LucideIcon
   prompt: string
   tools: Record<string, boolean>
   permissions: AgentFormData["permissions"]
@@ -95,7 +95,8 @@ export function AgentTemplatesDialog({
                     ))}
                   {Object.entries(template.tools).filter(([_, enabled]) => enabled).length > 3 && (
                     <div className="rounded bg-[#262626] px-2 py-1 text-xs text-gray-300">
-                      +{Object.entries(template.tools).filter(([_, enabled]) => enabled).length - 3}
+                      +{Object.entries(template.tools).filter(([_, enabled]) => enabled).length - 3}{" "}
+                      more
                     </div>
                   )}
                 </div>

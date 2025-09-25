@@ -42,9 +42,9 @@ rstest.mock("../../src/lib/api/project-manager", () => ({
 
 // SDK client mocks
 const mockGetSessions = rstest.fn(() => Promise.resolve([] as any[]))
-const mockCreateSession = rstest.fn((params?: any) => Promise.resolve({} as any))
-const mockUpdateSession = rstest.fn((params?: any) => Promise.resolve({} as any))
-const mockDeleteSession = rstest.fn((params?: any) => Promise.resolve(true))
+const mockCreateSession = rstest.fn((_params?: any) => Promise.resolve({} as any))
+const mockUpdateSession = rstest.fn((_params?: any) => Promise.resolve({} as any))
+const mockDeleteSession = rstest.fn((_params?: any) => Promise.resolve(true))
 const mockGetClient = rstest.fn(async (_projectId: string, _projectPath: string) => {
   return {
     session: {
@@ -97,14 +97,14 @@ describe("Cross-Store Interactions", () => {
       loading: false,
       error: null,
       instanceOperations: {},
-    })
+    } as any)
 
     useSessionsStore.setState({
       sessions: new Map(),
       currentSession: null,
       loading: false,
       error: null,
-    })
+    } as any)
 
     // Clear all mocks
     mockGetProjects.mockClear()
@@ -127,7 +127,7 @@ describe("Cross-Store Interactions", () => {
     mockCreateProject.mockResolvedValue(TestDataFactory.createProject())
     mockUpdateProject.mockResolvedValue(TestDataFactory.createProject())
     mockRemoveProject.mockResolvedValue(true)
-    mockStartInstance.mockResolvedValue({ id: "instance-1", port: 3001, status: "running", startedAt: new Date() })
+    mockStartInstance.mockResolvedValue({ id: "instance-1", port: 3099, status: "running", startedAt: new Date() })
     mockStopInstance.mockResolvedValue(true)
     mockGetInstanceStatus.mockResolvedValue(null)
     mockGetSessions.mockResolvedValue([])
@@ -400,7 +400,7 @@ describe("Cross-Store Interactions", () => {
       expect(useSessionsStore.getState().sessions.get("project-1")).toEqual(sessions)
 
       // 4. User starts the project instance
-      const instance = { id: "instance-1", port: 3001, status: "running" as const, startedAt: new Date() }
+      const instance = { id: "instance-1", port: 3099, status: "running" as const, startedAt: new Date() }
       mockStartInstance.mockResolvedValue(instance)
 
       await useProjectsStore.getState().startInstance("project-1")
@@ -643,8 +643,8 @@ describe("Cross-Store Interactions", () => {
         currentProject: project,
         loading: true,
         error: "error",
-      })
-      useSessionsStore.setState((state) => {
+      } as any)
+      useSessionsStore.setState((state: any) => {
         state.sessions.set("reset-test", [session])
         state.currentSession = session
         state.loading = true
@@ -658,13 +658,13 @@ describe("Cross-Store Interactions", () => {
         loading: false,
         error: null,
         instanceOperations: {},
-      })
+      } as any)
       useSessionsStore.setState({
         sessions: new Map(),
         currentSession: null,
         loading: false,
         error: null,
-      })
+      } as any)
 
       // Verify both stores are reset
       const projectState = useProjectsStore.getState()
@@ -681,7 +681,7 @@ describe("Cross-Store Interactions", () => {
       useProjectsStore.setState({ projects: [project] })
 
       // Mock partial failures
-      mockStartInstance.mockResolvedValue({ id: "inst-1", port: 3001, status: "running", startedAt: new Date() })
+      mockStartInstance.mockResolvedValue({ id: "inst-1", port: 3099, status: "running", startedAt: new Date() })
       mockGetSessions.mockRejectedValue(new Error("Sessions failed"))
 
       // Attempt operations

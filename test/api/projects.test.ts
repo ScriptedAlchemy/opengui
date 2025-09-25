@@ -87,7 +87,7 @@ describe("Projects API", () => {
       expect(response.status).toBe(200)
 
       const responseText = await response.text()
-      let projects = []
+      let projects: any[] = []
       try {
         projects = JSON.parse(responseText)
       } catch {
@@ -102,6 +102,13 @@ describe("Projects API", () => {
         status: expect.any(String),
         port: expect.any(Number),
         lastAccessed: expect.any(Number),
+      })
+      expect(projects[0]).toHaveProperty('worktrees')
+      expect(Array.isArray(projects[0].worktrees)).toBe(true)
+      expect(projects[0].worktrees).toHaveLength(1)
+      expect(projects[0].worktrees[0]).toMatchObject({
+        id: "default",
+        path: "/tmp/test-project",
       })
     })
 
@@ -133,7 +140,7 @@ describe("Projects API", () => {
 
       expect(response.status).toBe(200)
       const responseText = await response.text()
-      let project: Record<string, unknown>
+      let project: any
       try {
         project = JSON.parse(responseText)
       } catch {
@@ -147,6 +154,13 @@ describe("Projects API", () => {
         port: expect.any(Number),
         lastAccessed: expect.any(Number),
         id: expect.any(String),
+      })
+      expect(project).toHaveProperty('worktrees')
+      expect(Array.isArray(project.worktrees)).toBe(true)
+      expect(project.worktrees).toHaveLength(1)
+      expect(project.worktrees[0]).toMatchObject({
+        id: "default",
+        path: "/tmp/new-test-project",
       })
     })
 
@@ -241,6 +255,19 @@ describe("Projects API", () => {
       const response = await app.fetch(new Request(`http://localhost/api/projects/${createdProject.id}`))
 
       expect(response.status).toBe(200)
+      const body = await response.json()
+      expect(body).toMatchObject({
+        id: expect.any(String),
+      })
+      expect(body).toHaveProperty('worktrees')
+      expect(Array.isArray(body.worktrees)).toBe(true)
+      expect(body.worktrees.length).toBeGreaterThan(0)
+      const defaultWorktree = body.worktrees.find((w: any) => w.id === "default")
+      expect(defaultWorktree).toBeDefined()
+      expect(defaultWorktree).toMatchObject({
+        id: "default",
+        path: "/tmp/specific-project",
+      })
     })
 
     test("should return 404 for non-existent project", async () => {

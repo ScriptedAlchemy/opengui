@@ -13,7 +13,7 @@ try {
   // File doesn't exist
 }
 const p1 = t ? parseInt(t) : NaN
-const p = Number.isFinite(p0) && p0 > 0 && p0 < 65536 ? p0 : Number.isFinite(p1) && p1 > 0 && p1 < 65536 ? p1 : 3001
+const p = Number.isFinite(p0) && p0 > 0 && p0 < 65536 ? p0 : Number.isFinite(p1) && p1 > 0 && p1 < 65536 ? p1 : 3099
 
 try {
   const s = execSync(`lsof -ti tcp:${p}`, { encoding: "utf-8" }).trim()
@@ -24,4 +24,3 @@ try {
 } catch {
   console.log(`[pretest] No process found on port ${p}`)
 }
-

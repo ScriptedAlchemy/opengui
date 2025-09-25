@@ -1,6 +1,6 @@
 # OpenCode Web UI Testing
 
-Comprehensive test suite for the OpenCode web frontend using Bun's native test runner with advanced optimizations.
+Comprehensive test suite for the OpenCode web frontend using the Rstest runner with advanced optimizations.
 
 ## Overview
 
@@ -31,24 +31,18 @@ This test suite provides complete coverage for the OpenCode web UI, including:
 
 ```bash
 # Run all tests
-bun test
+pnpm test
 
-# Run tests in watch mode
-bun test --watch
+# Run focused suites
+pnpm test:components
+pnpm test:runtime
+pnpm test:stores
+pnpm test:integration
 
-# Run with coverage
-bun test --coverage
-
-# Run specific test categories
-bun test components/
-bun test runtime/
-bun test stores/
-bun test integration/
-
-# 🚀 New optimized commands
-bun test integration --pool      # Use server pool for faster integration tests
-bun test --parallel             # Force parallel execution
-bun test --debug                # Enable debug logging for server issues
+# Additional helpers
+pnpm test:parallel      # Concurrency control example
+pnpm test:verbose       # Verbose reporter for debugging
+pnpm test -- --debug    # Pass extra flags through to rstest
 ```
 
 ## Test Structure
@@ -80,12 +74,12 @@ web/test/
 
 ## Key Features
 
-### Bun Native Testing
+### Rstest Test Runner
 
-- **Zero Configuration**: No additional test runner setup required
-- **TypeScript Support**: Native TypeScript execution without transpilation
-- **Fast Execution**: 10x faster than Node.js alternatives
-- **Built-in Mocking**: Native mock functions and module mocking
+- **Zero Configuration**: Integrated with Rsbuild/Rstest toolchain
+- **TypeScript Support**: Executes TS directly via the bundler
+- **Fast Execution**: Optimized worker orchestration for large suites
+- **Built-in Mocking**: First-class module, timer, and network mocking
 - **Advanced Features**: Parameterized tests, concurrent execution, snapshots
 
 ### Component Testing
@@ -206,7 +200,7 @@ const message = TestDataFactory.createMessage({ role: "assistant" })
 ### Component Tests
 
 ```typescript
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach } from "@rstest/core"
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
@@ -227,7 +221,7 @@ describe("MyComponent", () => {
 ### Runtime Tests
 
 ```typescript
-import { describe, test, expect } from "bun:test"
+import { describe, test, expect } from "@rstest/core"
 import { OpenCodeRuntime } from "../src/lib/chat/runtime"
 
 describe("OpenCodeRuntime", () => {
@@ -249,7 +243,7 @@ describe("OpenCodeRuntime", () => {
 ### Store Tests
 
 ```typescript
-import { describe, test, expect } from "bun:test"
+import { describe, test, expect } from "@rstest/core"
 import { useProjectsStore } from "../src/stores/projects"
 
 describe("ProjectsStore", () => {
@@ -267,7 +261,7 @@ describe("ProjectsStore", () => {
 ### Integration Tests
 
 ```typescript
-import { describe, test, expect, beforeAll, afterAll } from "bun:test"
+import { describe, test, expect, beforeAll, afterAll } from "@rstest/core"
 import { OpenCodeTestHarness } from "../test/harness/opencode-backend"
 
 describe("Chat Integration", () => {
@@ -300,8 +294,8 @@ describe("Chat Integration", () => {
 
 ### Async Testing
 
-- **Bun.sleep()**: Use instead of setTimeout for delays
 - **waitFor()**: Wait for async state changes
+- **Controlled timers**: Use fake timers or utility sleepers when needed
 - **Proper Cleanup**: Clean up async operations
 
 ### Mocking
@@ -323,7 +317,7 @@ describe("Chat Integration", () => {
 ### Test Setup (setup.ts)
 
 ```typescript
-import { beforeAll, afterAll } from "bun:test"
+import { beforeAll, afterAll } from "@rstest/core"
 import "@testing-library/jest-dom"
 
 beforeAll(() => {

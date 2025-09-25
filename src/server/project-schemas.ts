@@ -13,8 +13,15 @@ extendZodWithOpenApi(z)
 /**
  * Schema for creating a new project
  */
+const absolutePathRegex = /^(?:[A-Za-z]:[\\/]{1}|\\\\|\/)/
+
 export const ProjectCreateSchema = z.object({
-  path: z.string().min(1, "Project path is required"),
+  path: z
+    .string()
+    .min(1, "Project path is required")
+    .refine((value) => absolutePathRegex.test(value.trim()), {
+      message: "Project path must be absolute",
+    }),
   name: z.string().min(1, "Project name is required"),
 })
 
@@ -37,6 +44,22 @@ export const ProjectInfoSchema = z.object({
   lastAccessed: z.number(),
   gitRoot: z.string().optional(),
   commitHash: z.string().optional(),
+})
+
+export const DirectoryEntrySchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  isDirectory: z.literal(true),
+})
+
+export const DirectoryListingSchema = z.object({
+  path: z.string(),
+  parent: z.string().nullable(),
+  entries: DirectoryEntrySchema.array(),
+})
+
+export const HomeDirectorySchema = z.object({
+  path: z.string(),
 })
 
 /**
@@ -85,3 +108,4 @@ export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
 export type ResourceUsage = z.infer<typeof ResourceUsageSchema>
 export type ActivityEvent = z.infer<typeof ActivityEventSchema>
 export type ActivityFeed = z.infer<typeof ActivityFeedSchema>
+export type DirectoryListing = z.infer<typeof DirectoryListingSchema>

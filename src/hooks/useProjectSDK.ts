@@ -21,28 +21,35 @@ export function useProjectSDK(projectId: string | undefined, projectPath: string
         const apiResponse = await fetch(`/api/projects`)
         if (!apiResponse.ok) {
           // Enhanced error logging for HTTP failures
-          const responseText = (apiResponse as any).text
-            ? await (apiResponse as any).text().catch(() => 'Unable to read response body')
-            : 'Unable to read response body'
-          const responseHeaders = (apiResponse as any).headers && typeof (apiResponse as any).headers.entries === 'function'
-            ? Object.fromEntries((apiResponse as any).headers.entries())
-            : {}
-          console.error('Failed to fetch projects:', {
-            method: 'GET',
-            url: '/api/projects',
+          const responseClone = apiResponse.clone()
+          const responseText = await responseClone
+            .text()
+            .catch(() => "Unable to read response body")
+          const responseHeaders = Object.fromEntries(apiResponse.headers.entries())
+          console.error("Failed to fetch projects:", {
+            method: "GET",
+            url: "/api/projects",
             status: apiResponse.status,
             statusText: apiResponse.statusText,
             headers: responseHeaders,
-            body: responseText
+            body: responseText,
           })
           // Do not throw in UI hook; proceed with SDK fallback
           return
         }
 
-        const projects = await apiResponse.json()
-        const projectData = projects.find((p: ProjectInfo) => p.id === projectId)
-        if (projectData) {
-          setProject(projectData)
+        const projectsJson = (await apiResponse.json()) as unknown
+        if (Array.isArray(projectsJson)) {
+          const projectData = projectsJson.find(
+            (proj): proj is ProjectInfo =>
+              typeof proj === "object" &&
+              proj !== null &&
+              "id" in proj &&
+              typeof (proj as { id?: unknown }).id === "string"
+          )
+          if (projectData) {
+            setProject(projectData)
+          }
         }
       } catch (error) {
         console.error("Failed to load project from API:", error)

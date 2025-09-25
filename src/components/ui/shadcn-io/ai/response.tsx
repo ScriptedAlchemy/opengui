@@ -1,21 +1,31 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import type { ComponentProps, HTMLAttributes } from "react"
+import type { HTMLAttributes } from "react"
 import { isValidElement, memo } from "react"
 import ReactMarkdown, { type Options } from "react-markdown"
+import type { Plugin } from "unified"
 import rehypeKatex from "rehype-katex"
+import rehypeSanitize from "rehype-sanitize"
 import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import { CodeBlock, CodeBlockCopyButton } from "./code-block"
 import "katex/dist/katex.min.css"
 // Try to import harden-react-markdown, but make it optional
-let hardenReactMarkdown: any = null
+type HardenMarkdownFactory = (component: typeof ReactMarkdown) => typeof ReactMarkdown
+
+let hardenReactMarkdown: HardenMarkdownFactory | null = null
 try {
-  const hardenModule = require("harden-react-markdown")
-  hardenReactMarkdown = hardenModule.default || hardenModule
-} catch (_e) {
-  console.warn("harden-react-markdown not available, using regular ReactMarkdown")
+  const hardenModule = require("harden-react-markdown") as
+    | { default?: HardenMarkdownFactory }
+    | HardenMarkdownFactory
+  if (typeof hardenModule === "function") {
+    hardenReactMarkdown = hardenModule
+  } else if (typeof hardenModule.default === "function") {
+    hardenReactMarkdown = hardenModule.default
+  }
+} catch (error) {
+  console.warn("harden-react-markdown not available, using regular ReactMarkdown", error)
 }
 
 /**
@@ -159,22 +169,40 @@ function parseIncompleteMarkdown(text: string): string {
 }
 
 // Create a hardened version of ReactMarkdown
-const HardenedMarkdown = hardenReactMarkdown(ReactMarkdown)
+const HardenedMarkdown: typeof ReactMarkdown = hardenReactMarkdown
+  ? hardenReactMarkdown(ReactMarkdown)
+  : ReactMarkdown
+const IS_HARDENED = !!hardenReactMarkdown
+
+// Safely resolve rehype-raw once (optional dependency)
+let REHYPE_RAW_PLUGIN: Plugin | null = null
+try {
+  const mod = require("rehype-raw") as { default?: Plugin } | Plugin
+  if (typeof mod === "function") {
+    REHYPE_RAW_PLUGIN = mod
+  } else if (typeof mod.default === "function") {
+    REHYPE_RAW_PLUGIN = mod.default
+  }
+} catch {
+  REHYPE_RAW_PLUGIN = null
+}
+
+type HardenedOptions = Options & {
+  allowedImagePrefixes?: string[]
+  allowedLinkPrefixes?: string[]
+  defaultOrigin?: string
+}
 
 export type ResponseProps = HTMLAttributes<HTMLDivElement> & {
-  options?: Options
+  options?: HardenedOptions
   children: Options["children"]
-  allowedImagePrefixes?: ComponentProps<
-    ReturnType<typeof hardenReactMarkdown>
-  >["allowedImagePrefixes"]
-  allowedLinkPrefixes?: ComponentProps<
-    ReturnType<typeof hardenReactMarkdown>
-  >["allowedLinkPrefixes"]
-  defaultOrigin?: ComponentProps<ReturnType<typeof hardenReactMarkdown>>["defaultOrigin"]
+  allowedImagePrefixes?: string[]
+  allowedLinkPrefixes?: string[]
+  defaultOrigin?: string
   parseIncompleteMarkdown?: boolean
 }
 
-const components: Options["components"] = {
+const baseComponents: Options["components"] = {
   ol: ({ node, children, className, ...props }) => (
     <ol className={cn("ml-4 list-outside list-decimal", className)} {...props}>
       {children}
@@ -190,6 +218,11 @@ const components: Options["components"] = {
       {children}
     </ul>
   ),
+  p: ({ node, children, className, ...props }) => (
+    <p className={cn("leading-7 [&:not(:first-child)]:mt-4", className)} {...props}>
+      {children}
+    </p>
+  ),
   hr: ({ node, className, ...props }) => (
     <hr className={cn("border-border my-6", className)} {...props} />
   ),
@@ -197,6 +230,27 @@ const components: Options["components"] = {
     <span className={cn("font-semibold", className)} {...props}>
       {children}
     </span>
+  ),
+  em: ({ node, children, className, ...props }) => (
+    <em className={cn("italic", className)} {...props}>
+      {children}
+    </em>
+  ),
+  del: ({ node, children, className, ...props }) => (
+    <del className={cn("text-muted-foreground", className)} {...props}>
+      {children}
+    </del>
+  ),
+  kbd: ({ node, children, className, ...props }) => (
+    <kbd
+      className={cn(
+        "border-border bg-muted text-muted-foreground inline-flex items-center gap-1 rounded border px-1 text-xs uppercase",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </kbd>
   ),
   a: ({ node, children, className, ...props }) => (
     <a
@@ -281,6 +335,31 @@ const components: Options["components"] = {
       {children}
     </blockquote>
   ),
+  details: ({ node, children, className, open, ...props }) => (
+    <details
+      open={open}
+      className={cn(
+        "border-border bg-muted/30 text-foreground my-2 overflow-hidden rounded-md border",
+        "[&>summary]:cursor-pointer [&>summary]:select-none",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </details>
+  ),
+  summary: ({ node, children, className, ...props }) => (
+    <summary
+      className={cn(
+        "text-muted-foreground/90 bg-muted/50 px-3 py-2 text-sm font-medium",
+        "hover:bg-muted/70 focus-visible:ring-ring focus:outline-none focus-visible:ring-2",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </summary>
+  ),
   code: ({ node, className, ...props }) => {
     const inline = node?.position?.start.line === node?.position?.end.line
 
@@ -342,20 +421,50 @@ export const Response = memo(
         ? parseIncompleteMarkdown(children)
         : children
 
+    const markdownOptions: HardenedOptions = {
+      ...(options ?? {}),
+      components: {
+        ...baseComponents,
+        ...(options?.components ?? {}),
+      },
+      remarkPlugins: Array.from(
+        new Set([...(options?.remarkPlugins ?? []), remarkGfm, remarkMath])
+      ),
+      rehypePlugins: [
+        // If we are not using the hardened markdown wrapper, ensure we sanitize
+        // any potential HTML in the content before other rehype plugins.
+        ...(!IS_HARDENED ? [rehypeSanitize] : []),
+        ...(options?.rehypePlugins ?? []).filter((entry) => {
+          if (IS_HARDENED) return true
+          if (!REHYPE_RAW_PLUGIN) return true
+          const pluginFn = Array.isArray(entry) ? entry[0] : entry
+          return pluginFn !== REHYPE_RAW_PLUGIN
+        }),
+        rehypeKatex,
+      ],
+    }
+
+    const resolvedAllowedImages = allowedImagePrefixes ?? options?.allowedImagePrefixes ?? ["*"]
+    markdownOptions.allowedImagePrefixes = resolvedAllowedImages
+
+    const resolvedAllowedLinks = allowedLinkPrefixes ??
+      options?.allowedLinkPrefixes ?? ["http", "https", "mailto", "tel"]
+    markdownOptions.allowedLinkPrefixes = resolvedAllowedLinks
+
+    const resolvedOrigin =
+      defaultOrigin ??
+      options?.defaultOrigin ??
+      (typeof window !== "undefined" ? window.location.origin : "")
+    if (resolvedOrigin) {
+      markdownOptions.defaultOrigin = resolvedOrigin
+    }
+
     return (
       <div
         className={cn("size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}
         {...props}
       >
-        <HardenedMarkdown
-          allowedImagePrefixes={allowedImagePrefixes ?? ["*"]}
-          allowedLinkPrefixes={allowedLinkPrefixes ?? ["*"]}
-          components={components}
-          defaultOrigin={defaultOrigin}
-          rehypePlugins={[rehypeKatex]}
-          remarkPlugins={[remarkGfm, remarkMath]}
-          {...options}
-        >
+        <HardenedMarkdown {...(markdownOptions as HardenedOptions)}>
           {parsedChildren}
         </HardenedMarkdown>
       </div>

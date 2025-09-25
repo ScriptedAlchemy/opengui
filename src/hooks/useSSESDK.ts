@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react"
-import type { OpencodeClient } from "@opencode-ai/sdk/client"
+import type { OpencodeClient, Event, Part } from "@opencode-ai/sdk/client"
 import type { SessionInfo, MessageResponse } from "@/types/chat"
-import type { Event } from "@opencode-ai/sdk/client"
+
+type SessionErrorProperties = Extract<Event, { type: "session.error" }>["properties"] & {
+  messageID?: string
+}
+type MessageUpdatedInfo = MessageResponse & { sessionID: string; id?: string }
 
 export function useSSESDK(
   client: OpencodeClient | null,
@@ -17,16 +21,24 @@ export function useSSESDK(
 
   useEffect(() => {
     const debug = (() => {
-      try { return localStorage.getItem('debugSSE') === '1' } catch { return false }
+      try {
+        return localStorage.getItem("debugSSE") === "1"
+      } catch {
+        return false
+      }
     })()
-    const log = (...args: any[]) => { if (debug) console.debug(...args) }
-    const warn = (...args: any[]) => { if (debug) console.warn(...args) }
+    const log = (...args: unknown[]) => {
+      if (debug) console.debug(...args)
+    }
+    const warn = (...args: unknown[]) => {
+      if (debug) console.warn(...args)
+    }
 
     log("[useSSESDK] Effect called with:", {
       hasClient: !!client,
       projectPath,
       currentSessionId: currentSession?.id,
-      instanceStatus
+      instanceStatus,
     })
 
     if (!client || !projectPath || !currentSession || instanceStatus !== "running") {
@@ -34,7 +46,7 @@ export function useSSESDK(
         hasClient: !!client,
         hasProjectPath: !!projectPath,
         hasCurrentSession: !!currentSession,
-        instanceStatus
+        instanceStatus,
       })
       return
     }
@@ -50,6 +62,19 @@ export function useSSESDK(
     const abortController = new AbortController()
     abortControllerRef.current = abortController
 
+    const findLastTemporaryUserMessageIndex = (
+      messagesList: MessageResponse[],
+      sessionID: string
+    ) => {
+      for (let index = messagesList.length - 1; index >= 0; index -= 1) {
+        const message = messagesList[index]
+        if (message._isTemporary && message.role === "user" && message.sessionID === sessionID) {
+          return index
+        }
+      }
+      return -1
+    }
+
     async function subscribeToEvents() {
       if (!client || !projectPath || !currentSession) {
         log("[useSSESDK] subscribeToEvents: Missing requirements")
@@ -58,37 +83,29 @@ export function useSSESDK(
 
       try {
         log("[useSSESDK] Attempting to subscribe to events with client:", !!client)
-        log("[useSSESDK] Client.event available:", !!client.event)
-        log("[useSSESDK] Client.event.subscribe available:", !!client.event?.subscribe)
-        
+
         const result = await client.event.subscribe({
           signal: abortController.signal,
         })
 
-        log("[useSSESDK] Subscribe result:", { 
-          hasResult: !!result, 
-          hasStream: !!result?.stream,
-          resultKeys: result ? Object.keys(result) : []
-        })
+        const stream = result?.stream
 
-        if (!result.stream) {
-          warn("[useSSESDK] No stream available from SDK")
+        if (!stream) {
+          warn("[useSSESDK] SDK returned no stream; aborting subscribe")
           return
         }
 
         log("[useSSESDK] Successfully connected to SSE stream, starting to process events")
 
-        // Process events from the async generator
-        log("[useSSESDK] Starting event processing loop")
-        for await (const event of result.stream) {
+        for await (const event of stream) {
           log("[useSSESDK] Received raw event from stream:", event)
-          
+
           if (abortController.signal.aborted) {
             log("[useSSESDK] SSE stream aborted")
             break
           }
 
-          handleEvent(event as Event)
+          handleEvent(event)
         }
         log("[useSSESDK] Event processing loop ended")
       } catch (error) {
@@ -98,69 +115,57 @@ export function useSSESDK(
       }
     }
 
-    function handleEvent(event: Event) {
+    const handleEvent = (event: Event) => {
       try {
         log("[useSSESDK] Received event:", event.type, event.properties)
         switch (event.type) {
           case "message.updated": {
-            const { info } = event.properties || {}
-            log("[useSSESDK] message.updated event:", { info, currentSessionId: currentSession?.id })
-            if (info?.sessionID === currentSession?.id && info?.id) {
-              setMessages((prev: MessageResponse[]) => {
-                const existingIndex = prev.findIndex((m) => m.id === info.id)
+            const info = event.properties.info as MessageUpdatedInfo
+            if (!info) break
+            if (info.sessionID === currentSession?.id && info.id) {
+              setMessages((prev) => {
+                const existingIndex = prev.findIndex((message) => message.id === info.id)
                 if (existingIndex >= 0) {
-                  // Update existing message - spread info properties directly
                   const updated = [...prev]
                   updated[existingIndex] = {
                     ...updated[existingIndex],
                     ...info,
+                    _isTemporary: false,
                   }
                   return updated
-                } else {
-                  // Check if this is a real user message that should replace a temporary one
-                  if (info.role === "user") {
-                    // Find and replace the most recent temporary user message
-                    const tempIndex = prev.findIndex((m, i) => 
-                      (m as any)._isTemporary && 
-                      m.role === "user" && 
-                      m.sessionID === info.sessionID &&
-                      // Make sure it's the most recent temp message
-                      i === prev.length - 1 || prev.slice(i + 1).every(laterMsg => !(laterMsg as any)._isTemporary || laterMsg.role !== "user")
-                    )
-                    
-                      if (tempIndex >= 0) {
-                        log("[useSSESDK] Replacing temporary user message with real one, preserving parts until server parts arrive")
-                        const updated = [...prev]
-                        const temp = updated[tempIndex]
-                        updated[tempIndex] = {
-                          ...(info as any),
-                          // Preserve existing parts from temp message until real parts stream in
-                          parts: (temp?.parts && temp.parts.length > 0) ? temp.parts : [],
-                        } as MessageResponse
-                        return updated
-                      }
-                  }
-
-                  // Add new message - spread info properties directly
-                  log("[useSSESDK] Adding new message from SSE:", info.role, info.id)
-                  return [
-                    ...prev,
-                    {
-                      ...info,
-                      parts: [], // Parts will come via message.part.updated events
-                    } as MessageResponse,
-                  ]
                 }
+
+                if (info.role === "user") {
+                  const tempIndex = findLastTemporaryUserMessageIndex(prev, info.sessionID)
+                  if (tempIndex >= 0) {
+                    log("[useSSESDK] Replacing temporary user message with real one")
+                    const updated = [...prev]
+                    const existingMessage = updated[tempIndex]
+                    updated[tempIndex] = {
+                      ...info,
+                      parts: existingMessage.parts,
+                      _isTemporary: false,
+                    }
+                    return updated
+                  }
+                }
+
+                log("[useSSESDK] Adding new message from SSE:", info.role, info.id)
+                return [
+                  ...prev,
+                  {
+                    ...info,
+                    parts: [],
+                    _isTemporary: false,
+                  },
+                ]
               })
 
-              // Start streaming for assistant messages
               if (info.role === "assistant") {
-                const assistantInfo = info as any
-                if (!assistantInfo.time?.completed) {
+                if (!info.time.completed) {
                   setIsStreaming(true)
                 }
-                // Message complete when it has a completed time
-                if (assistantInfo.time?.completed) {
+                if (info.time.completed) {
                   setIsStreaming(false)
                 }
               }
@@ -169,38 +174,182 @@ export function useSSESDK(
           }
 
           case "message.part.updated": {
-            const { part } = event.properties || {}
-            console.log("[useSSESDK] message.part.updated event:", { part, currentSessionId: currentSession?.id })
-            if (part?.sessionID === currentSession?.id && part?.messageID) {
-              // Filter out step-start and step-finish parts at the event level
-              if (part.type === "step-start" || part.type === "step-finish") {
-                break
-              }
+            const { part } = event.properties
+            if (!part) break
+            log("[useSSESDK] message.part.updated event:", {
+              part,
+              currentSessionId: currentSession?.id,
+            })
+            if (part.sessionID === currentSession?.id && part.messageID) {
+              // Allow step-start and step-finish events to be processed for tool call visibility
+              // These events contain important tool call information that should be displayed during streaming
 
-              setMessages((prev: MessageResponse[]) => {
-                return prev.map((msg) => {
-                  if (msg.id === part.messageID) {
-                    const existingPartIndex = msg.parts.findIndex((p) => p.id === part.id)
-                    if (existingPartIndex >= 0) {
-                      const updatedParts = [...msg.parts]
-                      updatedParts[existingPartIndex] = part as any
-                      return { ...msg, parts: updatedParts }
-                    } else {
-                      return { ...msg, parts: [...msg.parts, part as any] }
-                    }
+              setMessages((prev) =>
+                prev.map((message) => {
+                  if (message.id !== part.messageID) {
+                    return message
                   }
-                  return msg
+
+                  const existingPartIndex = message.parts.findIndex(
+                    (existingPart) => existingPart.id === part.id
+                  )
+                  if (existingPartIndex >= 0) {
+                    const updatedParts = [...message.parts]
+                    updatedParts[existingPartIndex] = part
+                    return { ...message, parts: updatedParts }
+                  }
+
+                  const cleanedParts = message.parts.filter((existingPart) => {
+                    if (!existingPart.id?.startsWith("temp-part-")) {
+                      return true
+                    }
+
+                    if (existingPart.type !== part.type) {
+                      return true
+                    }
+
+                    if (existingPart.type === "file" && part.type === "file") {
+                      return !(
+                        existingPart.filename === part.filename && existingPart.mime === part.mime
+                      )
+                    }
+
+                    if (existingPart.type === "text" && part.type === "text") {
+                      return existingPart.text?.trim() !== part.text?.trim()
+                    }
+
+                    return false
+                  })
+
+                  return { ...message, parts: [...cleanedParts, part] }
                 })
-              })
+              )
             }
             break
           }
 
           case "session.error": {
-            const { sessionID, error } = event.properties || {}
+            const {
+              sessionID,
+              messageID,
+              error: sessionError,
+            } = event.properties as SessionErrorProperties
+            if (!sessionID) break
             if (sessionID === currentSession?.id) {
-              console.error("Session error:", error)
+              console.error("Session error:", sessionError)
               setIsStreaming(false)
+              const now = Math.floor(Date.now() / 1000)
+              const resolveErrorText = (error?: {
+                message?: string
+                name?: string
+                data?: unknown
+              }) => {
+                if (typeof error?.message === "string" && error.message.trim().length > 0) {
+                  return error.message
+                }
+
+                if (error?.data && typeof error.data === "object") {
+                  const nestedMessage = (error.data as { message?: unknown }).message
+                  if (typeof nestedMessage === "string" && nestedMessage.trim().length > 0) {
+                    return nestedMessage
+                  }
+                }
+
+                return error?.name
+                  ? `${error.name}: Something went wrong while generating a response.`
+                  : "Something went wrong while generating a response."
+              }
+
+              const createErrorPart = (
+                meta: { sessionID: string; messageID: string },
+                errorText: string
+              ): Part => ({
+                id: `error-part-${meta.messageID}-${now}`,
+                sessionID: meta.sessionID,
+                messageID: meta.messageID,
+                type: "text",
+                text: errorText,
+              })
+
+              setMessages((prev) => {
+                const errorText = resolveErrorText(sessionError)
+                const withAppliedError = [...prev]
+
+                const findAssistantIndex = () => {
+                  if (messageID) {
+                    return withAppliedError.findIndex((message) => message.id === messageID)
+                  }
+                  for (let index = withAppliedError.length - 1; index >= 0; index -= 1) {
+                    if (withAppliedError[index].role === "assistant") {
+                      return index
+                    }
+                  }
+                  return -1
+                }
+
+                const assistantIndex = findAssistantIndex()
+                if (assistantIndex >= 0) {
+                  const target = withAppliedError[assistantIndex]
+                  const messageIdentifier = messageID ?? target.id ?? `error-${sessionID}-${now}`
+                  const errorPart = createErrorPart(
+                    { sessionID, messageID: messageIdentifier },
+                    errorText
+                  )
+
+                  const filteredParts = target.parts.filter(
+                    (existingPart) => !existingPart.id?.startsWith("temp-part-")
+                  )
+
+                  const hasErrorPart = filteredParts.some(
+                    (existingPart) => existingPart.id === errorPart.id
+                  )
+                  const parts = hasErrorPart ? filteredParts : [...filteredParts, errorPart]
+
+                  withAppliedError[assistantIndex] = {
+                    ...target,
+                    _error: sessionError,
+                    time: {
+                      ...target.time,
+                      completed:
+                        (target.time as { completed?: number } | undefined)?.completed ?? now,
+                    } as MessageResponse["time"],
+                    parts,
+                    _isTemporary: false,
+                  }
+                  return withAppliedError
+                }
+
+                const fallbackMessageId = messageID ?? `error-${sessionID}-${now}`
+                const fallbackPart = createErrorPart(
+                  { sessionID, messageID: fallbackMessageId },
+                  errorText
+                )
+
+                const fallbackMessage: MessageResponse = {
+                  id: fallbackMessageId,
+                  role: "assistant",
+                  sessionID,
+                  time: { created: now, completed: now } as MessageResponse["time"],
+                  system: [],
+                  modelID: "",
+                  providerID: "",
+                  mode: "error",
+                  path: { cwd: projectPath || "", root: projectPath || "" },
+                  summary: false,
+                  cost: 0,
+                  tokens: {
+                    input: 0,
+                    output: 0,
+                    reasoning: 0,
+                    cache: { read: 0, write: 0 },
+                  },
+                  parts: [fallbackPart],
+                  _error: sessionError,
+                  _isTemporary: false,
+                }
+
+                return [...withAppliedError, fallbackMessage]
+              })
             }
             break
           }
@@ -211,7 +360,6 @@ export function useSSESDK(
           }
 
           default: {
-            // Log unhandled events for debugging
             log("Unhandled SSE SDK event:", event.type, event)
           }
         }
@@ -220,7 +368,6 @@ export function useSSESDK(
       }
     }
 
-    // Start subscription
     subscribeToEvents()
 
     return () => {

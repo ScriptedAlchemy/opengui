@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test"
  
-import { openFirstProjectAndGetId, goToChat } from "./helpers"
+import { openFirstProjectAndGetId, goToChat, ensureAnthropicSonnet } from "./helpers"
 
 // Updated for SDK-only architecture:
 // - No instance start/stop needed
@@ -34,6 +34,8 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       }
     })
 
+    // No stubs: select Anthropic + Sonnet 4 via UI before sending
+
     const projectId = await openFirstProjectAndGetId(page)
     await goToChat(page, projectId)
     
@@ -47,9 +49,8 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     
     // Use consistent data-testid for input (chat-input-textarea, not chat-input)
     expect(await chatInput.isVisible({ timeout: 10000 })).toBe(true)
-    
-    
-    const sidebarVisible = await chatSidebar.isVisible()
+    await ensureAnthropicSonnet(page)
+    await chatSidebar.isVisible()
     
 
     // Send a message using proper data-testid
@@ -58,8 +59,8 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     await textarea.fill("Test message")
     await textarea.press("Enter")
 
-    // Wait for response and API calls to complete
-    await page.waitForTimeout(20000)
+    // Wait for an assistant message with environment-based timeout
+    await expect(page.locator('[data-testid="message-assistant"]').last()).toBeVisible({ timeout: 60_000 })
     
     // Log API errors for debugging but don't fail tests
     if (apiErrors.length > 0) {
@@ -68,7 +69,7 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       )
       
       if (criticalErrors.length > 0) {
-        const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
+        const _errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
         
         // Temporarily disable failing on API errors to focus on UI functionality
         // throw new Error(`Critical API calls failed: ${errorDetails}. Test should fail when API returns error status codes.`)
@@ -82,10 +83,10 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
     const userMsg = await userMessages.count()
     const assistantMsg = await assistantMessages.count()
 
-    
-
     // Test should verify that at least one user message exists
     expect(userMsg).toBeGreaterThan(0)
+    // And at least one assistant message (mocked in CI)
+    expect(assistantMsg).toBeGreaterThan(0)
     
   })
 })

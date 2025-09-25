@@ -41,17 +41,17 @@ export class SearchClient implements SearchApiClient {
 
     if (!response.ok) {
       // Enhanced error logging for HTTP failures
-      const responseText = await response.text().catch(() => 'Unable to read response body')
+      const responseText = await response.text().catch(() => "Unable to read response body")
       const responseHeaders = Object.fromEntries(response.headers.entries())
       const errorDetails = {
-        method: 'GET',
+        method: "GET",
         url: `${this.baseUrl}/api/search?${queryParams}`,
         status: response.status,
         statusText: response.statusText,
         headers: responseHeaders,
-        body: responseText
+        body: responseText,
       }
-      console.error('Search API request failed:', errorDetails)
+      console.error("Search API request failed:", errorDetails)
       throw new Error(`Search failed: ${response.statusText}`)
     }
 
@@ -79,17 +79,17 @@ export class SearchClient implements SearchApiClient {
 
     if (!response.ok) {
       // Enhanced error logging for HTTP failures
-      const responseText = await response.text().catch(() => 'Unable to read response body')
+      const responseText = await response.text().catch(() => "Unable to read response body")
       const responseHeaders = Object.fromEntries(response.headers.entries())
       const errorDetails = {
-        method: 'GET',
+        method: "GET",
         url: `${this.baseUrl}/api/search/suggestions?${queryParams}`,
         status: response.status,
         statusText: response.statusText,
         headers: responseHeaders,
-        body: responseText
+        body: responseText,
       }
-      console.error('Search suggestions API request failed:', errorDetails)
+      console.error("Search suggestions API request failed:", errorDetails)
       throw new Error(`Failed to get suggestions: ${response.statusText}`)
     }
 
@@ -112,17 +112,17 @@ export class SearchClient implements SearchApiClient {
 
     if (!response.ok) {
       // Enhanced error logging for HTTP failures
-      const responseText = await response.text().catch(() => 'Unable to read response body')
+      const responseText = await response.text().catch(() => "Unable to read response body")
       const responseHeaders = Object.fromEntries(response.headers.entries())
       const errorDetails = {
-        method: 'GET',
+        method: "GET",
         url: `${this.baseUrl}/api/search/recent?${queryParams}`,
         status: response.status,
         statusText: response.statusText,
         headers: responseHeaders,
-        body: responseText
+        body: responseText,
       }
-      console.error('Recent searches API request failed:', errorDetails)
+      console.error("Recent searches API request failed:", errorDetails)
       throw new Error(`Failed to get recent searches: ${response.statusText}`)
     }
 

@@ -12,8 +12,10 @@ Options:
   -b, --batch SIZE    Max images per codex call (default: 6)
   -m, --max N         Limit total images processed (default: 60)
   -p, --pattern GLOB  Filename glob (default: *.png)
+  -o, --output FILE   Append AI output to FILE (default: e2e-image-analysis-<ts>.log)
   -n, --dry-run       Print codex commands without executing
   -q, --quiet         Suppress codex output (still runs)
+  -v, --verbose       Extra progress logging (batches, filenames)
   -h, --help          Show this help
 
 Notes:
@@ -28,14 +30,18 @@ max_images=60
 pattern='*.png'
 dry_run=0
 quiet=0
+verbose=0
+outfile=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -b|--batch) batch_size=${2:-6}; shift 2;;
     -m|--max) max_images=${2:-60}; shift 2;;
     -p|--pattern) pattern=${2:-'*.png'}; shift 2;;
+    -o|--output) outfile=${2:-}; shift 2;;
     -n|--dry-run) dry_run=1; shift;;
     -q|--quiet) quiet=1; shift;;
+    -v|--verbose) verbose=1; shift;;
     -h|--help) usage; exit 0;;
     --) shift; break;;
     -*) echo "Unknown option: $1" >&2; usage; exit 2;;
@@ -44,19 +50,38 @@ while [[ $# -gt 0 ]]; do
 done
 
 dirs=("$@")
+## Ensure output file is initialized early for logging
+if [[ -z "$outfile" ]]; then
+  ts=$(date +%Y%m%d-%H%M%S)
+  outfile="e2e-image-analysis-$ts.log"
+fi
 if [[ ${#dirs[@]} -eq 0 ]]; then
   dirs=("./test-results")
 fi
 
-# Verify codex availability
-if ! command -v codex >/dev/null 2>&1; then
-  echo "codex CLI not found on PATH. Install it or use --dry-run." >&2
+# Resolve codex binary
+CODEX_BIN_ENV=${CODEX_BIN:-}
+if [[ -n "$CODEX_BIN_ENV" && -x "$CODEX_BIN_ENV" ]]; then
+  CODEX_BIN="$CODEX_BIN_ENV"
+else
+  CODEX_BIN=$(command -v codex 2>/dev/null || true)
+fi
+
+if [[ -z "${CODEX_BIN:-}" ]]; then
+  echo "codex CLI not found on PATH. Install it, or set CODEX_BIN=/absolute/path/to/codex, or use --dry-run." >&2
   if [[ $dry_run -eq 0 ]]; then
     exit 127
   fi
+else
+  if [[ $verbose -eq 1 ]]; then echo "Using codex at: $CODEX_BIN" | tee -a "$outfile"; fi
 fi
 
-prompt='Spot any visual inconsistencies, errors, or UX issues in these E2E screenshots. Describe specific UI elements involved, likely root causes (e.g., overlays intercepting clicks, missing data, layout shifts), and suggested fixes. Be concise, bullet points OK.'
+# Favor non-interactive, auto-approve execution
+export CODEX_APPROVAL=${CODEX_APPROVAL:-never}
+export CODEX_AUTOMATION=${CODEX_AUTOMATION:-1}
+common_args=(exec --full-auto)
+
+prompt='You are in non-interactive batch analysis mode. IMPORTANT: Do NOT run shell commands, open files, or modify anything. ONLY analyze the provided screenshots and return concise bullet points. Task: Spot visual inconsistencies, errors, and UX issues in these E2E screenshots. Name specific UI elements, likely causes (e.g., overlays intercepting clicks, missing data, layout shifts), and practical fixes. Keep it focused and short.'
 
 tmpfile=$(mktemp)
 trap 'rm -f "$tmpfile"' EXIT
@@ -81,19 +106,27 @@ if [[ ! -s "$tmpfile" ]]; then
 fi
 
 # Run in batches
+echo "# E2E image analysis" | tee -a "$outfile" >/dev/null
+echo "# Directories: ${dirs[*]}" | tee -a "$outfile" >/dev/null
+echo "# Images: $count | Batch: $batch_size | Pattern: $pattern" | tee -a "$outfile" >/dev/null
+
 batch=()
 idx=0
+bnum=0
 while IFS= read -r img; do
   batch+=("$img")
   if (( ${#batch[@]} >= batch_size )); then
     imgs_csv=$(printf '%s,' "${batch[@]}" | sed 's/,$//')
-    cmd=(codex --image "$imgs_csv" "$prompt")
-    echo "-> ${cmd[*]}"
+    cmd=("$CODEX_BIN" "${common_args[@]}" --image "$imgs_csv")
+    bnum=$((bnum+1))
+    echo; echo "=== Batch $bnum (${#batch[@]} images) ===" | tee -a "$outfile"
+    if [[ $verbose -eq 1 ]]; then printf ' - %s\n' "${batch[@]}" | tee -a "$outfile"; fi
+    echo "-> ${cmd[*]}" | tee -a "$outfile"
     if [[ $dry_run -eq 0 ]]; then
       if [[ $quiet -eq 1 ]]; then
-        "${cmd[@]}" >/dev/null || true
+        printf '%s' "$prompt" | "${cmd[@]}" 2>&1 | tee -a "$outfile" >/dev/null || true
       else
-        "${cmd[@]}" || true
+        printf '%s' "$prompt" | "${cmd[@]}" 2>&1 | tee -a "$outfile" || true
       fi
     fi
     batch=()
@@ -103,16 +136,18 @@ done < "$tmpfile"
 
 if (( ${#batch[@]} > 0 )); then
   imgs_csv=$(printf '%s,' "${batch[@]}" | sed 's/,$//')
-  cmd=(codex --image "$imgs_csv" "$prompt")
-  echo "-> ${cmd[*]}"
+  cmd=("$CODEX_BIN" "${common_args[@]}" --image "$imgs_csv")
+  bnum=$((bnum+1))
+  echo; echo "=== Batch $bnum (${#batch[@]} images) ===" | tee -a "$outfile"
+  if [[ $verbose -eq 1 ]]; then printf ' - %s\n' "${batch[@]}" | tee -a "$outfile"; fi
+  echo "-> ${cmd[*]}  # prompt via stdin" | tee -a "$outfile"
   if [[ $dry_run -eq 0 ]]; then
     if [[ $quiet -eq 1 ]]; then
-      "${cmd[@]}" >/dev/null || true
+      printf '%s' "$prompt" | "${cmd[@]}" 2>&1 | tee -a "$outfile" >/dev/null || true
     else
-      "${cmd[@]}" || true
+      printf '%s' "$prompt" | "${cmd[@]}" 2>&1 | tee -a "$outfile" || true
     fi
   fi
 fi
 
-echo "Done. Processed $idx image(s)." 
-
+echo; echo "Done. Processed $idx image(s). Output logged to: $outfile" | tee -a "$outfile"

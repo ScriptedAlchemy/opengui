@@ -301,7 +301,7 @@ describe("Error Utilities", () => {
       errors.forEach((error) => {
         expect(() => {
           throw error
-        }).toThrow(NamedError)
+        }).toThrow(NamedError as unknown as { new (...args: any[]): Error })
         expect(() => {
           throw error
         }).toThrow(Error)

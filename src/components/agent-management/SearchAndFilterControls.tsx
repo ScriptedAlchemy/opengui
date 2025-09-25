@@ -32,7 +32,10 @@ export function SearchAndFilterControls({
     <div className="border-b border-[#262626] p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-bold" data-testid="agents-page-title">
+          <h1
+            className="flex items-center gap-2 text-2xl font-bold"
+            data-testid="agents-page-title"
+          >
             <div className="flex h-6 w-6 items-center justify-center rounded bg-[#3b82f6]">
               <span className="text-sm font-bold text-white">AI</span>
             </div>
@@ -69,7 +72,11 @@ export function SearchAndFilterControls({
             <Upload className="mr-2 h-4 w-4" />
             Import
           </Button>
-          <Button onClick={onCreateAgent} className="bg-[#3b82f6] hover:bg-[#2563eb]" data-testid="create-agent-button">
+          <Button
+            onClick={onCreateAgent}
+            className="bg-[#3b82f6] hover:bg-[#2563eb]"
+            data-testid="create-agent-button"
+          >
             <Plus className="mr-2 h-4 w-4" />
             Create Agent
           </Button>
@@ -91,12 +98,16 @@ export function SearchAndFilterControls({
               const v = (e.target as HTMLInputElement).value
               if (v !== searchQuery) onSearchChange(v)
             }}
-            className="border-[#262626] bg-[#1a1a1a] pl-10"
+            className="h-9 border-[#262626] bg-[#1a1a1a] pl-10 placeholder:text-gray-300"
             data-testid="agents-search-input"
           />
         </div>
         <Select value={filterCategory} onValueChange={onFilterChange}>
-          <SelectTrigger className="w-40 border-[#262626] bg-[#1a1a1a]" data-testid="agents-filter-button">
+          <SelectTrigger
+            className="h-9 w-40 border-[#262626] bg-[#1a1a1a]"
+            data-testid="agents-filter-button"
+            aria-label="Filter agents"
+          >
             <Filter className="mr-2 h-4 w-4" />
             <SelectValue placeholder="Filter" />
           </SelectTrigger>
@@ -107,8 +118,13 @@ export function SearchAndFilterControls({
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={onSortChange}>
-          <SelectTrigger className="w-40 border-[#262626] bg-[#1a1a1a]" data-testid="agents-sort-button">
-            <SelectValue placeholder="Sort by" />
+          <SelectTrigger
+            className="h-9 w-44 border-[#262626] bg-[#1a1a1a]"
+            data-testid="agents-sort-button"
+            aria-label="Sort agents"
+          >
+            <span className="text-muted-foreground mr-1">Sort:</span>
+            <SelectValue placeholder="Name" />
           </SelectTrigger>
           <SelectContent className="border-[#262626] bg-[#1a1a1a]" role="menu">
             <SelectItem value="name">Name</SelectItem>

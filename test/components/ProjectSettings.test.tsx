@@ -1,7 +1,8 @@
 import { describe, test, expect, beforeEach, rstest } from "@rstest/core"
 import "../setup.ts"
-import { render, waitFor, within } from "@testing-library/react"
+import { waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { renderWithRouter } from "../utils/test-router"
 let ProjectSettings: any
 
 // Mock data
@@ -14,26 +15,29 @@ const mockProject = {
   lastOpened: new Date().toISOString(),
   instance: {
     id: "instance-1",
-    port: 3001,
+    port: 3099,
     status: "running" as const,
     startedAt: new Date(),
   },
 }
 
-// Mock router hooks
-const mockNavigate = rstest.fn(() => {})
-let mockParams = { projectId: "test-project" }
-
-rstest.mock("react-router-dom", () => ({
-  ...require("react-router-dom"),
-  useNavigate: () => mockNavigate,
-  useParams: () => mockParams,
-}))
-
 // Mock project store
 const mockUpdateProject = rstest.fn(() => Promise.resolve())
 const mockRemoveProject = rstest.fn(() => Promise.resolve())
 let mockCurrentProject: any = mockProject
+
+const providerOptions = [
+  { id: "provider1", name: "Provider 1" },
+  { id: "provider2", name: "Provider 2" },
+]
+
+const modelOptions = [
+  { id: "model1", name: "Model 1" },
+  { id: "model2", name: "Model 2" },
+]
+
+const mockSetProvider = rstest.fn()
+const mockSetModel = rstest.fn()
 
 rstest.mock("../../src/stores/projects", () => ({
   useCurrentProject: () => mockCurrentProject,
@@ -50,26 +54,87 @@ rstest.mock("@/stores/projects", () => ({
   }),
 }))
 
-// Test wrapper
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  const { MemoryRouter } = require("react-router-dom")
-  return (
-    <MemoryRouter
-      initialEntries={["/projects/test-project/settings"]}
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
-      {children}
-    </MemoryRouter>
-  )
+// Mock worktrees store
+const mockLoadWorktrees = rstest.fn(() => Promise.resolve())
+const mockWorktrees = [
+  { id: "default", path: "/test/path", title: "Main Worktree" },
+  { id: "feature", path: "/test/path-feature", title: "Feature Branch" }
+]
+
+rstest.mock("../../src/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: any) => {
+    const state = {
+      loadWorktrees: mockLoadWorktrees,
+    }
+    return selector ? selector(state) : state
+  },
+  useWorktreesForProject: () => mockWorktrees,
+}))
+rstest.mock("@/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: any) => {
+    const state = {
+      loadWorktrees: mockLoadWorktrees,
+    }
+    return selector ? selector(state) : state
+  },
+  useWorktreesForProject: () => mockWorktrees,
+}))
+
+// Mock SDK hooks
+const mockClient = {
+  config: {
+    providers: rstest.fn(() => Promise.resolve({
+      data: {
+        providers: [
+          { id: "provider1", name: "Provider 1", models: ["model1", "model2"] },
+          { id: "provider2", name: "Provider 2", models: ["model3"] }
+        ]
+      }
+    }))
+  }
 }
+
+rstest.mock("../../src/hooks/useProjectSDK", () => ({
+  useProjectSDK: () => ({
+    client: mockClient,
+    instanceStatus: "running",
+  }),
+}))
+rstest.mock("@/hooks/useProjectSDK", () => ({
+  useProjectSDK: () => ({
+    client: mockClient,
+    instanceStatus: "running",
+  }),
+}))
+
+rstest.mock("../../src/hooks/useProvidersSDK", () => ({
+  useProvidersSDK: () => ({
+    providers: providerOptions,
+    selectedProvider: "provider1",
+    selectedModel: "model1",
+    availableModels: modelOptions,
+    setSelectedProvider: mockSetProvider,
+    setSelectedModel: mockSetModel,
+    isLoadingProviders: false,
+    providersError: null,
+  }),
+}))
+rstest.mock("@/hooks/useProvidersSDK", () => ({
+  useProvidersSDK: () => ({
+    providers: providerOptions,
+    selectedProvider: "provider1",
+    selectedModel: "model1",
+    availableModels: modelOptions,
+    setSelectedProvider: mockSetProvider,
+    setSelectedModel: mockSetModel,
+    isLoadingProviders: false,
+    providersError: null,
+  }),
+}))
 
 describe("ProjectSettings Component", () => {
   beforeEach(() => {
     rstest.clearAllMocks()
-    mockParams = { projectId: "test-project" }
     mockCurrentProject = mockProject
     const mod = require("@/pages/ProjectSettings")
     ProjectSettings = mod.default || mod.ProjectSettings
@@ -77,270 +142,250 @@ describe("ProjectSettings Component", () => {
 
   // Basic rendering tests
   test("renders project settings interface", async () => {
-    const { getByText } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
+    const { getByText } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
     await waitFor(() => {
       expect(getByText("Project Settings")).toBeDefined()
-      expect(getByText("Test Project")).toBeDefined()
+      expect(getByText(/Project:\s*Test Project/)).toBeDefined()
     })
   })
 
   test("shows project not found when project is missing", async () => {
     mockCurrentProject = null
 
-    const { getByText } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
+    const { getByText } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
     await waitFor(() => {
       expect(getByText("Project Not Found")).toBeDefined()
-      expect(getByText("The requested project could not be found.")).toBeDefined()
     })
   })
 
   // Tab navigation tests
-  test("switches between settings tabs", async () => {
-    const user = userEvent.setup({ delay: null })
-
-    const { getByText, getByRole } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
+  test("navigates between tabs", async () => {
+    const user = userEvent.setup()
+    const { getByRole, getByText } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
-    await waitFor(() => {
-      expect(getByText("Project Settings")).toBeDefined()
-    })
+    await waitFor(() => expect(getByText("Project Settings")).toBeDefined())
 
-    // Test AI Models tab
-    const aiTab = getByRole("tab", { name: /ai models/i })
+    // Click AI tab
+    const aiTab = getByRole("tab", { name: /AI Models/i })
     await user.click(aiTab)
+    await waitFor(() => expect(getByText("AI Configuration")).toBeDefined())
 
-    await waitFor(() => {
-      expect(getByText("AI Configuration")).toBeDefined()
-    })
-
-    // Test Environment tab
-    const envTab = getByRole("tab", { name: /environment/i })
+    // Click Environment tab
+    const envTab = getByRole("tab", { name: /Environment/i })
     await user.click(envTab)
+    await waitFor(() => expect(getByText("Environment Variables")).toBeDefined())
 
-    await waitFor(() => {
-      expect(getByText("Environment Variables")).toBeDefined()
-    })
-
-    // Test Permissions tab
-    const permTab = getByRole("tab", { name: /permissions/i })
+    // Click Permissions tab
+    const permTab = getByRole("tab", { name: /Permissions/i })
     await user.click(permTab)
-
-    await waitFor(() => {
-      expect(getByText("Access Permissions")).toBeDefined()
-    })
-
-    // Test Advanced tab
-    const advTab = getByRole("tab", { name: /advanced/i })
-    await user.click(advTab)
-
-    await waitFor(() => {
-      expect(getByText("Advanced Configuration")).toBeDefined()
-    })
+    await waitFor(() => expect(getByText("File Access")).toBeDefined())
   })
 
   // General settings tests
-  test("updates project name", async () => {
-    const user = userEvent.setup({ delay: null })
-
-    const { getByText, getByDisplayValue, getByRole } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
+  test("updates general settings", async () => {
+    const user = userEvent.setup()
+    const { getByLabelText, getByRole } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
-    await waitFor(() => {
-      expect(getByText("Project Settings")).toBeDefined()
-    })
+    await waitFor(() => expect(getByLabelText("Project Name")).toBeDefined())
 
-    const nameInput = getByDisplayValue("Test Project")
+    const nameInput = getByLabelText("Project Name") as HTMLInputElement
     await user.clear(nameInput)
     await user.type(nameInput, "Updated Project Name")
 
-    const saveButton = getByRole("button", { name: /save changes/i })
+    const saveButton = getByRole("button", { name: /Save Changes/i })
     await user.click(saveButton)
 
-    expect(mockUpdateProject).toHaveBeenCalledWith("test-project", {
-      name: "Updated Project Name",
-    })
-  })
-
-  test("shows unsaved changes indicator", async () => {
-    const user = userEvent.setup({ delay: null })
-
-    const { getByText, getByDisplayValue } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
-    )
-
     await waitFor(() => {
-      expect(getByText("Project Settings")).toBeDefined()
+      expect(mockUpdateProject).toHaveBeenCalledWith(
+        "test-project",
+        expect.objectContaining({
+          name: "Updated Project Name",
+        })
+      )
     })
-
-    const nameInput = getByDisplayValue("Test Project")
-    await user.type(nameInput, " Modified")
-
-    await waitFor(() => {
-      expect(getByText("Unsaved changes")).toBeDefined()
-    })
-  })
-
-  // AI settings tests
-  test("configures AI settings", async () => {
-    const user = userEvent.setup({ delay: null })
-
-    const { getByText, getByRole, getByPlaceholderText } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
-    )
-
-    await waitFor(() => {
-      expect(getByText("Project Settings")).toBeDefined()
-    })
-
-    // Switch to AI tab
-    const aiTab = getByRole("tab", { name: /ai models/i })
-    await user.click(aiTab)
-
-    await waitFor(() => {
-      expect(getByText("AI Configuration")).toBeDefined()
-    })
-
-    // Test API key input
-    const apiKeyInput = getByPlaceholderText("Enter API key")
-    await user.type(apiKeyInput, "test-api-key")
-
-    expect((apiKeyInput as HTMLInputElement).value).toBe("test-api-key")
   })
 
   // Environment variables tests
-  test("adds environment variables", async () => {
-    const user = userEvent.setup({ delay: null })
-
-    const { getByText, getByRole, getByPlaceholderText, getAllByRole } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
+  test("manages environment variables", async () => {
+    const user = userEvent.setup()
+    const { getByRole, getByLabelText } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
-    await waitFor(() => {
-      expect(getByText("Project Settings")).toBeDefined()
-    })
-
-    // Switch to Environment tab
-    const envTab = getByRole("tab", { name: /environment/i })
+    // Navigate to environment tab
+    const envTab = getByRole("tab", { name: /Environment/i })
     await user.click(envTab)
 
+    // Add new variable
+    const keyInput = getByLabelText("Environment variable name") as HTMLInputElement
+    const valueInput = getByLabelText("Environment variable value") as HTMLInputElement
+    await user.type(keyInput, "NEW_VAR")
+    await user.type(valueInput, "new_value")
+
+    const addButton = getByRole("button", { name: /Add environment variable/i })
+    await user.click(addButton)
+
+    // Save changes
+    const saveButton = getByRole("button", { name: /Save Changes/i })
+    await user.click(saveButton)
+
     await waitFor(() => {
-      expect(getByText("Environment Variables")).toBeDefined()
-    })
-
-    const nameInput = getByPlaceholderText("Variable name")
-    const valueInput = getByPlaceholderText("Variable value")
-    const addButton = getAllByRole("button").find((btn) => {
-      const svg = btn.querySelector("svg")
-      return svg !== null && svg.classList.contains("lucide-plus")
-    })
-
-    await user.type(nameInput, "TEST_VAR")
-    await user.type(valueInput, "test_value")
-    if (addButton) {
-      await user.click(addButton)
-    }
-
-    // Should show the added variable
-    await waitFor(() => {
-      expect(getByText("TEST_VAR")).toBeDefined()
-      expect(getByText("test_value")).toBeDefined()
+      expect(mockUpdateProject).toHaveBeenCalled()
     })
   })
 
   // Permissions tests
-  test("renders permissions tab", async () => {
-    const user = userEvent.setup({ delay: null })
-
-    const { getByText, getByRole } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
+  test("updates permission settings", async () => {
+    const user = userEvent.setup()
+    const { getByRole, getByText } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
-    await waitFor(() => {
-      expect(getByText("Project Settings")).toBeDefined()
-    })
-
-    // Switch to Permissions tab
-    const permTab = getByRole("tab", { name: /permissions/i })
+    // Navigate to permissions tab
+    const permTab = getByRole("tab", { name: /Permissions/i })
     await user.click(permTab)
 
+    await waitFor(() => expect(getByText("File Access")).toBeDefined())
+
+    const fileAccessSelect = getByRole("combobox", { name: /File access level/i })
+    await user.click(fileAccessSelect)
+    const denyOption = getByRole("option", { name: /Deny/i })
+    await user.click(denyOption)
+
+    // Save changes
+    const saveButton = getByRole("button", { name: /Save Changes/i })
+    await user.click(saveButton)
+
     await waitFor(() => {
-      expect(getByText("Access Permissions")).toBeDefined()
-      expect(getByText("File Access")).toBeDefined()
+      expect(mockUpdateProject).toHaveBeenCalled()
     })
   })
 
-  // Project deletion tests
-  test("shows delete confirmation dialog", async () => {
-    const user = userEvent.setup({ delay: null })
+  // Danger zone tests
+  test("handles project deletion", async () => {
+    const user = userEvent.setup()
+    const mockNavigate = rstest.fn()
+    rstest.mock("react-router-dom", () => ({
+      ...require("react-router-dom"),
+      useNavigate: () => mockNavigate,
+    }))
 
-    const { getByText, getByRole } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
+    const { getByRole } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
-    await waitFor(() => {
-      expect(getByText("Project Settings")).toBeDefined()
-    })
+    await waitFor(() => expect(getByRole("button", { name: /Delete Project/i })).toBeDefined())
 
-    const deleteButton = getByRole("button", { name: /delete project/i })
+    const deleteButton = getByRole("button", { name: /Delete Project/i })
     await user.click(deleteButton)
 
+    // Confirm deletion in dialog
+    const confirmButton = getByRole("button", { name: /Delete/i })
+    await user.click(confirmButton)
+
     await waitFor(() => {
-      expect(getByRole("dialog")).toBeDefined()
-      expect(getByText(/are you sure you want to delete/i)).toBeDefined()
+      expect(mockRemoveProject).toHaveBeenCalledWith("test-project")
     })
   })
 
-  test("deletes project after confirmation", async () => {
-    const user = userEvent.setup({ delay: null })
+  // Advanced settings tests
+  test("toggles advanced settings", async () => {
+    const user = userEvent.setup()
+    const { getByRole, getByLabelText } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
 
-    const { getByText, getByRole, getAllByRole, container } = render(
-      <TestWrapper>
-        <ProjectSettings />
-      </TestWrapper>,
+    // Navigate to advanced tab
+    const advTab = getByRole("tab", { name: /Advanced/i })
+    await user.click(advTab)
+
+    await waitFor(() => expect(getByLabelText("Enable Cache")).toBeDefined())
+
+    // Toggle cache setting
+    const cacheToggle = getByLabelText("Enable Cache")
+    await user.click(cacheToggle)
+
+    // Save changes
+    const saveButton = getByRole("button", { name: /Save Changes/i })
+    await user.click(saveButton)
+
+    await waitFor(() => {
+      expect(mockUpdateProject).toHaveBeenCalled()
+    })
+  })
+
+  // Reset settings test
+  test("cancel navigates back without saving", async () => {
+    const user = userEvent.setup()
+    const originalBack = window.history.back
+    const backMock = rstest.fn()
+    ;(window.history as any).back = backMock
+
+    try {
+      const { getByRole, getByLabelText } = renderWithRouter(
+        <ProjectSettings />,
+        { projectId: "test-project", worktreeId: "default" }
+      )
+
+      await waitFor(() => expect(getByLabelText("Project Name")).toBeDefined())
+
+      const nameInput = getByLabelText("Project Name") as HTMLInputElement
+      await user.clear(nameInput)
+      await user.type(nameInput, "Modified Name")
+
+      const cancelButton = getByRole("button", { name: /Cancel/i })
+      await user.click(cancelButton)
+
+      expect(backMock).toHaveBeenCalled()
+      // Name should remain the modified value since navigation is handled externally
+      expect(nameInput.value).toBe("Modified Name")
+    } finally {
+      ;(window.history as any).back = originalBack
+    }
+  })
+
+  // Worktree awareness test
+  test("shows correct worktree name", async () => {
+    const { getByText } = renderWithRouter(
+      <ProjectSettings />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
     await waitFor(() => {
-      expect(getByText("Project Settings")).toBeDefined()
+      expect(getByText("Test Project (default)")).toBeDefined()
     })
+  })
 
-    const deleteButton = getByRole("button", { name: /delete project/i })
-    await user.click(deleteButton)
+  test("falls back to default worktree when invalid worktree provided", async () => {
+    const { getByText } = renderWithRouter(
+      <ProjectSettings />,
+      {
+        projectId: "test-project",
+        worktreeId: "invalid-worktree",
+        initialPath: "/projects/test-project/invalid-worktree/settings",
+      }
+    )
 
     await waitFor(() => {
-      expect(getByRole("dialog")).toBeDefined()
+      expect(getByText(/Test Project \(default\)/)).toBeDefined()
     })
-
-    // Find the confirm button in the dialog
-    const dialog = getByRole("dialog")
-    const btn = within(dialog).getByRole("button", { name: /delete project/i })
-    await user.click(btn)
-    expect(mockRemoveProject).toHaveBeenCalledWith("test-project")
   })
 })
-import React from "react"

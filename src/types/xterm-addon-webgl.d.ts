@@ -6,4 +6,3 @@ declare module "xterm-addon-webgl" {
     dispose(): void
   }
 }
-

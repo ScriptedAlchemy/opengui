@@ -64,7 +64,7 @@ export const TestData = {
       name: "Test Project",
       path: "/tmp/test-project",
       status: "running",
-      port: 3001,
+      port: 3099,
       sessions: ["session-chat"],
       createdAt: Date.now(),
     },

@@ -19,7 +19,7 @@ export function formatBytes(
   if (bytes === 0) return "0 Byte"
   const i = Math.floor(Math.log(bytes) / Math.log(1024))
   return `${(bytes / Math.pow(1024, i)).toFixed(decimals)} ${
-    sizeType === "accurate" ? (accurateSizes[i] ?? "Bytest") : (sizes[i] ?? "Bytes")
+    sizeType === "accurate" ? (accurateSizes[i] ?? "Bytes") : (sizes[i] ?? "Bytes")
   }`
 }
 
@@ -40,8 +40,25 @@ export function formatTime(input: string | number | Date): string {
   })
 }
 
+export function resolveDate(input: string | number | Date): Date {
+  if (input instanceof Date) return input
+
+  if (typeof input === "number") {
+    const value = input > 1e11 ? input : input * 1000
+    return new Date(value)
+  }
+
+  const numeric = Number(input)
+  if (Number.isFinite(numeric) && typeof input === "string" && input.trim() !== "") {
+    const value = numeric > 1e11 ? numeric : numeric * 1000
+    return new Date(value)
+  }
+
+  return new Date(input)
+}
+
 export function formatDateTime(input: string | number | Date): string {
-  const date = new Date(input)
+  const date = resolveDate(input)
   return date.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -77,7 +94,9 @@ export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export function formatRelativeTime(timestamp: number): string {
+export function formatRelativeTime(input: string | number | Date): string {
+  const date = resolveDate(input)
+  const timestamp = date.getTime()
   const now = Date.now()
   const diff = now - timestamp
   const seconds = Math.floor(diff / 1000)
@@ -90,5 +109,5 @@ export function formatRelativeTime(timestamp: number): string {
   if (hours < 24) return `${hours}h ago`
   if (days < 7) return `${days}d ago`
 
-  return formatDateTime(timestamp)
+  return formatDateTime(date)
 }

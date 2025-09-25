@@ -1,9 +1,16 @@
 import { Log } from "../util/log"
 import { OpencodeClient, createOpencodeClient } from "@opencode-ai/sdk/client"
-import { execSync, exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
 import * as fs from "fs/promises"
 import * as crypto from "crypto"
+import * as path from "node:path"
+
+export interface WorktreeMetadata {
+  id: string
+  path: string
+  title: string
+}
 
 export interface ProjectInfo {
   id: string
@@ -15,6 +22,7 @@ export interface ProjectInfo {
   commitHash?: string
   // port removed - client connects directly to OpenCode backend
   port?: number
+  worktrees?: WorktreeMetadata[]
 }
 
 export interface ProjectInstance {
@@ -22,17 +30,94 @@ export interface ProjectInstance {
   sdk?: OpencodeClient
 }
 
+const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof (error as { code?: unknown }).code === "string"
+  )
+}
+
 export class ProjectManager {
-  private static instance: ProjectManager
+  private static instance: ProjectManager | null = null
   private projects = new Map<string, ProjectInstance>()
   private loaded = false
   private dirty = false
-  private configDir = 
-    process.env["NODE_ENV"] === "test"
-      ? "/tmp/.opencode-test"
-      : `${process.env["HOME"]}/.opencode`
+  private configDir = (() => {
+    const override = process.env["OPENCODE_CONFIG_DIR"]
+    if (override && override.trim()) return override.trim()
+    const testMode = process.env["OPENCODE_TEST_MODE"]
+    if (
+      process.env["NODE_ENV"] === "test" ||
+      (typeof testMode === "string" && /^(1|true)$/i.test(testMode))
+    ) {
+      return "/tmp/.opencode-test"
+    }
+    return `${process.env["HOME"]}/.opencode`
+  })()
   private configFile = `${this.configDir}/web-projects.json`
   private log = Log.create({ service: "project-manager" })
+
+  private normalizePath(value: string): string {
+    return path.resolve(value).replace(/\\/g, "/").replace(/\/+$/, "")
+  }
+
+  private slugify(value: string): string {
+    return (
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 64) || "worktree"
+    )
+  }
+
+  private ensureDefaultWorktree(info: ProjectInfo): void {
+    const normalizedProjectPath = this.normalizePath(info.path)
+    if (!info.worktrees) {
+      info.worktrees = []
+    }
+
+    const existingDefault = info.worktrees.find((worktree) => worktree.id === "default")
+    if (existingDefault) {
+      existingDefault.path = normalizedProjectPath
+      if (!existingDefault.title) {
+        existingDefault.title = `${info.name} (default)`
+      }
+    } else {
+      info.worktrees.push({
+        id: "default",
+        path: normalizedProjectPath,
+        title: `${info.name} (default)`,
+      })
+    }
+
+    info.worktrees = info.worktrees.map((worktree) => ({
+      ...worktree,
+      path: this.normalizePath(worktree.path || normalizedProjectPath),
+      title: worktree.title || worktree.id,
+    }))
+  }
+
+  private markDirty(): void {
+    this.dirty = true
+  }
+
+  private generateWorktreeId(info: ProjectInfo, title: string): string {
+    const base = this.slugify(title)
+    const reserved = new Set((info.worktrees || []).map((worktree) => worktree.id))
+    if (!reserved.has(base) && base !== "default") {
+      return base
+    }
+    let counter = 2
+    let candidate = `${base}-${counter}`
+    while (reserved.has(candidate) || candidate === "default") {
+      counter += 1
+      candidate = `${base}-${counter}`
+    }
+    return candidate
+  }
 
   private constructor() {
     // Initialize config directory and load projects asynchronously
@@ -58,12 +143,12 @@ export class ProjectManager {
       }
       ProjectManager.instance.projects.clear()
     }
-    ProjectManager.instance = null as any
+    ProjectManager.instance = null
   }
 
   private async ensureConfigDirSync(): Promise<void> {
     try {
-      execSync(`mkdir -p ${this.configDir}`)
+      await fs.mkdir(this.configDir, { recursive: true })
     } catch {
       // Directory might already exist or other error, ignore
     }
@@ -94,12 +179,13 @@ export class ProjectManager {
               status: "running" as const, // SDK mode - projects are always ready
             },
           }
+          this.ensureDefaultWorktree(instance.info)
           this.projects.set(projectInfo.id, instance)
         }
 
         this.log.info(`Loaded ${this.projects.size} projects`)
-      } catch (error: any) {
-        if (error.code === "ENOENT") {
+      } catch (error: unknown) {
+        if (isNodeError(error) && error.code === "ENOENT") {
           this.log.info("No existing projects file found")
         } else {
           throw error
@@ -164,9 +250,14 @@ export class ProjectManager {
 
   private async findGitRoot(startPath: string): Promise<string | null> {
     try {
-      const execAsync = promisify(exec)
-      const result = await execAsync(`cd ${startPath} && git rev-parse --show-toplevel`)
-      return result.stdout.trim()
+      const execFileAsync = promisify(execFile)
+      const { stdout } = await execFileAsync("git", [
+        "-C",
+        startPath,
+        "rev-parse",
+        "--show-toplevel",
+      ])
+      return stdout.toString().trim()
     } catch {
       return null
     }
@@ -174,9 +265,15 @@ export class ProjectManager {
 
   private async getInitialCommitHash(gitRoot: string): Promise<string | null> {
     try {
-      const execAsync = promisify(exec)
-      const result = await execAsync(`cd ${gitRoot} && git rev-list --max-parents=0 HEAD`)
-      const hash = result.stdout.trim().split("\n")[0]
+      const execFileAsync = promisify(execFile)
+      const { stdout } = await execFileAsync("git", [
+        "-C",
+        gitRoot,
+        "rev-list",
+        "--max-parents=0",
+        "HEAD",
+      ])
+      const hash = stdout.toString().trim().split("\n")[0]
       return hash ? hash.substring(0, 16) : null
     } catch {
       return null
@@ -184,35 +281,79 @@ export class ProjectManager {
   }
 
   async addProject(projectPath: string, name?: string): Promise<ProjectInfo> {
-    const resolvedPath = projectPath.startsWith("/")
-      ? projectPath
-      : `${process.cwd()}/${projectPath}`
-    const projectId = await this.getGitProjectId(resolvedPath)
+    if (!path.isAbsolute(projectPath)) {
+      throw new Error(`Project path must be absolute: received "${projectPath}"`)
+    }
+
+    const normalizedPath = this.normalizePath(projectPath)
+
+    try {
+      const stat = await fs.stat(normalizedPath)
+      if (!stat.isDirectory()) {
+        throw new Error(`Project path is not a directory: ${normalizedPath}`)
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error && "code" in error && (error as { code?: string }).code === "ENOENT"
+          ? `Project path does not exist: ${normalizedPath}`
+          : error instanceof Error
+            ? error.message
+            : "Unable to verify project path"
+      throw new Error(message)
+    }
+
+    const projectId = await this.getGitProjectId(normalizedPath)
 
     // Check if project already exists
     if (this.projects.has(projectId)) {
       const existing = this.projects.get(projectId)!
+      const incomingName = name?.trim()
+
+      let updated = false
+      if (existing.info.path !== normalizedPath) {
+        existing.info.path = normalizedPath
+        updated = true
+      }
+      if (incomingName && existing.info.name !== incomingName) {
+        existing.info.name = incomingName
+        updated = true
+      }
+
+      if (updated) {
+        this.ensureDefaultWorktree(existing.info)
+        this.markDirty()
+      }
+
       existing.info.lastAccessed = Date.now()
       await this.saveProjects()
       return existing.info
     }
 
-    const gitRoot = await this.findGitRoot(resolvedPath)
+    const gitRoot = await this.findGitRoot(normalizedPath)
     const commitHash = gitRoot ? await this.getInitialCommitHash(gitRoot) : undefined
 
     const projectInfo: ProjectInfo = {
       id: projectId,
-      name: name || resolvedPath.split("/").pop() || "Unknown Project",
-      path: resolvedPath,
+      name: name || normalizedPath.split("/").pop() || "Unknown Project",
+      path: normalizedPath,
       status: "running", // SDK mode - projects are always ready
       lastAccessed: Date.now(),
       gitRoot: gitRoot || undefined,
       commitHash: commitHash || undefined,
+      worktrees: [
+        {
+          id: "default",
+          path: normalizedPath,
+          title: `${name || normalizedPath.split("/").pop() || "Unknown Project"} (default)`.trim(),
+        },
+      ],
     }
+
+    this.ensureDefaultWorktree(projectInfo)
 
     const instance: ProjectInstance = { info: projectInfo }
     this.projects.set(projectId, instance)
-    this.dirty = true
+    this.markDirty()
     await this.saveProjects()
 
     this.log.info(`Added project: ${projectInfo.name} (${projectId})`)
@@ -231,7 +372,7 @@ export class ProjectManager {
     }
 
     this.projects.delete(projectId)
-    this.dirty = true
+    this.markDirty()
     await this.saveProjects()
     this.log.info(`Removed project: ${instance.info.name} (${projectId})`)
     return true
@@ -264,7 +405,7 @@ export class ProjectManager {
       `Project marked as running with SDK: ${instance.info.name} at ${instance.info.path}`
     )
 
-    this.dirty = true
+    this.markDirty()
     await this.saveProjects()
     return true
   }
@@ -281,7 +422,7 @@ export class ProjectManager {
     instance.sdk = undefined
     instance.info.status = "stopped"
 
-    this.dirty = true
+    this.markDirty()
     await this.saveProjects()
     return true
   }
@@ -319,6 +460,86 @@ export class ProjectManager {
     return Array.from(this.projects.values())
       .map((instance) => instance.info)
       .sort((a, b) => b.lastAccessed - a.lastAccessed)
+  }
+
+  getWorktrees(projectId: string): WorktreeMetadata[] {
+    const instance = this.projects.get(projectId)
+    if (!instance) return []
+    this.ensureDefaultWorktree(instance.info)
+    return [...(instance.info.worktrees || [])]
+  }
+
+  findWorktreeById(projectId: string, worktreeId: string): WorktreeMetadata | undefined {
+    const instance = this.projects.get(projectId)
+    if (!instance) return undefined
+    this.ensureDefaultWorktree(instance.info)
+    return instance.info.worktrees?.find((worktree) => worktree.id === worktreeId)
+  }
+
+  ensureWorktreeMetadata(
+    projectId: string,
+    worktreePath: string,
+    title?: string
+  ): WorktreeMetadata | undefined {
+    const instance = this.projects.get(projectId)
+    if (!instance) return undefined
+    this.ensureDefaultWorktree(instance.info)
+
+    const normalizedPath = this.normalizePath(worktreePath)
+    const existing = instance.info.worktrees?.find(
+      (worktree) => this.normalizePath(worktree.path) === normalizedPath
+    )
+    if (existing) {
+      if (title && !existing.title) {
+        existing.title = title
+        this.markDirty()
+      }
+      return existing
+    }
+
+    const worktreeTitle = title || path.basename(normalizedPath) || "worktree"
+    const id = this.generateWorktreeId(instance.info, worktreeTitle)
+    const metadata: WorktreeMetadata = {
+      id,
+      path: normalizedPath,
+      title: worktreeTitle,
+    }
+    instance.info.worktrees = [...(instance.info.worktrees || []), metadata]
+    this.markDirty()
+    return metadata
+  }
+
+  updateWorktreeTitle(projectId: string, worktreeId: string, title: string): WorktreeMetadata {
+    const instance = this.projects.get(projectId)
+    if (!instance) {
+      throw new Error(`Project ${projectId} not found`)
+    }
+    this.ensureDefaultWorktree(instance.info)
+    const metadata = instance.info.worktrees?.find((worktree) => worktree.id === worktreeId)
+    if (!metadata) {
+      throw new Error(`Worktree ${worktreeId} not found for project ${projectId}`)
+    }
+    metadata.title = title
+    this.markDirty()
+    return metadata
+  }
+
+  removeWorktreeMetadata(projectId: string, worktreeId: string): void {
+    const instance = this.projects.get(projectId)
+    if (!instance) {
+      throw new Error(`Project ${projectId} not found`)
+    }
+    this.ensureDefaultWorktree(instance.info)
+    if (worktreeId === "default") {
+      throw new Error("Cannot remove default worktree")
+    }
+    const before = instance.info.worktrees?.length ?? 0
+    instance.info.worktrees = (instance.info.worktrees || []).filter(
+      (worktree) => worktree.id !== worktreeId
+    )
+    if ((instance.info.worktrees?.length ?? 0) !== before) {
+      this.markDirty()
+    }
   }
 
   async monitorHealth(): Promise<void> {

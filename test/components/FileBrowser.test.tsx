@@ -1,8 +1,9 @@
 import { describe, test, expect, beforeEach, rstest } from "@rstest/core"
-import { render, fireEvent, waitFor, act } from "@testing-library/react"
-import { MemoryRouter } from "react-router-dom"
-import FileBrowser from "../../src/pages/FileBrowser"
-import { OpencodeSDKProvider } from "../../src/contexts/OpencodeSDKContext"
+import { fireEvent, waitFor, act } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { renderWithRouter } from "../utils/test-router"
+
+let FileBrowser: any
 
 // Mock data
 const mockFiles = [
@@ -38,28 +39,51 @@ const mockProject = {
   lastOpened: new Date().toISOString(),
   instance: {
     id: "instance-1",
-    port: 3001,
+    port: 3099,
     status: "running" as const,
     startedAt: new Date(),
   },
 }
 
+const mockWorktrees = [
+  { id: "default", path: "/project", title: "Main" },
+  { id: "feature", path: "/project-feature", title: "Feature Branch" }
+]
+
+const OpencodeSDKProvider = ({ children }: { children: React.ReactNode }) => <>{children}</>
+
 // Mock router hooks
 const mockNavigate = rstest.fn(() => {})
-let mockParams = { projectId: "test-project" }
 
 rstest.mock("react-router-dom", () => {
   const actual = require("react-router-dom")
   return {
     ...actual,
     useNavigate: () => mockNavigate,
-    useParams: () => mockParams,
   }
 })
 
 // Mock project store
 rstest.mock("../../src/stores/projects", () => ({
   useCurrentProject: () => mockProject,
+}))
+rstest.mock("@/stores/projects", () => ({
+  useCurrentProject: () => mockProject,
+}))
+
+// Mock worktrees store
+const mockLoadWorktrees = rstest.fn(() => Promise.resolve())
+const worktreesStoreMock = {
+  loadWorktrees: mockLoadWorktrees,
+}
+
+rstest.mock("../../src/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: any) => (selector ? selector(worktreesStoreMock) : worktreesStoreMock),
+  useWorktreesForProject: () => mockWorktrees,
+}))
+rstest.mock("@/stores/worktrees", () => ({
+  useWorktreesStore: (selector?: any) => (selector ? selector(worktreesStoreMock) : worktreesStoreMock),
+  useWorktreesForProject: () => mockWorktrees,
 }))
 
 // Mock SDK service client used by context
@@ -72,449 +96,400 @@ rstest.mock("../../src/services/opencode-sdk-service", () => ({
   opencodeSDKService: {
     getClient: async () => ({
       file: {
-        list: (...args: any[]) => mockFileList(...args),
-        read: (...args: any[]) => mockFileRead(...args),
+        list: mockFileList,
+        read: mockFileRead,
       },
       session: {
-        create: (...args: any[]) => mockSessionCreate(...args),
-        prompt: (...args: any[]) => mockSessionPrompt(...args),
+        create: mockSessionCreate,
+        prompt: mockSessionPrompt,
+      },
+      instance: {
+        status: () => Promise.resolve({ data: { status: "running" } }),
       },
     }),
-    stopAll: async () => {},
+    getBackendUrl: () => "http://localhost:3099",
   },
 }))
 
-
-// Mock OpenCodeClient
-const mockListFiles = rstest.fn(() => Promise.resolve(mockFiles))
-const mockReadFile = rstest.fn(() => Promise.resolve("file content"))
-const mockWriteFile = rstest.fn(() => Promise.resolve())
-const mockDeleteFile = rstest.fn(() => Promise.resolve())
-const mockCreateDirectory = rstest.fn(() => Promise.resolve())
-
-rstest.mock("../../src/lib/api/client", () => ({
-  OpenCodeClient: class {
-    constructor() {}
-    async listFiles() {
-      return mockListFiles()
-    }
-    async readFile() {
-      return mockReadFile()
-    }
-    async writeFile() {
-      return mockWriteFile()
-    }
-    async deleteFile() {
-      return mockDeleteFile()
-    }
-    async createDirectory() {
-      return mockCreateDirectory()
-    }
+const mockContextValue = {
+  client: {
+    file: {
+      list: mockFileList,
+      read: mockFileRead,
+    },
+    session: {
+      create: mockSessionCreate,
+      prompt: mockSessionPrompt,
+    },
+    instance: {
+      status: () => Promise.resolve({ data: { status: "running" } }),
+    },
   },
+  instanceStatus: "running" as const,
+  isLoading: false,
+  error: null,
+}
+
+rstest.mock("../../src/contexts/OpencodeSDKContext", () => ({
+  OpencodeSDKProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useProjectSDK: () => ({
+    client: mockContextValue.client,
+    instanceStatus: mockContextValue.instanceStatus,
+    isLoading: mockContextValue.isLoading,
+    error: mockContextValue.error,
+  }),
+}))
+rstest.mock("@/contexts/OpencodeSDKContext", () => ({
+  OpencodeSDKProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  useProjectSDK: () => ({
+    client: mockContextValue.client,
+    instanceStatus: mockContextValue.instanceStatus,
+    isLoading: mockContextValue.isLoading,
+    error: mockContextValue.error,
+  }),
 }))
 
-// Test wrapper
-function TestWrapper({ children }: { children: React.ReactNode }) {
-  return (
-    <OpencodeSDKProvider>
-      <MemoryRouter
-        initialEntries={["/projects/test-project/files"]}
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
-        {children}
-      </MemoryRouter>
-    </OpencodeSDKProvider>
+// Mock sessions store with worktree-aware signature
+const mockLoadSessions = rstest.fn(() => Promise.resolve())
+const mockCreateSession = rstest.fn((projectId: string, worktreePath: string, title: string) =>
+  Promise.resolve({ id: "session-1", title, projectID: projectId, directory: worktreePath })
+)
+
+function createSessionsStoreExports() {
+  const getState = () => ({
+    loadSessions: mockLoadSessions,
+    createSession: mockCreateSession,
+  })
+
+  const useSessionsStore = (selector?: (state: ReturnType<typeof getState>) => unknown) => {
+    const state = getState()
+    return selector ? selector(state) : state
+  }
+
+  ;(useSessionsStore as any).getState = getState
+
+  return {
+    useSessionsStore,
+    useSessionsForProject: () => [],
+  }
+}
+
+rstest.mock("../../src/stores/sessions", createSessionsStoreExports)
+rstest.mock("@/stores/sessions", createSessionsStoreExports)
+
+// Mock hooks
+// Helper to render with SDK context
+const renderWithSDK = (ui: React.ReactElement, routerOptions: any = {}) => {
+  return renderWithRouter(
+    <OpencodeSDKProvider>{ui}</OpencodeSDKProvider>,
+    routerOptions
   )
 }
 
-describe("FileBrowser", () => {
+describe("FileBrowser Component", () => {
   beforeEach(() => {
-    rstest.clearAllMocks()
-    mockParams = { projectId: "test-project" }
+    mockFileList.mockClear()
+    mockFileRead.mockClear()
+    mockSessionCreate.mockClear()
+    mockSessionPrompt.mockClear()
+    mockLoadSessions.mockClear()
+    mockCreateSession.mockClear()
+    mockLoadWorktrees.mockClear()
+    mockNavigate.mockClear()
 
-    // Reset DOM
-    document.body.innerHTML = ""
-    const root = document.createElement("div")
-    root.id = "root"
-    document.body.appendChild(root)
-
-    // Reset SDK mocks to defaults
-    mockFileList.mockImplementation(() => Promise.resolve({ data: mockFiles }))
-    mockFileRead.mockImplementation(() => Promise.resolve({ data: { content: "file content" } }))
-    mockSessionCreate.mockImplementation(() => Promise.resolve({ data: { id: "session-1" } }))
-    mockSessionPrompt.mockImplementation(() => Promise.resolve({ data: {} }))
+    const componentModule = require("../../src/pages/FileBrowser")
+    FileBrowser = componentModule.default || componentModule.FileBrowser
   })
 
-  test("renders file browser with header", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      // Header text in current UI
-      expect(result.getByText(/code editor/i)).toBeDefined()
-    })
-  })
-
-  test("displays file list", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("src")).toBeDefined()
-    })
-
-    expect(result.getByText("package.json")).toBeDefined()
-    expect(result.getByText("README.md")).toBeDefined()
-  })
-
-  test("shows loading state initially", async () => {
-    // Mock slow loading via SDK client
-    mockFileList.mockImplementation(
-      () =>
-        new Promise((resolve) =>
-          setTimeout(() => resolve({ data: mockFiles }), 100),
-        ),
+  test("renders file browser interface", async () => {
+    const { getByText, getByPlaceholderText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
     )
 
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
+    await waitFor(() => {
+      expect(getByPlaceholderText("Search files...")).toBeDefined()
+      expect(getByText("package.json")).toBeDefined()
+      expect(getByText("README.md")).toBeDefined()
+      expect(getByText("src")).toBeDefined()
     })
 
-    // Should show loading spinner initially
-    expect(result.container.querySelector(".animate-spin")).toBeTruthy()
+    expect(mockLoadWorktrees).toHaveBeenCalledWith("test-project")
+  })
 
-    // Wait for files to load
+  test("loads files on mount", async () => {
+    renderWithSDK(<FileBrowser />, { projectId: "test-project", worktreeId: "default" })
+
     await waitFor(() => {
-      expect(result.getByText("src")).toBeDefined()
+      expect(mockFileList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({ path: "", directory: "/project" }),
+        })
+      )
     })
   })
 
-  test("handles file selection", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
+  test("navigates into directory", async () => {
+    const { getByText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    await waitFor(() => expect(getByText("src")).toBeDefined())
+    fireEvent.click(getByText("src"))
 
     await waitFor(() => {
-      expect(result.getByText("package.json")).toBeDefined()
+      expect(mockFileList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({ path: "/project/src", directory: "/project" }),
+        })
+      )
     })
-
-    const fileItem = result.getByText("package.json")
-    await act(async () => {
-      fireEvent.click(fileItem)
-    })
-
-    expect(mockFileRead).toHaveBeenCalled()
   })
 
-  test("handles directory navigation", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
+  test("selects and reads file", async () => {
+    const { getByText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    await waitFor(() => expect(getByText("package.json")).toBeDefined())
+    fireEvent.click(getByText("package.json"))
 
     await waitFor(() => {
-      expect(result.getByText("src")).toBeDefined()
-    })
-
-    const dirItem = result.getByText("src")
-    await act(async () => {
-      fireEvent.doubleClick(dirItem)
-    })
-
-    expect(mockFileList).toHaveBeenCalled()
-  })
-
-  test("shows file details area present", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("package.json")).toBeDefined()
-    })
-
-    // File tree is rendered; specific size text may not be displayed in current UI
-    expect(result.getByTestId("file-tree")).toBeTruthy()
-  })
-
-  test("handles search functionality", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("package.json")).toBeDefined()
-    })
-
-    // Find search input
-    const searchInput =
-      result.container.querySelector('input[placeholder*="search" i]') ||
-      result.container.querySelector('input[type="search"]')
-
-    if (searchInput) {
-      await act(async () => {
-        fireEvent.change(searchInput, { target: { value: "package" } })
+      expect(mockFileRead).toHaveBeenCalledWith({
+        query: { path: "/project/package.json", directory: "/project" },
       })
-
-      // Should filter results
-      expect(result.getByText("package.json")).toBeDefined()
-    }
+    })
   })
 
-  test("handles file upload", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
+  test("filters files by search term", async () => {
+    const { getByPlaceholderText, getByText, queryByText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    await waitFor(() => expect(getByText("package.json")).toBeDefined())
+
+    const searchInput = getByPlaceholderText("Search files...") as HTMLInputElement
+    fireEvent.change(searchInput, { target: { value: "README" } })
 
     await waitFor(() => {
-      expect(result.getByText("package.json")).toBeDefined()
+      expect(getByText("README.md")).toBeDefined()
+      expect(queryByText("package.json")).toBeNull()
+    })
+  })
+
+  test("toggles between list and grid view", async () => {
+    const { getByRole, getByTestId, findByTestId } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    const fileTree = (await findByTestId("file-tree")) as HTMLElement
+    expect(fileTree.className).toContain("space-y-1")
+
+    fireEvent.click(getByRole("button", { name: /grid view/i }))
+    await waitFor(() => {
+      expect(getByTestId("file-tree").className).toContain("grid")
     })
 
-    // Find upload button or input
-    const uploadButton =
-      result.container.querySelector('button[title*="upload" i]') ||
-      result.container.querySelector('input[type="file"]')
+    fireEvent.click(getByRole("button", { name: /list view/i }))
+    await waitFor(() => {
+      expect(getByTestId("file-tree").className).toContain("space-y-1")
+    })
+  })
 
-    if (uploadButton) {
-      const file = new File(["test content"], "test.txt", { type: "text/plain" })
+  test("toggles hidden files visibility", async () => {
+    const { getByLabelText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
 
-      await act(async () => {
-        if (uploadButton.tagName === "INPUT") {
-          fireEvent.change(uploadButton, { target: { files: [file] } })
-        } else {
-          fireEvent.click(uploadButton)
-        }
+    await waitFor(() => expect(mockFileList).toHaveBeenCalled())
+    mockFileList.mockClear()
+
+    fireEvent.click(getByLabelText("Show hidden files"))
+
+    await waitFor(() => {
+      expect(mockFileList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          query: expect.objectContaining({ directory: "/project", showHidden: true }),
+        })
+      )
+    })
+  })
+
+  test("navigates using breadcrumb path", async () => {
+    mockFileList.mockClear()
+    mockFileList.mockImplementationOnce(() =>
+      Promise.resolve({ data: mockFiles })
+    )
+    mockFileList.mockImplementationOnce(() =>
+      Promise.resolve({
+        data: [
+          {
+            name: "index.js",
+            type: "file",
+            path: "/project/src/index.js",
+            size: 512,
+            modified: new Date().toISOString(),
+          },
+        ],
       })
+    )
 
-      // Should trigger file upload
-      // In current UI, uploads are not directly handled; no assertion needed
-    }
-  })
+    const { getByText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
 
-  test("handles new file creation via context menu", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
+    await waitFor(() => expect(getByText("src")).toBeDefined())
+    fireEvent.click(getByText("src"))
 
     await waitFor(() => {
-      expect(result.getByText("package.json")).toBeDefined()
-    })
-
-    // Open context menu on the directory item
-    const dirItem = result.getByText("src")
-    await act(async () => {
-      fireEvent.contextMenu(dirItem)
-    })
-
-    // Click "New File" in the context menu
-    const newFileBtn = result.getByText(/new file/i)
-    await act(async () => {
-      fireEvent.click(newFileBtn)
-    })
-
-    // Enter a file name and confirm
-    const input = result.getByPlaceholderText(/enter file name/i)
-    await act(async () => {
-      fireEvent.change(input, { target: { value: "newfile.txt" } })
-    })
-    const createBtn = result.getByText(/^create$/i)
-    await act(async () => {
-      fireEvent.click(createBtn)
-    })
-    // Submission completes without throwing
-  })
-
-  test("handles file deletion", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      expect(result.getByText("package.json")).toBeDefined()
-    })
-
-    // Find delete button (might be in context menu)
-    const deleteButton =
-      result.container.querySelector('button[title*="delete" i]') ||
-      result.container.querySelector('[data-testid="delete-file"]')
-
-    if (deleteButton) {
-      await act(async () => {
-        fireEvent.click(deleteButton)
+      expect(mockFileList).toHaveBeenLastCalledWith({
+        query: { path: "/project/src", directory: "/project", showHidden: false },
       })
-
-      expect(mockSessionPrompt).toHaveBeenCalled()
-    }
-  })
-
-  test("shows error state when loading fails", async () => {
-    mockFileList.mockImplementation(() => Promise.reject(new Error("Failed to load files")))
-
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
-
-    await waitFor(() => {
-      const els = result.getAllByText(/failed to load files/i)
-      expect(els.length).toBeGreaterThan(0)
     })
   })
 
-  test("handles breadcrumb navigation", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
+  test("opens context menu for file entries", async () => {
+    const { findAllByTestId, findByText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
 
-    await waitFor(() => {
-      expect(result.getByText("src")).toBeDefined()
-    })
+    const items = (await findAllByTestId("file-item")) as unknown as HTMLElement[]
+    const firstFile = items[0]!
+    fireEvent.contextMenu(firstFile)
 
-    // Navigate to subdirectory first
-    const dirItem = result.getByText("src")
-    await act(async () => {
-      fireEvent.doubleClick(dirItem)
-    })
-
-    // Should show breadcrumb
-    const breadcrumb = result.container.querySelector('[data-testid="breadcrumb"]') || result.getByText(/src/i)
-
-    expect(breadcrumb).toBeTruthy()
+    expect(await findByText("New File")).toBeTruthy()
   })
 
-  test("handles file context menu", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
+  test("asks AI about selected file", async () => {
+    const { getByText, getByRole } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    await waitFor(() => expect(getByText("package.json")).toBeDefined())
+    fireEvent.click(getByText("package.json"))
+
+    await waitFor(() => expect(mockFileRead).toHaveBeenCalled())
+    mockFileRead.mockClear()
+
+    const askAIButton = await waitFor(() => getByRole("button", { name: /ask ai/i }))
+    await userEvent.click(askAIButton)
 
     await waitFor(() => {
-      expect(result.getByText("package.json")).toBeDefined()
+      if (mockCreateSession.mock.calls.length === 0) {
+        throw new Error("createSession not called yet")
+      }
     })
+    const [projectArg, pathArg, titleArg] = (mockCreateSession.mock.calls.at(-1) ?? []) as any[]
+    expect(projectArg).toBe("test-project")
+    expect(pathArg).toBe("/project")
+    expect(typeof titleArg).toBe("string")
 
-    const fileItem = result.getByText("package.json")
-    await act(async () => {
-      fireEvent.contextMenu(fileItem)
+    await waitFor(() => {
+      const promptArgs = (mockSessionPrompt as any).mock.calls.at(-1)?.[0]
+      expect(promptArgs?.query?.directory).toBe("/project")
     })
-
-    // Should show context menu options
-    const contextMenu =
-      result.container.querySelector('[role="menu"]') || result.container.querySelector(".context-menu")
-
-    if (contextMenu) {
-      expect(contextMenu).toBeTruthy()
-    }
   })
 
-  test("handles keyboard navigation", async () => {
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
+  test("creates session with worktree path when asking AI", async () => {
+    mockFileList.mockClear()
+    ;(mockFileList as any).mockImplementationOnce((args: any) => {
+      const query = (args?.query ?? {}) as { directory?: string }
+      const directory = query.directory ?? "/project-feature"
+      return Promise.resolve({
+        data: mockFiles.map((file) => ({
+          ...file,
+          path: file.path.replace("/project", directory),
+        })),
+      })
     })
+
+    const { getByText, getByRole } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "feature" }
+    )
+
+    await waitFor(() => expect(getByText("package.json")).toBeDefined())
+    fireEvent.click(getByText("package.json"))
+
+    await waitFor(() => expect(mockFileRead).toHaveBeenCalled())
+    mockFileRead.mockClear()
+
+    const askAIButton = await waitFor(() => getByRole("button", { name: /ask ai/i }))
+    await userEvent.click(askAIButton)
 
     await waitFor(() => {
-      expect(result.getByText("package.json")).toBeDefined()
+      if (mockCreateSession.mock.calls.length === 0) {
+        throw new Error("createSession not called yet")
+      }
     })
+    const [projectArg, pathArg] = (mockCreateSession.mock.calls.at(-1) ?? []) as any[]
+    expect(projectArg).toBe("test-project")
+    expect(pathArg).toBe("/project-feature")
 
-    const fileList =
-      result.container.querySelector('[role="listbox"]') ||
-      result.container.querySelector(".file-list") ||
-      result.container
-
-    await act(async () => {
-      fireEvent.keyDown(fileList, { key: "ArrowDown" })
+    await waitFor(() => {
+      const promptArgs = (mockSessionPrompt as any).mock.calls.at(-1)?.[0]
+      expect(promptArgs?.query?.directory).toBe("/project-feature")
     })
-
-    // Should handle keyboard navigation
-    expect(fileList).toBeTruthy()
   })
 
-  test("shows empty state when no files", async () => {
-    mockListFiles.mockImplementation(() => Promise.resolve([]))
+  test("handles file loading error", async () => {
+    mockFileList.mockRejectedValueOnce(new Error("Failed to load files"))
 
-    let result: any
-    await act(async () => {
-      result = render(
-        <TestWrapper>
-          <FileBrowser />
-        </TestWrapper>,
-      )
-    })
+    const { getByRole } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
 
     await waitFor(() => {
-      expect(result.getByTestId("file-tree")).toBeTruthy()
+      expect(getByRole("heading", { name: /failed to load files/i })).toBeDefined()
     })
+  })
+
+  test("loads files from correct worktree path", async () => {
+    renderWithSDK(<FileBrowser />, { projectId: "test-project", worktreeId: "feature" })
+
+    await waitFor(() => {
+      expect(mockFileList).toHaveBeenCalledWith({
+        query: { path: "", directory: "/project-feature", showHidden: false },
+      })
+    })
+  })
+
+  test("supports keyboard navigation for files", async () => {
+    const { getByText } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    const label = await waitFor(() => getByText("package.json"))
+    const fileItem = label.closest('[data-testid="file-item"]') as HTMLElement | null
+    expect(fileItem).not.toBeNull()
+
+    act(() => fileItem?.focus())
+    fireEvent.keyDown(fileItem!, { key: "Enter" })
+
+    await waitFor(() => expect(mockFileRead).toHaveBeenCalled())
+  })
+
+  test("exposes accessible roles for file tree items", async () => {
+    const { findByTestId, findAllByTestId } = renderWithSDK(
+      <FileBrowser />,
+      { projectId: "test-project", worktreeId: "default" }
+    )
+
+    const tree = await findByTestId("file-tree")
+    expect(tree.getAttribute("role")).toBe("tree")
+
+    const items = (await findAllByTestId("file-item")) as unknown as HTMLElement[]
+    expect(items.length).toBeGreaterThan(0)
+    expect(items[0].getAttribute("role")).toBe("treeitem")
   })
 })
-import React from "react"

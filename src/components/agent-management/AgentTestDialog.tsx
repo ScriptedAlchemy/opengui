@@ -25,8 +25,8 @@ interface TestMessage {
     success?: boolean
     toolCalls?: Array<{
       tool: string
-      input: any
-      output?: any
+      input: unknown
+      output?: unknown
       error?: string
     }>
   }
@@ -36,13 +36,34 @@ interface AgentTestDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   agentId: string | null
+  projectId: string
+  worktreePath?: string
 }
 
-export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialogProps) {
+export function AgentTestDialog({
+  open,
+  onOpenChange,
+  agentId,
+  projectId,
+  worktreePath,
+}: AgentTestDialogProps) {
   const [testMessages, setTestMessages] = useState<TestMessage[]>([])
   const [testInput, setTestInput] = useState("")
   const [testLoading, setTestLoading] = useState(false)
   const [debugMode, setDebugMode] = useState(false)
+
+  const formatDebugValue = (value: unknown): string => {
+    if (value === null) return "null"
+    if (typeof value === "string") return value
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value)
+    }
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch {
+      return String(value)
+    }
+  }
 
   const handleTestAgent = async () => {
     if (!testInput.trim() || !agentId) return
@@ -60,8 +81,12 @@ export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialog
 
     try {
       // Call the actual test API
-      const projectId = window.location.pathname.split("/")[2] // Extract projectId from URL
-      const response = await fetch(`/api/projects/${projectId}/agents/${agentId}/test`, {
+      const url = (() => {
+        const base = `/api/projects/${projectId}/agents/${agentId}/test`
+        if (!worktreePath) return base
+        return `${base}?worktree=${encodeURIComponent(worktreePath)}`
+      })()
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -71,16 +96,16 @@ export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialog
 
       if (!response.ok) {
         // Enhanced error logging for HTTP failures
-        const responseText = await response.text().catch(() => 'Unable to read response body')
+        const responseText = await response.text().catch(() => "Unable to read response body")
         const responseHeaders = Object.fromEntries(response.headers.entries())
-        console.error('Agent test failed:', {
-          method: 'POST',
-          url: `/api/projects/${projectId}/agents/${agentId}/test`,
+        console.error("Agent test failed:", {
+          method: "POST",
+          url,
           status: response.status,
           statusText: response.statusText,
           headers: responseHeaders,
           body: responseText,
-          requestBody: JSON.stringify({ prompt: testInput })
+          requestBody: JSON.stringify({ prompt: testInput }),
         })
         throw new Error(`Test failed: ${response.statusText}`)
       }
@@ -285,31 +310,36 @@ export function AgentTestDialog({ open, onOpenChange, agentId }: AgentTestDialog
                     .map((message, index) => (
                       <div key={index} className="rounded border border-[#262626] bg-[#1a1a1a] p-2">
                         <div className="mb-2 text-gray-400">Tool Calls:</div>
-                        {message.metadata?.toolCalls?.map((call, callIndex) => (
-                          <div key={callIndex} className="mb-2 last:mb-0">
-                            <div className="mb-1 flex items-center gap-1 text-[#3b82f6]">
-                              <Code className="h-3 w-3" />
-                              {call.tool}
-                              {call.error && (
-                                <span className="ml-2 text-xs text-red-400">(Error)</span>
-                              )}
-                              {call.output && (
-                                <span className="ml-2 text-xs text-green-400">(Completed)</span>
-                              )}
-                            </div>
-                            <div className="ml-4 text-xs text-gray-500">
-                              <div className="mb-1">
-                                Input: {JSON.stringify(call.input, null, 2)}
+                        {message.metadata?.toolCalls?.map((call, callIndex) => {
+                          const hasOutput = call.output !== undefined && call.output !== null
+                          const hasError = typeof call.error === "string" && call.error.length > 0
+
+                          return (
+                            <div key={callIndex} className="mb-2 last:mb-0">
+                              <div className="mb-1 flex items-center gap-1 text-[#3b82f6]">
+                                <Code className="h-3 w-3" />
+                                {call.tool}
+                                {hasError && (
+                                  <span className="ml-2 text-xs text-red-400">(Error)</span>
+                                )}
+                                {hasOutput && (
+                                  <span className="ml-2 text-xs text-green-400">(Completed)</span>
+                                )}
                               </div>
-                              {call.output && (
-                                <div className="mb-1 text-green-300">Output: {call.output}</div>
-                              )}
-                              {call.error && (
-                                <div className="text-red-400">Error: {call.error}</div>
-                              )}
+                              <div className="ml-4 text-xs text-gray-500">
+                                <div className="mb-1">Input: {formatDebugValue(call.input)}</div>
+                                {hasOutput && (
+                                  <div className="mb-1 text-green-300">
+                                    Output: {formatDebugValue(call.output)}
+                                  </div>
+                                )}
+                                {hasError && (
+                                  <div className="text-red-400">Error: {call.error}</div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     ))}
                   {testMessages.filter((msg) => msg.metadata?.toolCalls).length === 0 && (

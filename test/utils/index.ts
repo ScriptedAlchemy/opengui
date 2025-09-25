@@ -21,3 +21,6 @@ export * from "./performance"
 
 // Re-export improved SSE mocks
 export * from "../mocks/sse"
+
+// Export router test utilities
+export * from "./test-router"

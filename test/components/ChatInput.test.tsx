@@ -1,4 +1,3 @@
-import React from "react"
 import { describe, test, expect, beforeEach, afterEach, rstest } from "@rstest/core"
 import { render, fireEvent, act, waitFor, cleanup } from "@testing-library/react"
 import { ChatInput } from "../../src/components/chat/ChatInput"
@@ -91,10 +90,10 @@ describe("ChatInput", () => {
       )
     })
 
-    const textarea = result.container.querySelector("textarea") as HTMLTextAreaElement
+    const _textarea = result.container.querySelector("textarea") as HTMLTextAreaElement
 
     await act(async () => {
-      fireEvent.keyDown(textarea, { key: "Enter", shiftKey: true })
+      fireEvent.keyDown(_textarea, { key: "Enter", shiftKey: true })
     })
 
     // Should not send on Shift+Enter
@@ -120,14 +119,43 @@ describe("ChatInput", () => {
       )
     })
 
-    const textarea = result.container.querySelector("textarea") as HTMLTextAreaElement
+    // const textarea = result.container.querySelector("textarea") as HTMLTextAreaElement
 
     // Prefer clicking send to avoid happy-dom key event quirks
     const sendButton = result.getByTestId("button-send-message") as HTMLButtonElement
     await act(async () => {
       fireEvent.click(sendButton)
     })
-    expect(onSendMessage).toHaveBeenCalled()
+    expect(onSendMessage).toHaveBeenCalledTimes(1)
+  })
+
+  test("pressing Enter submits exactly once", async () => {
+    const onSendMessage = rstest.fn(() => {})
+    const onStopStreaming = rstest.fn(() => {})
+    const setInputValue = rstest.fn(() => {})
+
+    let result: any
+    await act(async () => {
+      result = render(
+        <ChatInput 
+          inputValue="Hello"
+          setInputValue={setInputValue}
+          onSendMessage={onSendMessage}
+          onStopStreaming={onStopStreaming}
+          isLoading={false}
+          isStreaming={false}
+        />
+      )
+    })
+
+    const textarea = result.container.querySelector("textarea") as HTMLTextAreaElement
+
+    await act(async () => {
+      // Simulate Enter key without Shift to trigger form.requestSubmit()
+      fireEvent.keyDown(textarea, { key: "Enter" })
+    })
+
+    expect(onSendMessage).toHaveBeenCalledTimes(1)
   })
 
   test("respects disabled state", async () => {

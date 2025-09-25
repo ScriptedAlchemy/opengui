@@ -4,7 +4,7 @@ The server component that manages OpenCode projects and provides the web interfa
 
 ## Architecture Overview
 
-The server manages project metadata and serves the React app. Clients connect directly to the OpenCode backend using the SDK - the server does NOT proxy API calls.
+The server manages project metadata and serves the React app. Clients connect to the OpenCode backend through a lightweight proxy mounted at `/opencode` to avoid CORS and support streaming/SSE.
 
 ### Core Components
 
@@ -21,11 +21,10 @@ The server manages project metadata and serves the React app. Clients connect di
 
 ## Architecture Benefits
 
-1. **Direct Client Access** - Clients connect directly to OpenCode backend
-2. **Simplified Server** - Server only manages projects and serves static files
-3. **Better Performance** - No proxy overhead or additional network hops
-4. **Improved Reliability** - No proxy-related connection issues
-5. **Clear Separation** - Server handles metadata, client handles SDK operations
+1. **Single Origin** - Clients use `/opencode` as base URL to reach the OpenCode backend
+2. **Simplified Server** - Server manages projects and serves static files
+3. **Streaming-Ready** - Proxy tuned for SSE/streamed responses with undici Agent
+4. **Clear Separation** - Server handles metadata, client handles SDK operations
 
 ## API Endpoints
 
@@ -47,11 +46,10 @@ The server manages project metadata and serves the React app. Clients connect di
 
 ### Backend URL Endpoint
 
-The server provides the OpenCode backend URL to clients:
+The server provides the OpenCode backend base path to clients:
 
-- `GET /api/backend-url` - Returns the OpenCode backend URL
-- Clients use this URL to connect directly via SDK
-- No proxy routes or forwarding needed
+- `GET /api/backend-url` - Returns `{ url: "/opencode" }`
+- Clients use this relative URL as their SDK base to go through the proxy
 
 ## How It Works
 
@@ -61,14 +59,14 @@ The server provides the OpenCode backend URL to clients:
    ```typescript
    const { url } = await fetch("/api/backend-url").then((r) => r.json())
    ```
-4. **Direct SDK Access**: Client uses SDK to connect directly to backend:
+4. **SDK Access via Proxy**: Client uses SDK to connect through the proxy:
    ```typescript
    const client = new OpenCodeSDK({
      apiKey: "your-key",
-     baseURL: url, // Direct connection to OpenCode backend
+     baseURL: url, // "/opencode" – hits the server proxy
    })
    ```
-5. **No Proxying**: All SDK calls go directly to OpenCode backend
+5. **Proxying**: All SDK calls go through the server’s `/opencode` proxy
 
 ## Key Features
 
@@ -99,7 +97,7 @@ pnpm start
 
 The server will:
 
-- Start on port 3001 (configurable via PORT env)
+- Start on port 3099 (configurable via PORT env)
 - Start OpenCode backend on an auto-selected port
 - Serve pre-built static files from `web-dist/`
 - Provide backend URL to clients via API
@@ -109,7 +107,7 @@ The server will:
 
 ## Environment Variables
 
-- `PORT` - Server port (default: 3001)
+- `PORT` - Server port (default: 3099)
 - `HOST` - Server hostname (default: 127.0.0.1)
 - `NODE_ENV` - Environment (used for error messages only, does not enable dev server)
 

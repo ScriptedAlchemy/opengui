@@ -3,6 +3,15 @@ import { toast } from "sonner"
 import type { Provider } from "@/types/chat"
 import { useProjectSDK } from "@/contexts/OpencodeSDKContext"
 
+interface ProvidersResponsePayload {
+  providers?: Array<{
+    id: string
+    name?: string
+    models?: Record<string, { name?: string } | undefined>
+  }>
+  default?: Record<string, string | undefined>
+}
+
 export function useProvidersSDK(
   projectId: string | undefined,
   projectPath: string | undefined,
@@ -42,66 +51,125 @@ export function useProvidersSDK(
           console.error("No data in providers response")
           return
         }
-        const data = response.data
-        const providersArray = data.providers || []
-        const defaultModels = data.default || {}
+        const data = response.data as ProvidersResponsePayload
+        const providersArray = data.providers ?? []
+        // Default models returned by backend (may be used as a fallback)
+        const defaultModels = data.default ?? {}
 
-        const formattedProviders: Provider[] = providersArray.map((provider: any) => {
-          // Convert models object to array
-          const modelsArray = provider.models
-            ? Object.entries(provider.models).map(([modelId, model]: [string, any]) => ({
-                id: modelId,
-                name: model.name || modelId,
-              }))
-            : []
+        const formattedProviders: Provider[] = providersArray.map((provider) => {
+          const modelsRecord = provider.models ?? {}
+          const modelsArray = Object.entries(modelsRecord).map(([modelId, modelConfig]) => ({
+            id: modelId,
+            name: modelConfig?.name ?? modelId,
+          }))
 
           return {
             id: provider.id,
-            name: provider.name || provider.id,
+            name: provider.name ?? provider.id,
             models: modelsArray,
           }
         })
 
         setProviders(formattedProviders)
 
-        // Validate persisted selection against freshly loaded providers/models
-        const persistedProvider = selectedProvider
-        const providerValid = !!formattedProviders.find(p => p.id === persistedProvider)
-        let nextProvider = persistedProvider
-        if (!providerValid) {
-          // Prefer anthropic if present, otherwise first provider
-          nextProvider = formattedProviders.find(p => p.id === "anthropic")?.id || formattedProviders[0]?.id || ""
-          setSelectedProvider(nextProvider)
+        // Prefer Anthropic (Sonnet 4) by default, then OpenAI, then Opencode
+        const pickPreferredProvider = () => {
+          const priority = ["anthropic", "openai", "opencode"]
+          for (const id of priority) {
+            const match = formattedProviders.find((provider) => provider.id === id)
+            if (match) return match
+          }
+          return formattedProviders[0]
         }
 
-        const modelsForNext = formattedProviders.find(p => p.id === nextProvider)?.models || []
-        const modelValid = !!modelsForNext.find(m => m.id === selectedModel)
-        if (!modelValid) {
-          const defaultModelId = (data.default || {})[nextProvider]
-          const firstModel = modelsForNext[0]?.id
-          const resolved = defaultModelId || firstModel || ""
-          if (resolved) setSelectedModel(resolved)
+        const pickPreferredModel = (providerId: string) => {
+          const provider = formattedProviders.find((p) => p.id === providerId)
+          if (!provider) return ""
+          const defaultModelId = (data.default || {})[providerId]
+          const models = provider.models || []
+
+          // Canonical Sonnet identifiers across vendors
+          const sonnetPriority = [
+            // Anthropic direct
+            "claude-sonnet-4-20250514",
+            "claude-3-7-sonnet-20250219",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-5-sonnet-20240620",
+            "claude-3-sonnet-20240229",
+            // Common aliases across routers
+            "claude-4-sonnet",
+            "anthropic/claude-sonnet-4",
+            "anthropic/claude-3.7-sonnet",
+            // Vertex Anthropic
+            "claude-sonnet-4@20250514",
+            "claude-3-7-sonnet@20250219",
+          ]
+
+          // 1) Exact match by known IDs
+          for (const id of sonnetPriority) {
+            const hit = models.find((m) => m.id === id)
+            if (hit) return hit.id
+          }
+
+          // 2) Regex match for Sonnet 4, then any Sonnet
+          const sonnet4 = models.find(
+            (m) =>
+              /(^|[^a-z])sonnet\s*[-_\s]*4([^0-9]|$)/i.test(m.id) ||
+              /(^|[^a-z])sonnet\s*[-_\s]*4([^0-9]|$)/i.test(m.name || "")
+          )
+          if (sonnet4) return sonnet4.id
+          const anySonnet = models.find(
+            (m) =>
+              /(^|[^a-z])sonnet([^a-z]|$)/i.test(m.id) ||
+              /(^|[^a-z])sonnet([^a-z]|$)/i.test(m.name || "")
+          )
+          if (anySonnet) return anySonnet.id
+
+          // 3) Backend default for provider
+          if (defaultModelId && models.some((m) => m.id === defaultModelId)) return defaultModelId
+
+          // 4) Fallback to first available
+          return models[0]?.id || ""
         }
 
-        // Set default provider and model if not set (respect persisted value first)
-        if (!selectedProvider && formattedProviders.length > 0) {
-          // Try to use anthropic as default provider if available
-          let defaultProvider = formattedProviders.find((p) => p.id === "anthropic")
-          if (!defaultProvider) {
-            defaultProvider = formattedProviders[0]
-          }
+        // Resolve provider deterministically to avoid stale stored provider
+        const preferred = pickPreferredProvider()
+        const storedProvider = initialSelection.provider
+        const storedValid =
+          storedProvider && formattedProviders.some((p) => p.id === storedProvider)
+        const currentValid =
+          selectedProvider && formattedProviders.some((p) => p.id === selectedProvider)
+        const resolvedProviderId =
+          (currentValid && selectedProvider) ||
+          (storedValid && storedProvider) ||
+          preferred?.id ||
+          ""
 
-          setSelectedProvider(defaultProvider.id)
+        if (resolvedProviderId && resolvedProviderId !== selectedProvider) {
+          setSelectedProvider(resolvedProviderId)
+        }
 
-          // Use the default model from API if available
-          const defaultModelId = defaultModels[defaultProvider.id]
-          if (!selectedModel) {
-            if (defaultModelId) {
-              setSelectedModel(defaultModelId)
-            } else if (defaultProvider.models.length > 0) {
-              setSelectedModel(defaultProvider.models[0].id)
-            }
-          }
+        // Resolve model for the resolved provider (avoid using stale initial provider)
+        const modelsForResolved =
+          formattedProviders.find((p) => p.id === resolvedProviderId)?.models || []
+        const storedModel = initialSelection.model
+        const storedModelValid = storedModel && modelsForResolved.some((m) => m.id === storedModel)
+        const currentModelValid =
+          selectedModel && modelsForResolved.some((m) => m.id === selectedModel)
+        const backendDefault = defaultModels[resolvedProviderId]
+        const backendDefaultValid =
+          backendDefault && modelsForResolved.some((m) => m.id === backendDefault)
+        const preferredModel = pickPreferredModel(resolvedProviderId)
+
+        const resolvedModelId =
+          (currentModelValid && selectedModel) ||
+          (storedModelValid && storedModel) ||
+          (backendDefaultValid && backendDefault) ||
+          preferredModel ||
+          ""
+
+        if (resolvedModelId && resolvedModelId !== selectedModel) {
+          setSelectedModel(resolvedModelId)
         }
       } catch (error) {
         console.error("Failed to load providers:", error)
@@ -111,7 +179,19 @@ export function useProvidersSDK(
     }
 
     loadProviders()
-  }, [projectId, projectPath, instanceStatus, client, sdkLoading])
+  }, [
+    projectId,
+    projectPath,
+    instanceStatus,
+    client,
+    sdkLoading,
+    storageKey,
+    initialSelection.provider,
+    initialSelection.model,
+    // Re-validate model when provider changes or when model changes externally
+    selectedProvider,
+    selectedModel,
+  ])
 
   // Persist selection when it changes
   useEffect(() => {

@@ -2,23 +2,31 @@ import { useEffect, useState, useMemo, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import {
   Activity,
-  BarChart3,
   Bot,
-  Database,
   FileText,
   FolderOpen,
   GitBranch,
-  HardDrive,
   MessageSquare,
   Plus,
   RefreshCw,
   Settings,
+  Trash2,
   Zap,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   Select,
   SelectContent,
@@ -32,19 +40,13 @@ import {
   useProjects,
   useProjectsStore,
 } from "../stores/projects"
+import { useWorktreesStore, useWorktreesForProject, useWorktreesLoading } from "@/stores/worktrees"
 import { useSessionsForProject, useRecentSessions, useSessionsStore } from "../stores/sessions"
 import { useOpencodeSDK } from "../contexts/OpencodeSDKContext"
-
-interface GitStatus {
-  branch: string
-  changedFiles: number
-  lastCommit?: {
-    hash: string
-    message: string
-    author: string
-    date: string
-  }
-}
+import type { Project } from "../lib/api/project-manager"
+import { fetchGitSummary } from "@/lib/git"
+import type { GitSummary } from "@/lib/git"
+import { formatRelativeTime } from "@/lib/utils"
 
 interface AgentSummary {
   activeCount: number
@@ -59,35 +61,216 @@ interface ActivityEvent {
   timestamp: string
 }
 
-interface ResourceUsage {
-  memory: {
-    used: number
-    total: number
-  }
-  port?: number
-}
-
 export default function ProjectDashboard() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, worktreeId } = useParams<{ projectId: string; worktreeId: string }>()
   const navigate = useNavigate()
   const currentProject = useCurrentProject()
   const projects = useProjects()
   const { selectProject } = useProjectsActions()
-  const sessions = useSessionsForProject(projectId || "")
-  const recentSessions = useRecentSessions(projectId || "", 5)
   const { loadSessions, createSession } = useSessionsStore()
   const { getClient } = useOpencodeSDK()
+  const loadWorktrees = useWorktreesStore((state) => state.loadWorktrees)
+  const createWorktreeApi = useWorktreesStore((state) => state.createWorktree)
+  const removeWorktreeApi = useWorktreesStore((state) => state.removeWorktree)
+  const worktrees = useWorktreesForProject(projectId || "")
+  const worktreesLoading = useWorktreesLoading(projectId || "")
 
-  const [gitStatus, setGitStatus] = useState<GitStatus | null>(null)
+  const resolvedWorktreeId = worktreeId || "default"
+
+  // State declarations
+  const [gitStatus, setGitStatus] = useState<GitSummary | null>(null)
   const [agentSummary, setAgentSummary] = useState<AgentSummary | null>(null)
   const [activityFeed, setActivityFeed] = useState<ActivityEvent[]>([])
-  const [resourceUsage, setResourceUsage] = useState<ResourceUsage | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showWorktreeDialog, setShowWorktreeDialog] = useState(false)
+  const [newWorktreePath, setNewWorktreePath] = useState("")
+  const [newWorktreeTitle, setNewWorktreeTitle] = useState("")
+  const [createWorktreeLoading, setCreateWorktreeLoading] = useState(false)
+  const [createWorktreeError, setCreateWorktreeError] = useState<string | null>(null)
+  const [worktreeActionId, setWorktreeActionId] = useState<string | null>(null)
 
-  const loadProjectDetails = async (projectId: string, projectPath: string) => {
+  useEffect(() => {
+    if (projectId) {
+      void loadWorktrees(projectId)
+    }
+  }, [projectId, loadWorktrees])
+
+  const activeWorktree = useMemo(() => {
+    if (!projectId) return undefined
+    if (resolvedWorktreeId === "default") {
+      if (!currentProject?.path) return undefined
+      return {
+        id: "default",
+        path: currentProject.path,
+        title: `${currentProject.name ?? "Project"} (default)`,
+      }
+    }
+    return worktrees.find((worktree) => worktree.id === resolvedWorktreeId)
+  }, [projectId, resolvedWorktreeId, currentProject?.path, currentProject?.name, worktrees])
+
+  const activeWorktreePath = activeWorktree?.path || currentProject?.path
+
+  const sessions = useSessionsForProject(projectId || "", activeWorktreePath)
+  const recentSessions = useRecentSessions(projectId || "", 5, activeWorktreePath)
+
+  const additionalRecentCommits = useMemo(() => {
+    type CommitSummary = NonNullable<GitSummary["recentCommits"]>[number]
+
+    if (!gitStatus?.recentCommits?.length) {
+      return [] as CommitSummary[]
+    }
+
+    if (!gitStatus.lastCommit) {
+      return gitStatus.recentCommits.slice(0, 3) as CommitSummary[]
+    }
+
+    const filtered = gitStatus.recentCommits.filter(
+      (commit) => commit.hash !== gitStatus.lastCommit?.hash
+    )
+    return filtered.slice(0, 3) as CommitSummary[]
+  }, [gitStatus])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (!projectId || !activeWorktreePath) {
+      setGitStatus(null)
+      return
+    }
+
+    const loadGitSummary = async () => {
+      try {
+        const summary = await fetchGitSummary(projectId, resolvedWorktreeId)
+        if (!cancelled) {
+          console.log("git summary", summary)
+          setGitStatus(summary)
+        }
+      } catch (error) {
+        console.error("Failed to update git summary:", error)
+        if (!cancelled) {
+          setGitStatus(null)
+        }
+      }
+    }
+
+    void loadGitSummary()
+
+    return () => {
+      cancelled = true
+    }
+  }, [projectId, activeWorktreePath, resolvedWorktreeId])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (!worktreesLoading && resolvedWorktreeId !== "default" && !activeWorktree) {
+      navigate(`/projects/${projectId}/default`, { replace: true })
+    }
+  }, [projectId, resolvedWorktreeId, activeWorktree, worktreesLoading, navigate])
+
+  useEffect(() => {
+    if (showWorktreeDialog) {
+      setCreateWorktreeError(null)
+    } else {
+      setNewWorktreePath("")
+      setNewWorktreeTitle("")
+    }
+  }, [showWorktreeDialog])
+
+  const sortedWorktrees = useMemo(() => {
+    if (!worktrees) return []
+    const list = [...worktrees]
+    list.sort((a, b) => {
+      if (a.id === "default") return -1
+      if (b.id === "default") return 1
+      return a.title.localeCompare(b.title)
+    })
+    return list
+  }, [worktrees])
+
+  const handleSelectWorktree = useCallback(
+    (targetId: string) => {
+      if (!projectId) return
+      // Preload sessions for the target worktree so counts/recents refresh immediately
+      try {
+        const worktree =
+          targetId === "default"
+            ? { path: currentProject?.path }
+            : worktrees.find((w) => w.id === targetId)
+        const targetPath = worktree?.path || currentProject?.path
+        if (targetPath) {
+          void loadSessions(projectId, targetPath)
+        }
+      } catch {
+        // ignore; route hooks will load lazily after navigation
+      }
+      navigate(`/projects/${projectId}/${targetId}`)
+    },
+    [navigate, projectId, worktrees, currentProject?.path, loadSessions]
+  )
+
+  const handleCreateWorktree = useCallback(async () => {
+    if (!projectId) return
+    const trimmedPath = newWorktreePath.trim()
+    const trimmedTitle = newWorktreeTitle.trim()
+    if (!trimmedPath) {
+      setCreateWorktreeError("Worktree name is required")
+      return
+    }
+    if (!trimmedTitle) {
+      setCreateWorktreeError("Worktree title is required")
+      return
+    }
+
+    // Validate worktree name: no slashes, spaces, or special symbols
+    if (!/^[a-zA-Z0-9_-]+$/.test(trimmedPath)) {
+      setCreateWorktreeError(
+        "Worktree name can only contain letters, numbers, hyphens, and underscores"
+      )
+      return
+    }
+
+    setCreateWorktreeLoading(true)
+    setCreateWorktreeError(null)
     try {
-      // Get SDK client for this project
-      const client = await getClient(projectId, projectPath)
+      const created = await createWorktreeApi(projectId, {
+        path: `worktrees/${trimmedPath}`,
+        title: trimmedTitle,
+      })
+      await loadWorktrees(projectId)
+      setShowWorktreeDialog(false)
+      navigate(`/projects/${projectId}/${created.id}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create worktree"
+      setCreateWorktreeError(message)
+    } finally {
+      setCreateWorktreeLoading(false)
+    }
+  }, [projectId, newWorktreePath, newWorktreeTitle, createWorktreeApi, loadWorktrees, navigate])
+
+  const handleRemoveWorktree = useCallback(
+    async (targetId: string) => {
+      if (!projectId || targetId === "default") return
+      setWorktreeActionId(targetId)
+      try {
+        await removeWorktreeApi(projectId, targetId)
+        await loadWorktrees(projectId)
+        if (resolvedWorktreeId === targetId) {
+          navigate(`/projects/${projectId}/default`)
+        }
+      } catch (error) {
+        console.error("Failed to remove worktree:", error)
+      } finally {
+        setWorktreeActionId(null)
+      }
+    },
+    [projectId, removeWorktreeApi, loadWorktrees, resolvedWorktreeId, navigate]
+  )
+
+  const loadProjectDetails = useCallback(
+    async (projectIdParam: string, projectPath: string) => {
+      try {
+        // Get SDK client for this project
+        const client = await getClient(projectIdParam, projectPath)
 
         // Sessions are already loaded via store; avoid redundant list calls here to reduce network load
 
@@ -138,104 +321,77 @@ export default function ProjectDashboard() {
           console.error("Failed to load project info via SDK:", error)
         }
 
-        // Load git status - mock data for now (SDK doesn't have git endpoints yet)
-        setGitStatus({
-          branch: "main",
-          changedFiles: 0,
-          lastCommit: {
-            hash: "abc123",
-            message: "Latest commit",
-            author: "Developer",
-            date: new Date().toISOString(),
-          },
-        })
-
-        // Load resource usage from backend (not available in SDK yet)
-        try {
-          const response = await fetch(`/api/projects/${projectId}/resources`)
-          if (response.ok) {
-            const resourceData = await response.json()
-            setResourceUsage(resourceData)
-          } else {
-            // Enhanced error logging for HTTP failures
-            const responseText = await response.text().catch(() => 'Unable to read response body')
-            const responseHeaders = Object.fromEntries(response.headers.entries())
-            console.error('Failed to load resource usage:', {
-              method: 'GET',
-              url: `/api/projects/${projectId}/resources`,
-              status: response.status,
-              statusText: response.statusText,
-              headers: responseHeaders,
-              body: responseText
-            })
-          }
-        } catch (error) {
-          console.error("Failed to load resource usage:", error)
-          // Fallback to basic data
-          setResourceUsage({
-            memory: { used: 0, total: 0 },
-            port: undefined,
-          })
-        }
-
         // Load activity feed from backend (not available in SDK yet)
         try {
-          const response = await fetch(`/api/projects/${projectId}/activity`)
+          const worktreeQuery = projectPath ? `?worktree=${encodeURIComponent(projectPath)}` : ""
+          const response = await fetch(`/api/projects/${projectIdParam}/activity${worktreeQuery}`)
           if (response.ok) {
             const activityData = await response.json()
             setActivityFeed(activityData)
           } else {
             // Enhanced error logging for HTTP failures
-            const responseText = await response.text().catch(() => 'Unable to read response body')
+            const responseText = await response.text().catch(() => "Unable to read response body")
             const responseHeaders = Object.fromEntries(response.headers.entries())
-            console.error('Failed to load activity feed:', {
-              method: 'GET',
-              url: `/api/projects/${projectId}/activity`,
+            console.error("Failed to load activity feed:", {
+              method: "GET",
+              url: `/api/projects/${projectIdParam}/activity`,
               status: response.status,
               statusText: response.statusText,
               headers: responseHeaders,
-              body: responseText
+              body: responseText,
             })
           }
         } catch (error) {
           console.error("Failed to load activity feed:", error)
           setActivityFeed([])
         }
-    } catch (error) {
-      console.error("Failed to load project details:", error)
-    }
-  }
+      } catch (error) {
+        console.error("Failed to load project details:", error)
+      }
+    },
+    [getClient]
+  )
 
-  // Load project data on mount
-  useEffect(() => {
-    if (!projectId) return
-
-    const loadProjectData = async () => {
+  const loadProjectData = useCallback(
+    async (targetProjectId: string) => {
       setLoading(true)
       try {
-        // Select the project and wait for it to be loaded
-        await selectProject(projectId)
+        let state = useProjectsStore.getState()
+        let project: Project | null = state.currentProject ?? null
 
-        // Small delay to ensure store is updated
-        await new Promise((resolve) => setTimeout(resolve, 100))
-
-        // Get the updated project from the store
-        const state = useProjectsStore.getState()
-        const project = state.currentProject || state.projects.find((p) => p.id === projectId)
+        if (!project || project.id !== targetProjectId) {
+          await selectProject(targetProjectId)
+          state = useProjectsStore.getState()
+          project = state.currentProject ?? null
+          if (!project) {
+            const found = state.projects.find((p) => p.id === targetProjectId)
+            project = found ?? null
+          }
+        }
 
         if (project?.path) {
-          // Load sessions
-          await loadSessions(projectId, project.path)
+          await loadWorktrees(targetProjectId)
+          const worktreeList =
+            useWorktreesStore.getState().worktreesByProject.get(targetProjectId) || []
+          const desiredId = resolvedWorktreeId
+          const matchingWorktree =
+            desiredId === "default"
+              ? { path: project.path }
+              : worktreeList.find((worktree) => worktree.id === desiredId)
+          const effectivePath = matchingWorktree?.path || project.path
 
-          // Load additional data if project is running
+          await loadSessions(targetProjectId, effectivePath)
+
           if (project.instance?.status === "running") {
-            await loadProjectDetails(projectId, project.path)
+            await loadProjectDetails(targetProjectId, effectivePath)
+          } else {
+            setGitStatus(null)
           }
         } else {
-          console.error("Project not found or missing path:", projectId)
-          // Fallback navigation: if we have any projects, navigate to the first one
-          if (state.projects.length > 0) {
-            navigate(`/projects/${state.projects[0].id}`)
+          console.error("Project not found or missing path:", targetProjectId)
+          const fallback = state.projects[0]
+          if (fallback) {
+            navigate(`/projects/${fallback.id}/default`)
           } else {
             navigate(`/`)
           }
@@ -245,44 +401,41 @@ export default function ProjectDashboard() {
       } finally {
         setLoading(false)
       }
-    }
+    },
+    [selectProject, loadSessions, loadProjectDetails, navigate, loadWorktrees, resolvedWorktreeId]
+  )
 
-    loadProjectData()
-  }, [projectId, selectProject, loadSessions, getClient])
+  const [projectDetailsLoaded, setProjectDetailsLoaded] = useState(false)
+
+  useEffect(() => {
+    setProjectDetailsLoaded(false)
+  }, [projectId, resolvedWorktreeId])
+
+  // Load project data on mount
+  useEffect(() => {
+    if (!projectId || projectDetailsLoaded) return
+    setProjectDetailsLoaded(true)
+    void loadProjectData(projectId)
+  }, [projectId, projectDetailsLoaded, loadProjectData])
+
+  useEffect(() => {
+    if (!projectId) return
+    if (resolvedWorktreeId !== "default" && !activeWorktreePath) {
+      navigate(`/projects/${projectId}/default`, { replace: true })
+    }
+  }, [projectId, resolvedWorktreeId, activeWorktreePath, navigate])
 
   // Handlers for starting/stopping projects are not used in this view currently.
 
   const handleNewSession = useCallback(async () => {
-    if (!projectId || !currentProject?.path) return
+    if (!projectId || !activeWorktreePath) return
     try {
-      const session = await createSession(projectId, currentProject.path, "New Chat")
-      navigate(`/projects/${projectId}/sessions/${session.id}/chat`)
+      const session = await createSession(projectId, activeWorktreePath, "New Chat")
+      navigate(`/projects/${projectId}/${resolvedWorktreeId}/sessions/${session.id}/chat`)
     } catch (error) {
       console.error("Failed to create session:", error)
     }
-  }, [projectId, currentProject?.path, createSession, navigate])
-
-  const formatRelativeTime = (timestamp: string) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / (1000 * 60))
-    const diffHours = Math.floor(diffMins / 60)
-    const diffDays = Math.floor(diffHours / 24)
-
-    if (diffMins < 1) return "Just now"
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    return `${diffDays}d ago`
-  }
-
-  const formatBytes = (bytes: number) => {
-    if (bytes === 0) return "0 B"
-    const k = 1024
-    const sizes = ["B", "KB", "MB", "GB"]
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
-  }
+  }, [projectId, activeWorktreePath, resolvedWorktreeId, createSession, navigate])
 
   // In SDK mode, projects are always effectively "running"
   const isRunning = true
@@ -296,12 +449,14 @@ export default function ProjectDashboard() {
             <div
               key={session.id}
               className="hover:bg-accent/50 flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
-              onClick={() => navigate(`/projects/${projectId}/sessions/${session.id}/chat`)}
+              onClick={() =>
+                navigate(`/projects/${projectId}/${resolvedWorktreeId}/sessions/${session.id}/chat`)
+              }
             >
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{session.title}</p>
                 <p className="text-muted-foreground text-sm">
-                  {formatRelativeTime(new Date(session.time.updated * 1000).toISOString())}
+                  {formatRelativeTime(session.time.updated)}
                 </p>
               </div>
               <MessageSquare className="text-muted-foreground h-4 w-4" />
@@ -321,7 +476,13 @@ export default function ProjectDashboard() {
         )}
       </div>
     )
-  }, [recentSessions, projectId, navigate, handleNewSession, isRunning])
+  }, [recentSessions, projectId, resolvedWorktreeId, navigate, handleNewSession, isRunning])
+
+  // Ensure the select's value is always a valid id to avoid uncontrolled → controlled churn
+  const selectedProjectId = useMemo(() => {
+    if (!projectId) return ""
+    return projects.some((p) => p.id === projectId) ? projectId : (projects[0]?.id ?? "")
+  }, [projectId, projects])
 
   if (loading) {
     return (
@@ -357,16 +518,30 @@ export default function ProjectDashboard() {
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-bold tracking-tight">{currentProject.name}</h1>
                   {/* Project Switcher Dropdown */}
-                  <Select value={projectId} onValueChange={(id) => navigate(`/projects/${id}`)}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue />
+                  <Select
+                    value={selectedProjectId}
+                    onValueChange={(id) => navigate(`/projects/${id}/default`)}
+                    disabled={projects.length <= 1}
+                    data-testid="project-select"
+                  >
+                    <SelectTrigger
+                      id="project-select-trigger"
+                      aria-label="Select project"
+                      className="w-[200px]"
+                      data-testid="project-select-trigger"
+                    >
+                      <div className="flex items-center gap-2">
+                        {/* <FolderOpen className="h-4 w-4" /> */}
+                        {/* Ensure the trigger only renders plain text for the value */}
+                        <SelectValue placeholder="Select project" />
+                      </div>
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" align="start">
                       {projects.map((project) => (
-                        <SelectItem key={project.id} value={project.id}>
+                        <SelectItem key={project.id} value={project.id} textValue={project.name}>
                           <div className="flex items-center gap-2">
                             <FolderOpen className="h-4 w-4" />
-                            {project.name}
+                            <span>{project.name}</span>
                           </div>
                         </SelectItem>
                       ))}
@@ -394,7 +569,7 @@ export default function ProjectDashboard() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-7xl space-y-6 p-6">
           {/* Quick Stats */}
-          <div data-testid="stats-section" className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div data-testid="stats-section" className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Card data-testid="total-sessions-stat">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Sessions</CardTitle>
@@ -404,7 +579,7 @@ export default function ProjectDashboard() {
                 <div className="text-2xl font-bold">{sessions.length}</div>
                 <p className="text-muted-foreground text-xs">
                   {recentSessions.length > 0 &&
-                    `Last: ${formatRelativeTime(new Date(recentSessions[0].time.updated * 1000).toISOString())}`}
+                    `Last: ${formatRelativeTime(recentSessions[0].time.updated)}`}
                 </p>
               </CardContent>
             </Card>
@@ -415,39 +590,96 @@ export default function ProjectDashboard() {
                 <FileText className="text-muted-foreground h-4 w-4" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{gitStatus?.changedFiles || 0}</div>
-                <p className="text-muted-foreground text-xs">
-                  Branch: {gitStatus?.branch || "main"}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
-                <HardDrive className="text-muted-foreground h-4 w-4" />
-              </CardHeader>
-              <CardContent>
                 <div className="text-2xl font-bold">
-                  {resourceUsage ? formatBytes(resourceUsage.memory.used * 1024 * 1024) : "N/A"}
+                  {gitStatus ? gitStatus.changedFiles : "N/A"}
                 </div>
                 <p className="text-muted-foreground text-xs">
-                  {resourceUsage && `of ${formatBytes(resourceUsage.memory.total * 1024 * 1024)}`}
+                  Branch: {gitStatus ? gitStatus.branch : "Unknown"}
                 </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Port</CardTitle>
-                <Database className="text-muted-foreground h-4 w-4" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{resourceUsage?.port || "N/A"}</div>
-                <p className="text-muted-foreground text-xs">Active</p>
               </CardContent>
             </Card>
           </div>
+
+          {/* Worktrees */}
+          <Card data-testid="worktrees-section">
+            <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <GitBranch className="h-5 w-5" />
+                  Git Worktrees
+                </CardTitle>
+                <CardDescription>Isolated directories for parallel work</CardDescription>
+              </div>
+              <Button onClick={() => setShowWorktreeDialog(true)} size="sm">
+                <Plus className="mr-2 h-4 w-4" /> New Worktree
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {worktreesLoading ? (
+                <div className="text-muted-foreground flex items-center gap-2 text-sm">
+                  <RefreshCw className="h-4 w-4 animate-spin" /> Loading worktrees...
+                </div>
+              ) : sortedWorktrees.length === 0 ? (
+                <div className="border-muted text-muted-foreground border border-dashed p-6 text-center text-sm">
+                  No worktrees found. Create one to start a focused branch.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sortedWorktrees.map((worktree) => {
+                    const isActive = worktree.id === resolvedWorktreeId
+                    return (
+                      <div
+                        key={worktree.id}
+                        className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="max-w-[220px] truncate font-medium">
+                              {worktree.title}
+                            </span>
+                            {worktree.id === "default" && <Badge variant="outline">Default</Badge>}
+                            {isActive && <Badge variant="secondary">Active</Badge>}
+                          </div>
+                          {worktree.branch && (
+                            <p className="text-muted-foreground text-sm">
+                              Branch: {worktree.branch}
+                            </p>
+                          )}
+                          <p className="text-muted-foreground text-xs break-all">
+                            {worktree.relativePath || "(project root)"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            variant={isActive ? "secondary" : "outline"}
+                            size="sm"
+                            onClick={() => handleSelectWorktree(worktree.id)}
+                          >
+                            Open
+                          </Button>
+                          {worktree.id !== "default" && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleRemoveWorktree(worktree.id)}
+                              disabled={worktreeActionId === worktree.id}
+                            >
+                              {worktreeActionId === worktree.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-2 h-4 w-4" />
+                              )}
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Quick Actions */}
           <Card data-testid="quick-actions-section">
@@ -459,29 +691,25 @@ export default function ProjectDashboard() {
               <CardDescription>Common tasks and shortcuts for this project</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 place-items-stretch">
-                <div
+              <div className="grid grid-cols-2 place-items-stretch gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <Button
                   data-testid="button-new-chat"
-                  role="button"
+                  variant="outline"
+                  className="h-20 w-full flex-col items-center justify-center gap-2"
+                  disabled={false}
                   onClick={handleNewSession}
-                  className="h-20 w-full"
                 >
-                  <Button
-                    data-testid="quick-action-new-chat"
-                    variant="outline"
-                    className="h-20 w-full flex-col items-center justify-center gap-2"
-                    disabled={false}
-                  >
-                    <Plus className="h-5 w-5" />
-                    <span className="text-xs">New Chat</span>
-                  </Button>
-                </div>
+                  <Plus className="h-5 w-5" />
+                  <span className="text-xs" data-testid="quick-action-new-chat">
+                    New Chat
+                  </span>
+                </Button>
 
                 <Button
                   data-testid="quick-action-file-browser"
                   variant="outline"
                   className="h-20 w-full flex-col items-center justify-center gap-2"
-                  onClick={() => navigate(`/projects/${projectId}/files`)}
+                  onClick={() => navigate(`/projects/${projectId}/${resolvedWorktreeId}/files`)}
                   disabled={false}
                 >
                   <FolderOpen className="h-5 w-5" />
@@ -491,7 +719,7 @@ export default function ProjectDashboard() {
                 <Button
                   variant="outline"
                   className="h-20 w-full flex-col items-center justify-center gap-2"
-                  onClick={() => navigate(`/projects/${projectId}/git`)}
+                  onClick={() => navigate(`/projects/${projectId}/${resolvedWorktreeId}/git`)}
                   disabled={false}
                 >
                   <GitBranch className="h-5 w-5" />
@@ -501,7 +729,7 @@ export default function ProjectDashboard() {
                 <div
                   data-testid="manage-agents-button"
                   role="button"
-                  onClick={() => navigate(`/projects/${projectId}/agents`)}
+                  onClick={() => navigate(`/projects/${projectId}/${resolvedWorktreeId}/agents`)}
                   className="h-20 w-full"
                 >
                   <Button
@@ -518,7 +746,7 @@ export default function ProjectDashboard() {
                 <Button
                   variant="outline"
                   className="h-20 w-full flex-col items-center justify-center gap-2"
-                  onClick={() => navigate(`/projects/${projectId}/settings`)}
+                  onClick={() => navigate(`/projects/${projectId}/${resolvedWorktreeId}/settings`)}
                 >
                   <Settings className="h-5 w-5" />
                   <span className="text-xs">Settings</span>
@@ -541,7 +769,7 @@ export default function ProjectDashboard() {
             </Card>
 
             {/* Git Status */}
-            <Card>
+            <Card data-testid="git-status-section">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <GitBranch className="h-5 w-5" />
@@ -565,7 +793,10 @@ export default function ProjectDashboard() {
                     {gitStatus.lastCommit && (
                       <div className="border-t pt-2">
                         <p className="mb-1 text-sm font-medium">Last Commit</p>
-                        <p className="text-muted-foreground truncate text-sm">
+                        <p
+                          className="text-muted-foreground truncate text-sm"
+                          title={gitStatus.lastCommit.message}
+                        >
                           {gitStatus.lastCommit.message}
                         </p>
                         <p className="text-muted-foreground mt-1 text-xs">
@@ -574,13 +805,31 @@ export default function ProjectDashboard() {
                         </p>
                       </div>
                     )}
+
+                    {additionalRecentCommits.length > 0 && (
+                      <div className="border-t pt-2">
+                        <p className="mb-2 text-sm font-medium">Recent Commits</p>
+                        <ul className="space-y-2">
+                          {additionalRecentCommits.map((commit) => (
+                            <li key={commit.hash} className="text-sm">
+                              <p className="text-muted-foreground truncate" title={commit.message}>
+                                {commit.message}
+                              </p>
+                              <p className="text-muted-foreground mt-0.5 text-xs">
+                                by {commit.author} • {formatRelativeTime(commit.date)}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="py-6 text-center">
                     <GitBranch className="text-muted-foreground mx-auto mb-3 h-12 w-12" />
                     <p className="text-muted-foreground">Git status unavailable</p>
                     <p className="text-muted-foreground mt-1 text-xs">
-                      {"Not a git repository"}
+                      {"Ensure the project is running and the directory is a git repository."}
                     </p>
                   </div>
                 )}
@@ -674,45 +923,64 @@ export default function ProjectDashboard() {
               </CardContent>
             </Card>
           </div>
-
-          {/* Resource Usage */}
-          {resourceUsage && (
-            <Card data-testid="project-metrics-section">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Resource Usage
-                </CardTitle>
-                <CardDescription>System resources and performance metrics</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-medium">Memory Usage</span>
-                      <span className="text-muted-foreground text-sm">
-                        {formatBytes(resourceUsage.memory.used * 1024 * 1024)} /{" "}
-                        {formatBytes(resourceUsage.memory.total * 1024 * 1024)}
-                      </span>
-                    </div>
-                    <Progress
-                      value={(resourceUsage.memory.used / resourceUsage.memory.total) * 100}
-                      className="h-2"
-                    />
-                  </div>
-
-                  {resourceUsage.port && (
-                    <div className="flex items-center justify-between border-t pt-2">
-                      <span className="text-sm font-medium">Server Port</span>
-                      <Badge variant="outline">{resourceUsage.port}</Badge>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </div>
+      <Dialog open={showWorktreeDialog} onOpenChange={setShowWorktreeDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Worktree</DialogTitle>
+            <DialogDescription>
+              Provide a name and title for the new worktree. The worktree will be created in the
+              worktrees directory relative to the project root.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="worktree-title">Title</Label>
+              <Input
+                id="worktree-title"
+                placeholder="Feature: onboarding flow"
+                value={newWorktreeTitle}
+                onChange={(event) => setNewWorktreeTitle(event.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="worktree-path">Name</Label>
+              <Input
+                id="worktree-path"
+                placeholder="onboarding"
+                value={newWorktreePath}
+                onChange={(event) => setNewWorktreePath(event.target.value)}
+              />
+              <p className="text-muted-foreground text-xs">
+                Will be created as: worktrees/{newWorktreePath || "name"}
+              </p>
+            </div>
+            {createWorktreeError && (
+              <p className="text-destructive text-sm">{createWorktreeError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowWorktreeDialog(false)}
+              disabled={createWorktreeLoading}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleCreateWorktree} disabled={createWorktreeLoading}>
+              {createWorktreeLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="mr-2 h-4 w-4" />
+              )}
+              Create Worktree
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

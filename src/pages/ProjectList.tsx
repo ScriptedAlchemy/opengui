@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
+import { DynamicDirectoryCombobox } from "@/components/ui/dynamic-directory-combobox"
 
 import {
   useProjects,
@@ -44,6 +45,24 @@ import {
   useProjectsActions,
 } from "../stores/projects"
 import type { Project } from "../lib/api/project-manager"
+
+const isAbsolutePath = (value: string) => {
+  if (!value) return false
+  const trimmed = value.trim()
+  return trimmed.startsWith("/") || /^[A-Za-z]:[\\/]/.test(trimmed) || trimmed.startsWith("\\\\")
+}
+
+interface DirectoryEntry {
+  name: string
+  path: string
+  isDirectory: true
+}
+
+interface DirectoryListingResponse {
+  path: string
+  parent: string | null
+  entries: DirectoryEntry[]
+}
 
 interface AddProjectDialogProps {
   open: boolean
@@ -55,45 +74,148 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
   const [projectName, setProjectName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [pathEdited, setPathEdited] = useState(false)
+  const [nameEdited, setNameEdited] = useState(false)
+
+  const [homeDirectory, setHomeDirectory] = useState<string | null>(null)
+  const [currentDirectory, setCurrentDirectory] = useState<string | null>(null)
+  // Directory Explorer state removed
 
   const projects = useProjects()
   const { createProject } = useProjectsActions()
 
-  // Auto-fill project name from path
-  useEffect(() => {
-    if (projectPath && !projectName) {
-      const pathParts = projectPath.split(/[/\\]/)
-      const folderName = pathParts[pathParts.length - 1] || pathParts[pathParts.length - 2]
-      if (folderName) {
-        setProjectName(folderName)
-      }
-    }
-  }, [projectPath, projectName])
-
-  const handleBrowseFolder = async () => {
+  // Function to fetch directories for the dynamic combobox
+  const fetchDirectoriesForPath = async (path: string): Promise<DirectoryEntry[]> => {
     try {
-      // Use the File System Access API if available
-      if ("showDirectoryPicker" in window) {
-        const dirHandle = await (window as any).showDirectoryPicker()
-        setProjectPath(dirHandle.name)
-      } else {
-        // Fallback for browsers without File System Access API
-        const input = document.createElement("input")
-        input.type = "file"
-        input.webkitdirectory = true
-        input.onchange = (e) => {
-          const files = (e.target as HTMLInputElement).files
-          if (files && files.length > 0) {
-            const path = files[0].webkitRelativePath.split("/")[0]
-            setProjectPath(path)
-          }
-        }
-        input.click()
+      const response = await fetch(`/api/system/list-directory?path=${encodeURIComponent(path)}`)
+      if (!response.ok) {
+        throw new Error(`Failed to list directory (${response.status})`)
       }
-    } catch (_error) {
-      // User cancelled or error occurred
+      const data = (await response.json()) as DirectoryListingResponse
+      return data.entries || []
+    } catch (error) {
+      console.error("Failed to fetch directories:", error)
+      return []
     }
   }
+
+  const fallbackProjectName = useMemo(() => {
+    const trimmedPath = projectPath.trim()
+    if (!trimmedPath) {
+      return ""
+    }
+
+    const withoutTrailingSeparators = trimmedPath.replace(/[\\/]+$/, "")
+    if (!withoutTrailingSeparators) {
+      return ""
+    }
+
+    const segments = withoutTrailingSeparators.split(/[/\\]/).filter(Boolean)
+    return segments[segments.length - 1] ?? ""
+  }, [projectPath])
+
+  // Auto-fill project name using package.json when available
+  useEffect(() => {
+    if (!open || nameEdited) {
+      return
+    }
+
+    const trimmedPath = projectPath.trim()
+    if (!trimmedPath) {
+      setProjectName("")
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+
+    const suggestProjectName = async () => {
+      let suggestion = fallbackProjectName
+
+      if (isAbsolutePath(trimmedPath)) {
+        try {
+          const response = await fetch(
+            `/api/system/package-json?path=${encodeURIComponent(trimmedPath)}`,
+            { signal: controller.signal }
+          )
+
+          if (response.ok) {
+            const data = (await response.json()) as {
+              packageJson?: Record<string, unknown>
+            }
+            const packageName = data.packageJson?.name
+            if (typeof packageName === "string" && packageName.trim()) {
+              suggestion = packageName.trim()
+            }
+          }
+        } catch (fetchError) {
+          if (!controller.signal.aborted) {
+            console.debug("Failed to inspect package.json for project name suggestion:", fetchError)
+          }
+        }
+      }
+
+      if (!cancelled && suggestion) {
+        setProjectName((prev) => (prev === suggestion ? prev : suggestion))
+      } else if (!cancelled && !suggestion) {
+        setProjectName((prev) => (prev === "" ? prev : ""))
+      }
+    }
+
+    void suggestProjectName()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [open, projectPath, nameEdited, fallbackProjectName])
+
+  useEffect(() => {
+    if (!open) return
+
+    let cancelled = false
+
+    const loadHomeDirectory = async () => {
+      try {
+        let basePath = homeDirectory
+        if (!basePath) {
+          const response = await fetch("/api/system/home")
+          if (!response.ok) {
+            throw new Error(`Failed to load home directory (${response.status})`)
+          }
+          const data = (await response.json()) as { path: string }
+          if (cancelled) return
+          basePath = data.path
+          setHomeDirectory(basePath)
+        }
+
+        if (!pathEdited && !projectPath) {
+          setProjectPath(basePath ?? "")
+        }
+
+        if (basePath) {
+          setCurrentDirectory(basePath)
+        }
+      } catch (loadError) {
+        console.error("Failed to load home directory:", loadError)
+        if (!cancelled) {
+          // Swallow home directory errors; combobox opens at '/'
+        }
+      }
+    }
+
+    void loadHomeDirectory()
+
+    return () => {
+      cancelled = true
+    }
+  }, [open, homeDirectory, pathEdited, projectPath])
+
+  useEffect(() => {
+    // Directory Explorer removed — no parent directory fetch needed.
+  }, [open, currentDirectory])
+
+  // Directory Explorer and browse button removed; selection occurs via combobox.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -101,6 +223,11 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
 
     if (!projectPath.trim()) {
       setError("Project path is required")
+      return
+    }
+
+    if (!isAbsolutePath(projectPath)) {
+      setError("Project path must be absolute (e.g. /Users/name/project or C:/path/to/project)")
       return
     }
 
@@ -128,6 +255,9 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
         onOpenChange(false)
         setProjectPath("")
         setProjectName("")
+        setNameEdited(false)
+        setPathEdited(false)
+        setCurrentDirectory(homeDirectory)
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to create project")
@@ -141,7 +271,20 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
     setProjectPath("")
     setProjectName("")
     setError("")
+    setPathEdited(false)
+    setNameEdited(false)
+    setCurrentDirectory(homeDirectory)
+    // Directory Explorer state cleared
   }
+
+  const handleDirectorySelect = (target: string) => {
+    setCurrentDirectory(target)
+    setProjectPath(target)
+    setPathEdited(true)
+    setError("")
+  }
+
+  // Parent navigation removed with Directory Explorer.
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -159,24 +302,24 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Project Path</label>
-            <div className="flex gap-2">
-              <Input
-                data-testid="project-path-input"
-                value={projectPath}
-                onChange={(e) => setProjectPath(e.target.value)}
-                placeholder="/path/to/your/project"
-                className="border-border bg-background text-foreground placeholder:text-muted-foreground"
-              />
-              <Button
-                data-testid="button-browse-folder"
-                type="button"
-                variant="outline"
-                onClick={handleBrowseFolder}
-                className="border-border bg-background text-foreground hover:bg-accent/50"
-              >
-                <Folder className="h-4 w-4" />
-              </Button>
-            </div>
+            <DynamicDirectoryCombobox
+              currentDirectory={currentDirectory || homeDirectory || "/"}
+              onSelect={handleDirectorySelect}
+              placeholder="Search or select directories..."
+              emptyText="No directories found. Start typing to search..."
+              searchPlaceholder="Type to search (e.g. 'dev', 'projects')..."
+              fetchDirectories={fetchDirectoriesForPath}
+            />
+            <p
+              className="text-muted-foreground truncate text-xs"
+              title={(projectPath || currentDirectory || undefined) as string | undefined}
+            >
+              {projectPath
+                ? `Selected: ${projectPath}`
+                : currentDirectory
+                  ? `Current: ${currentDirectory}`
+                  : ""}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -184,7 +327,10 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
             <Input
               data-testid="project-name-input"
               value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
+              onChange={(e) => {
+                setProjectName(e.target.value)
+                setNameEdited(true)
+              }}
               placeholder="My Project"
               className="border-border bg-background text-foreground placeholder:text-muted-foreground"
             />
@@ -196,6 +342,8 @@ function AddProjectDialog({ open, onOpenChange }: AddProjectDialogProps) {
               {error}
             </div>
           )}
+
+          {/* Directory Explorer section removed; combobox above handles selection and search. */}
         </form>
 
         <DialogFooter>
@@ -293,11 +441,11 @@ function ProjectCard({
   return (
     <div
       data-testid="project-item"
-      className="group rounded-lg border border-border bg-card p-6 transition-colors hover:border-[#3b82f6]/50"
+      className="group border-border bg-card rounded-lg border p-6 transition-colors hover:border-[#3b82f6]/50"
     >
       <div className="mb-4 flex items-start justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/20">
+          <div className="bg-primary/20 flex h-10 w-10 items-center justify-center rounded-lg">
             {project.type === "git" ? (
               <GitBranch className="h-5 w-5 text-[#3b82f6]" />
             ) : (
@@ -305,10 +453,13 @@ function ProjectCard({
             )}
           </div>
           <div>
-            <h3 data-testid="project-name" className="font-semibold text-foreground transition-colors group-hover:text-[#3b82f6]">
+            <h3
+              data-testid="project-name"
+              className="text-foreground font-semibold transition-colors group-hover:text-[#3b82f6]"
+            >
               {project.name}
             </h3>
-            <p className="max-w-[200px] truncate text-sm text-muted-foreground">{project.path}</p>
+            <p className="text-muted-foreground max-w-[200px] truncate text-sm">{project.path}</p>
           </div>
         </div>
 
@@ -346,7 +497,7 @@ function ProjectCard({
       <div className="mb-4 flex items-center justify-between">
         <div data-testid="badge-project-status">{getStatusBadge()}</div>
         {project.lastOpened && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <div className="text-muted-foreground flex items-center gap-1 text-xs">
             <Clock className="h-3 w-3" />
             {formatDistanceToNow(new Date(project.lastOpened), { addSuffix: true })}
           </div>
@@ -357,7 +508,7 @@ function ProjectCard({
         <Button
           data-testid="button-open-project"
           onClick={() => onOpen(project)}
-          className="flex-1 bg-primary text-foreground hover:bg-[#2563eb]"
+          className="bg-primary text-foreground flex-1 hover:bg-[#2563eb]"
         >
           <ExternalLink className="mr-2 h-4 w-4" />
           Open
@@ -386,11 +537,11 @@ function ProjectCard({
 function EmptyState({ onAddProject }: { onAddProject: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary/20">
+      <div className="bg-primary/20 mb-6 flex h-16 w-16 items-center justify-center rounded-full">
         <Folder className="h-8 w-8 text-[#3b82f6]" />
       </div>
-      <h2 className="mb-2 text-xl font-semibold text-foreground">No projects yet</h2>
-      <p className="mb-6 max-w-md text-muted-foreground">
+      <h2 className="text-foreground mb-2 text-xl font-semibold">No projects yet</h2>
+      <p className="text-muted-foreground mb-6 max-w-md">
         Get started by adding your first project. You can add existing folders or import from Git
         repositories.
       </p>
@@ -406,7 +557,9 @@ function EmptyState({ onAddProject }: { onAddProject: () => void }) {
   )
 }
 
-export default function ProjectList({ navigateOverride }: { navigateOverride?: (path: string) => void } = {}) {
+export default function ProjectList({
+  navigateOverride,
+}: { navigateOverride?: (path: string) => void } = {}) {
   let navigate: (path: string) => void
   try {
     const hook = useNavigate()
@@ -470,7 +623,7 @@ export default function ProjectList({ navigateOverride }: { navigateOverride?: (
       console.error("Failed to select project:", error)
       // Continue with navigation even if selection fails
     }
-    navigate(`/projects/${project.id}`)
+    navigate(`/projects/${project.id}/default`)
   }
 
   const handleRemoveProject = async (project: Project) => {
@@ -494,7 +647,7 @@ export default function ProjectList({ navigateOverride }: { navigateOverride?: (
 
   if (loading && projects.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center bg-background text-foreground">
+      <div className="bg-background text-foreground flex h-full items-center justify-center">
         <div className="text-center">
           <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-[#3b82f6]" />
           <p className="text-muted-foreground">Loading projects...</p>
@@ -504,14 +657,14 @@ export default function ProjectList({ navigateOverride }: { navigateOverride?: (
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="bg-background text-foreground min-h-screen">
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-sm">
+      <div className="border-border bg-background/95 sticky top-0 z-10 border-b backdrop-blur-sm">
         <div className="mx-auto max-w-7xl px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Projects</h1>
-              <p className="mt-1 text-muted-foreground">
+              <h1 className="text-foreground text-2xl font-bold">Projects</h1>
+              <p className="text-muted-foreground mt-1">
                 {projects.length} project{projects.length !== 1 ? "s" : ""}
                 {runningCount > 0 && (
                   <span className="ml-2 text-green-400">• {runningCount} running</span>
@@ -561,13 +714,13 @@ export default function ProjectList({ navigateOverride }: { navigateOverride?: (
             {/* Search and Filters */}
             <div className="mb-8 flex items-center gap-4">
               <div className="relative max-w-md flex-1">
-                <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground" />
+                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform" />
                 <Input
                   data-testid="search-input"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search projects..."
-                  className="border-border bg-card pl-10 text-foreground placeholder:text-muted-foreground"
+                  className="border-border bg-card text-foreground placeholder:text-muted-foreground pl-10"
                 />
               </div>
 
@@ -615,8 +768,8 @@ export default function ProjectList({ navigateOverride }: { navigateOverride?: (
             {/* Projects Grid */}
             {filteredProjects.length === 0 ? (
               <div className="py-12 text-center">
-                <Search className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="mb-2 text-lg font-medium text-foreground">No projects found</h3>
+                <Search className="text-muted-foreground mx-auto mb-4 h-12 w-12" />
+                <h3 className="text-foreground mb-2 text-lg font-medium">No projects found</h3>
                 <p className="text-muted-foreground">
                   {searchQuery
                     ? `No projects match "${searchQuery}"`

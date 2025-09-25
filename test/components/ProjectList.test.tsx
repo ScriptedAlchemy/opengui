@@ -9,13 +9,48 @@ if (typeof document === "undefined" || !document.body) {
   throw new Error("DOM environment is required for component tests")
 }
 
+const mockHomePath = "/Users/test"
+const mockDirectoryListing = {
+  path: mockHomePath,
+  parent: null,
+  entries: [
+    { name: "projects", path: `${mockHomePath}/projects`, isDirectory: true },
+    { name: "playground", path: `${mockHomePath}/playground`, isDirectory: true },
+  ],
+}
+
+const mockFetch = rstest.fn(async (input: RequestInfo | URL) => {
+  const url =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+      ? input.toString()
+      : (input as Request).url
+  if (url.includes("/api/system/home")) {
+    return new Response(JSON.stringify({ path: mockHomePath }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+  if (url.includes("/api/system/list-directory")) {
+    return new Response(JSON.stringify(mockDirectoryListing), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    })
+  }
+  return new Response("{}", {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  })
+})
+
 // Mock the projects store
 const mockProjects = [
   TestDataFactory.createProject({
     id: "project-1",
     name: "Test Project 1",
     status: "running",
-    instance: { id: "inst-1", port: 3001, status: "running", startedAt: new Date() },
+    instance: { id: "inst-1", port: 3099, status: "running", startedAt: new Date() },
   }),
   TestDataFactory.createProject({
     id: "project-2",
@@ -102,6 +137,8 @@ describe("ProjectList Component", () => {
     mockSelectProject.mockClear()
     mockClearError.mockClear()
     mockNavigate.mockClear()
+    mockFetch.mockClear()
+    ;(global as unknown as { fetch: typeof fetch }).fetch = mockFetch as unknown as typeof fetch
 
     const mod = require("@/pages/ProjectList")
     ProjectList = mod.default || mod.ProjectList
@@ -154,7 +191,7 @@ describe("ProjectList Component", () => {
       const dialog = container.querySelector('[role="dialog"]')
       if (dialog) {
         const withinDialog = within(dialog as HTMLElement)
-        expect(withinDialog.queryByText("Add New Project")).toBeDefined()
+        expect(withinDialog.queryByText("Add Project")).toBeDefined()
       }
     })
   })
@@ -175,12 +212,20 @@ describe("ProjectList Component", () => {
       if (dialog) {
         const withinDialog = within(dialog as HTMLElement)
 
-        // Fill form
-        const pathInput = withinDialog.getByPlaceholderText("/path/to/your/project")
-        await userEvent.type(pathInput, "/test/project/path")
+        // Open the directory combobox
+        const combo = withinDialog.getByRole("button", { name: /search or select directories/i })
+        await userEvent.click(combo)
+
+        // Type to search and pick a directory
+        const searchInput = withinDialog.getByPlaceholderText("Type to search (e.g. 'dev', 'projects')...")
+        await userEvent.type(searchInput, "projects")
+
+        // Select the "projects" directory from results
+        const option = await withinDialog.findByText("projects")
+        await userEvent.click(option)
 
         // Submit
-        const createButton = withinDialog.getByRole("button", { name: /create/i })
+        const createButton = withinDialog.getByRole("button", { name: /add project/i })
         await userEvent.click(createButton)
 
         expect(mockCreateProject).toHaveBeenCalled()
@@ -188,7 +233,7 @@ describe("ProjectList Component", () => {
     })
   })
 
-  test("uses directory picker for project path", async () => {
+  test("shows directory combobox for project path", async () => {
     const { getByRole, container } = render(
       <TestWrapper>
         <ProjectList />
@@ -202,10 +247,8 @@ describe("ProjectList Component", () => {
       const dialog = container.querySelector('[role="dialog"]')
       if (dialog) {
         const withinDialog = within(dialog as HTMLElement)
-        const browseButton = withinDialog.queryByRole("button", { name: /browse/i })
-        if (browseButton) {
-          expect(browseButton).toBeDefined()
-        }
+        const combobox = withinDialog.getByRole("button", { name: /search or select directories/i })
+        expect(combobox).toBeDefined()
       }
     })
   })
@@ -340,4 +383,3 @@ describe("ProjectList Component", () => {
     }
   })
 })
-import React from "react"

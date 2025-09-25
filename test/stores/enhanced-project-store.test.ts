@@ -71,7 +71,7 @@ describe("Enhanced Projects Store", () => {
     mockCreateProject.mockResolvedValue(TestDataFactory.createProject())
     mockUpdateProject.mockResolvedValue(TestDataFactory.createProject())
     mockRemoveProject.mockResolvedValue(true)
-    mockStartInstance.mockResolvedValue({ id: "instance-1", port: 3001, status: "running", startedAt: new Date() })
+    mockStartInstance.mockResolvedValue({ id: "instance-1", port: 3099, status: "running", startedAt: new Date() })
     mockStopInstance.mockResolvedValue(true)
     mockGetInstanceStatus.mockResolvedValue(null)
   })
@@ -175,7 +175,7 @@ describe("Enhanced Projects Store", () => {
 
     test("instance operations update project state", async () => {
       const project = TestDataFactory.createProject({ id: "instance-test" })
-      const instance = { id: "inst-1", port: 3001, status: "running" as const, startedAt: new Date() }
+      const instance = { id: "inst-1", port: 3099, status: "running" as const, startedAt: new Date() }
 
       useProjectsStore.setState({ projects: [project] })
       mockStartInstance.mockResolvedValue(instance)
@@ -191,7 +191,7 @@ describe("Enhanced Projects Store", () => {
     test("batch operations work correctly", async () => {
       const runningProject = TestDataFactory.createProject({
         id: "running",
-        instance: { id: "inst-1", port: 3001, status: "running", startedAt: new Date() },
+        instance: { id: "inst-1", port: 3099, status: "running", startedAt: new Date() },
       })
       const stoppedProject = TestDataFactory.createProject({ id: "stopped" })
 
@@ -208,7 +208,7 @@ describe("Enhanced Projects Store", () => {
     test("running projects selector logic works correctly", () => {
       const runningProject1 = TestDataFactory.createProject({
         id: "running1",
-        instance: { id: "inst-1", port: 3001, status: "running", startedAt: new Date() },
+        instance: { id: "inst-1", port: 3099, status: "running", startedAt: new Date() },
       })
       const runningProject2 = TestDataFactory.createProject({
         id: "running2",
@@ -406,7 +406,7 @@ describe("Enhanced Projects Store", () => {
       const op2 = useProjectsStore.getState().startInstance("concurrent-test")
 
       // Resolve first operation
-      resolveFirst!({ id: "inst-1", port: 3001, status: "running", startedAt: new Date() })
+      resolveFirst!({ id: "inst-1", port: 3099, status: "running", startedAt: new Date() })
 
       await Promise.all([op1, op2])
 
@@ -564,7 +564,7 @@ describe("Enhanced Projects Store", () => {
       useProjectsStore.setState({ projects })
 
       mockGetInstanceStatus
-        .mockResolvedValueOnce({ id: "inst-1", port: 3001, status: "running", startedAt: new Date() })
+        .mockResolvedValueOnce({ id: "inst-1", port: 3099, status: "running", startedAt: new Date() })
         .mockRejectedValueOnce(new Error("Status check failed"))
 
       await useProjectsStore.getState().refreshAllInstanceStatuses()

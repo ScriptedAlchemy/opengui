@@ -6,12 +6,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
-
+data
 node_modules
 dist
 dist-ssr
 *.local
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -33,6 +32,10 @@ server-dist/
 test-results/
 playwright-report/
 test/e2e/screenshots/*.png
-
+ign
+.cache
+.claude
 *.backup.ts
 *-fix.ts
+e2e-report.json
+repomix-output.xml
