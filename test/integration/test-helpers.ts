@@ -1,5 +1,7 @@
 import { createOpencodeServer } from "@opencode-ai/sdk"
 import { spawnProcess, spawnAdvanced, sleep, file, serve } from "../utils/node-utils"
+import { dirname, join, resolve } from "path"
+import { fileURLToPath } from "url"
 import type { Readable } from "stream"
 
 type SpawnedProcess = ReturnType<typeof spawnAdvanced>
@@ -30,9 +32,13 @@ process.on("beforeExit", async () => {
 // Optimized server creation using Bun's advanced spawn features
 export async function createTestServer(): Promise<TestServer> {
   // Create temp directory using Node.js fs operations
-  const tempDir = (await file.exists(import.meta.dir))
-    ? `${import.meta.dir}/../../../tmp/opencode-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    : `/tmp/opencode-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const here = dirname(fileURLToPath(import.meta.url))
+  const uniqueSuffix = `opencode-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  const repoRoot = resolve(here, '../../..')
+  const repoTempRoot = join(repoRoot, "tmp")
+  const systemTempRoot = "/tmp"
+  const tempRoot = (await file.exists(repoRoot)) ? repoTempRoot : systemTempRoot
+  const tempDir = join(tempRoot, uniqueSuffix)
 
   await spawnProcess(["mkdir", "-p", tempDir])
   console.log(`Created temp directory: ${tempDir}`)
@@ -49,7 +55,6 @@ export async function createTestServer(): Promise<TestServer> {
   // Prefer starting the OpenCode server using the SDK to avoid external CLI dependency
   try {
     const sdkServer = await createOpencodeServer({ port: 0, hostname: "127.0.0.1" })
-    const baseUrl = sdkServer.url
 
     // Quick readiness check (SDK resolves when listening)
     // Prepare cleanup
@@ -143,7 +148,7 @@ export async function createTestServer(): Promise<TestServer> {
       stderrMonitor?.cancel()
 
       // Graceful shutdown with timeout
-      if (serverProcess && serverProcess.exitCode === null) {
+      if (serverProcess) {
         console.log("Sending SIGTERM to server process")
         serverProcess.kill("SIGTERM")
 
