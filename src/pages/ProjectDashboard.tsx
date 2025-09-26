@@ -548,7 +548,7 @@ export default function ProjectDashboard() {
                     </SelectContent>
                   </Select>
                 </div>
-                <p className="text-muted-foreground mt-1 text-sm">{currentProject.path}</p>
+                <p className="text-muted-foreground mt-1 text-sm">{activeWorktreePath}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">

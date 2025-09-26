@@ -99,6 +99,8 @@ export default defineConfig({
       // Keep E2E-created projects isolated from user data
       OPENCODE_CONFIG_DIR: e2eConfigDir,
       OPENCODE_TEST_MODE: "1",
+      // Force backend-url endpoint to be available for SDK clients
+      OPENCODE_API_URL: "http://127.0.0.1:0",
     },
   },
 })

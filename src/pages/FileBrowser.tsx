@@ -566,7 +566,7 @@ export default function FileBrowser() {
         await fileApi.write({ body: { path, content }, query: { directory: resolvedPath } })
         return
       }
-      const session = await client.session.create()
+      const session = await client.session.create({ query: { directory: resolvedPath } })
       if (!session.data) throw new Error("Failed to create session")
       await client.session.prompt({
         path: { id: session.data.id },
@@ -589,7 +589,7 @@ export default function FileBrowser() {
         await fileApi.rename({ body: { oldPath, newPath }, query: { directory: resolvedPath } })
         return
       }
-      const session = await client.session.create()
+      const session = await client.session.create({ query: { directory: resolvedPath } })
       if (!session.data) throw new Error("Failed to create session")
       await client.session.prompt({
         path: { id: session.data.id },
@@ -608,7 +608,7 @@ export default function FileBrowser() {
         await fileApi.delete({ query: { path, directory: resolvedPath } })
         return
       }
-      const session = await client.session.create()
+      const session = await client.session.create({ query: { directory: resolvedPath } })
       if (!session.data) throw new Error("Failed to create session")
       await client.session.prompt({
         path: { id: session.data.id },
