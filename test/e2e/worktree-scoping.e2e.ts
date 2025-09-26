@@ -28,8 +28,9 @@ test.describe("Worktree-scoped dashboard", () => {
     await expect(page.locator('[data-testid="git-status-section"]')).toContainText("main")
 
     // Switch to feature worktree
-    const openButton = page.locator('[data-testid="worktrees-section"] button:has-text("Open")').nth(1)
-    await openButton.click()
+    const openFeature = page.locator('[data-testid="worktree-open-feature"]')
+    await openFeature.waitFor({ state: 'visible' })
+    await openFeature.click()
 
     // Counts and branch update
     await page.waitForURL(`**/projects/${projectId}/feature`)

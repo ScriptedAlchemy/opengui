@@ -630,6 +630,7 @@ export default function ProjectDashboard() {
                     return (
                       <div
                         key={worktree.id}
+                        data-testid={`worktree-row-${worktree.id}`}
                         className="flex flex-col gap-3 rounded-lg border p-4 md:flex-row md:items-center md:justify-between"
                       >
                         <div className="min-w-0 space-y-1">
@@ -651,6 +652,7 @@ export default function ProjectDashboard() {
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
+                            data-testid={`worktree-open-${worktree.id}`}
                             variant={isActive ? "secondary" : "outline"}
                             size="sm"
                             onClick={() => handleSelectWorktree(worktree.id)}
