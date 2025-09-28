@@ -128,4 +128,66 @@ describe("useSessionsStore worktree scoping", () => {
     await deleteSession("test-project", "/project", target.id)
     expect(deleteCalls[0]).toEqual(expect.objectContaining({ id: target.id, directory: "/project" }))
   })
+
+  test("filters out non-matching directory sessions when backend returns mixed data", async () => {
+    const { loadSessions } = useSessionsStore.getState()
+
+    // Override the mock list() to always return a mixed set regardless of query
+    const now = Math.floor(Date.now() / 1000)
+    const mixed = [
+      {
+        id: "d1",
+        title: "Default A",
+        projectID: "test-project",
+        directory: "/project",
+        version: "1",
+        time: { created: now - 200, updated: now - 100 },
+      },
+      {
+        id: "f1",
+        title: "Feature A",
+        projectID: "test-project",
+        directory: "/project-feature",
+        version: "1",
+        time: { created: now - 150, updated: now - 90 },
+      },
+      {
+        id: "d2",
+        title: "Default B",
+        projectID: "test-project",
+        directory: "/project",
+        version: "1",
+        time: { created: now - 120, updated: now - 80 },
+      },
+    ]
+
+    // Rewire the mocked client function (the module mock shares this reference)
+    const sdkMod = require("../../src/services/opencode-sdk-service")
+    const client = await sdkMod.opencodeSDKService.getClient()
+    const originalList = client.session.list
+    client.session.list = ({ query }: { query: { directory?: string } }) => {
+      listCalls.push({ directory: query?.directory })
+      return Promise.resolve({ data: mixed })
+    }
+
+    try {
+      // Load sessions for feature path; store should filter to only feature entries
+      await loadSessions("test-project", "/project-feature")
+      let state = useSessionsStore.getState()
+      const kFeature = sessionKeyForProjectPath("test-project", "/project-feature")
+      expect(state.sessions.get(kFeature)?.map((s: any) => s.id)).toEqual(["f1"]) // only feature
+
+      // Load default and ensure its list contains only default entries
+      await loadSessions("test-project", "/project")
+      state = useSessionsStore.getState()
+      const kDefault = sessionKeyForProjectPath("test-project", "/project")
+      expect(state.sessions.get(kDefault)?.map((s: any) => s.id).sort()).toEqual(["d1", "d2"]) // only default
+
+      // Aggregated key should include both sets
+      expect(state.sessions.get("test-project")?.length).toBe(3)
+    } finally {
+      // Restore original to avoid side-effects on other tests
+      client.session.list = originalList
+    }
+  })
 })

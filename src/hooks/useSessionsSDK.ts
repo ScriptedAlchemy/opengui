@@ -112,7 +112,21 @@ export function useSessionsSDK(
         }
 
         // Use SDK Session type directly (SessionInfo is an alias for Session)
-        const sessionsData: SessionInfo[] = response.data
+        let sessionsData: SessionInfo[] = response.data
+        // Defensive filtering: if the backend returns sessions from multiple directories,
+        // keep only those matching the requested projectPath (worktree directory).
+        const normalize = (v?: string) => (v ? v.trim().replace(/\\/g, "/").replace(/\/+$/, "") : "")
+        const requested = normalize(projectPath)
+        if (requested && Array.isArray(sessionsData) && sessionsData.length > 0) {
+          const distinct = new Set(
+            sessionsData
+              .map((s) => normalize((s as Partial<SessionInfo>).directory as string | undefined))
+              .filter((d) => d)
+          )
+          if (distinct.size > 1) {
+            sessionsData = sessionsData.filter((s) => normalize((s as Partial<SessionInfo>).directory as string | undefined) === requested)
+          }
+        }
 
         setSessions(sessionsData)
 

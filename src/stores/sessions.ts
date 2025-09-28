@@ -92,7 +92,27 @@ export const useSessionsStore = create<SessionsState>()(
         const sdk = await getSDKService()
         const client = await sdk.getClient(projectId, projectPath)
         const response = await client.session.list({ query: { directory: projectPath } })
-        const sessions = response.data || []
+        let sessions = response.data || []
+        // Defensive filtering: some backends may ignore the directory filter.
+        // Ensure we only keep sessions that match the requested directory path.
+        const normalizedRequested = normalizeWorktreePath(projectPath)
+        if (normalizedRequested && sessions.length > 0) {
+          // Only filter if server appears to be returning mixed directories.
+          const distinctDirs = new Set(
+            sessions
+              .map((s) => (s as Partial<Session>).directory as string | undefined)
+              .filter((d): d is string => Boolean(d))
+              .map((d) => normalizeWorktreePath(d))
+          )
+          if (distinctDirs.size > 1) {
+            sessions = sessions.filter((s) => {
+              const dir = (s as Partial<Session>).directory as string | undefined
+              if (!dir) return true // older servers may omit directory; keep entries to avoid empty UI
+              const normalized = normalizeWorktreePath(dir)
+              return normalized === normalizedRequested
+            })
+          }
+        }
         const key = makeSessionKey(projectId, projectPath)
 
         set((state) => {
