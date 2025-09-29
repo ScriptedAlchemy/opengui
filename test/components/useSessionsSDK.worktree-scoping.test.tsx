@@ -1,7 +1,6 @@
 import { describe, test, beforeEach, afterAll, expect, rstest } from "@rstest/core"
 import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Routes, Route } from "react-router-dom"
-import React from "react"
 import { useSessionsSDK } from "@/hooks/useSessionsSDK"
 import { OpencodeSDKProvider } from "@/contexts/OpencodeSDKContext"
 import { opencodeSDKService } from "@/services/opencode-sdk-service"

@@ -242,7 +242,7 @@ const EmptyState: React.FC<{ onCreateSession: () => void }> = ({ onCreateSession
     <MessageSquare className="text-muted-foreground mb-4 h-16 w-16" />
     <h3 className="text-foreground mb-2 text-xl font-semibold">No sessions yet</h3>
     <p className="text-muted-foreground mb-6 max-w-md">
-      Start your first conversation with OpenCode. Create a new session to begin chatting with AI
+      Start your first conversation with cli manager. Create a new session to begin chatting with AI
       about your project.
     </p>
     <Button onClick={onCreateSession} variant="default">

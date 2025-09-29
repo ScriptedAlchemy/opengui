@@ -15,7 +15,7 @@ export function SiteHeader() {
     if (path.includes("/files")) return "File Browser"
     if (path.includes("/settings")) return "Settings"
     if (projectId) return "Project Dashboard"
-    return "OpenCode"
+    return "cli manager"
   }
 
   return (

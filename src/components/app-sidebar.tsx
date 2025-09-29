@@ -171,7 +171,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             >
               <a href="#">
                 <ZapIcon className="h-5 w-5" />
-                <span className="text-base font-semibold">OpenCode</span>
+                <span className="text-base font-semibold">cli manager</span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
