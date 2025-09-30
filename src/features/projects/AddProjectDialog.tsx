@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import {
   Dialog,
   DialogContent,
@@ -36,7 +36,13 @@ export function AddProjectDialog({
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState("")
   const [nameEdited, setNameEdited] = useState(false)
-  const [pathEdited, setPathEdited] = useState(false)
+  // Track if user manually edited the path (used for UX; not gating submit)
+  const pathEdited = useRef<boolean>(false)
+  // Backwards compatibility setter for previous code paths
+  const setPathEdited = (v: boolean) => {
+    pathEdited.current = v
+  }
+  const pathEditedRef = useRef(false)
 
   // Fallback project name from path
   const fallbackProjectName = useMemo(() => {
@@ -101,29 +107,7 @@ export function AddProjectDialog({
     }
   }, [open, path, nameEdited, fallbackProjectName])
 
-  // Load home directory as default when dialog opens
-  useEffect(() => {
-    if (!open || pathEdited) return
-
-    let cancelled = false
-    const controller = new AbortController()
-
-    fetch("/api/system/home", { signal: controller.signal })
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled && typeof data?.path === "string" && !pathEdited) {
-          setPath(data.path)
-        }
-      })
-      .catch(() => {
-        // Ignore error, user can still type path manually
-      })
-
-    return () => {
-      cancelled = true
-      controller.abort()
-    }
-  }, [open, pathEdited])
+  // No default path; user must choose/enter a directory
 
   // Reset form when dialog closes
   useEffect(() => {
@@ -133,6 +117,7 @@ export function AddProjectDialog({
       setError("")
       setNameEdited(false)
       setPathEdited(false)
+      pathEditedRef.current = false
       setIsAdding(false)
     }
   }, [open])
@@ -193,6 +178,7 @@ export function AddProjectDialog({
               onValueChange={(newPath) => {
                 setPath(newPath)
                 setPathEdited(true)
+                pathEditedRef.current = true
                 setError("")
               }}
               placeholder="Select a directory..."
@@ -235,7 +221,7 @@ export function AddProjectDialog({
           </Button>
           <Button
             onClick={() => void handleAdd()}
-            disabled={!pathEdited || !path.trim() || !name.trim() || isAdding}
+            disabled={!path.trim() || !name.trim() || isAdding}
           >
             {isAdding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isAdding ? "Adding..." : "Add Project"}

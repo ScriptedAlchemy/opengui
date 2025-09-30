@@ -711,12 +711,14 @@ export function addIntegratedProjectRoutes(app: Hono) {
           // Use the imported projectManager directly
 
           try {
-            log.info("Adding project", { path, name })
+            log.info("add-project:start", { path, name })
             const project = await projectManager.addProject(path, name)
             // Return bare project object
+            log.info("add-project:ok", { id: project.id })
             return c.json(project)
           } catch (error) {
             log.error("Failed to add project:", error)
+            log.warn("add-project:error", { error: String(error) })
             return c.json(
               { error: error instanceof Error ? error.message : "Failed to add project" },
               400

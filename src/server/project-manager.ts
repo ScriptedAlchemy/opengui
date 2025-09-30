@@ -1,6 +1,5 @@
 import { Log } from "../util/log"
-import { execFile } from "child_process"
-import { promisify } from "util"
+// removed expensive git helpers from hot path
 import * as fs from "fs/promises"
 import * as crypto from "crypto"
 import * as path from "node:path"
@@ -227,57 +226,16 @@ export class ProjectManager {
   }
 
   async getGitProjectId(projectPath: string): Promise<string> {
-    // Resolve path - if relative, make it absolute from cwd
+    // Stable ID derived from normalized absolute path (no external processes)
     const resolvedPath = projectPath.startsWith("/")
       ? projectPath
       : `${process.cwd()}/${projectPath}`
-
-    // Try to find git root and get initial commit hash
-    const gitRoot = await this.findGitRoot(resolvedPath)
-    if (gitRoot) {
-      const commitHash = await this.getInitialCommitHash(gitRoot)
-      if (commitHash) {
-        return commitHash
-      }
-    }
-
-    // Fallback to path hash
     const hash = crypto.createHash("sha256")
     hash.update(resolvedPath)
     return hash.digest("hex").substring(0, 16)
   }
 
-  private async findGitRoot(startPath: string): Promise<string | null> {
-    try {
-      const execFileAsync = promisify(execFile)
-      const { stdout } = await execFileAsync("git", [
-        "-C",
-        startPath,
-        "rev-parse",
-        "--show-toplevel",
-      ])
-      return stdout.toString().trim()
-    } catch {
-      return null
-    }
-  }
-
-  private async getInitialCommitHash(gitRoot: string): Promise<string | null> {
-    try {
-      const execFileAsync = promisify(execFile)
-      const { stdout } = await execFileAsync("git", [
-        "-C",
-        gitRoot,
-        "rev-list",
-        "--max-parents=0",
-        "HEAD",
-      ])
-      const hash = stdout.toString().trim().split("\n")[0]
-      return hash ? hash.substring(0, 16) : null
-    } catch {
-      return null
-    }
-  }
+  // Git helpers removed from hot path; re-introduce if needed.
 
   async addProject(projectPath: string, name?: string): Promise<ProjectInfo> {
     if (!path.isAbsolute(projectPath)) {
@@ -328,17 +286,14 @@ export class ProjectManager {
       return existing.info
     }
 
-    const gitRoot = await this.findGitRoot(normalizedPath)
-    const commitHash = gitRoot ? await this.getInitialCommitHash(gitRoot) : undefined
-
     const projectInfo: ProjectInfo = {
       id: projectId,
       name: name || normalizedPath.split("/").pop() || "Unknown Project",
       path: normalizedPath,
       status: "running", // SDK mode - projects are always ready
       lastAccessed: Date.now(),
-      gitRoot: gitRoot || undefined,
-      commitHash: commitHash || undefined,
+      gitRoot: undefined,
+      commitHash: undefined,
       worktrees: [
         {
           id: "default",

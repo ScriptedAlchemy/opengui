@@ -7,6 +7,7 @@ import fs from "node:fs/promises"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import type { WebSocket, RawData } from "ws"
+import { Log } from "../util/log"
 
 const execFileAsync = promisify(execFile)
 
@@ -58,6 +59,7 @@ const SESSION_IDLE_TIMEOUT = 60 * 60 * 1000 // 1 hour
 export class CliSessionManager {
   private sessions = new Map<string, CliSessionRecord>()
   private idleCheckInterval: NodeJS.Timeout | null = null
+  private logger = Log.create({ service: "cli-session-manager" })
 
   private tools: Record<CliToolId, CliToolConfig> = {
     codex: {
@@ -133,15 +135,10 @@ export class CliSessionManager {
   }
 
   private log(level: "info" | "warn" | "error", message: string, meta?: Record<string, unknown>): void {
-    const timestamp = new Date().toISOString()
-    const logEntry = {
-      timestamp,
-      level,
-      service: "cli-session-manager",
-      message,
-      ...meta,
-    }
-    console.log(JSON.stringify(logEntry))
+    // Delegate to centralized logger (respects LOG_LEVEL and NODE_ENV)
+    if (level === "info") this.logger.info(message, meta)
+    else if (level === "warn") this.logger.warn(message, meta)
+    else this.logger.error(message, meta)
   }
 
   listSessions(): CliSessionInfo[] {
@@ -277,7 +274,7 @@ export class CliSessionManager {
           this.resize(sessionId, parsed.cols, parsed.rows)
         }
       } catch (error) {
-        console.warn("Invalid CLI session message", error)
+        this.log("warn", "Invalid CLI session message", { error: String(error) })
       }
     }
 
@@ -338,7 +335,7 @@ export class CliSessionManager {
       try {
         socket.send(message)
       } catch (error) {
-        console.warn("Failed sending CLI payload", error)
+        this.log("warn", "Failed sending CLI payload", { error: String(error) })
       }
     }
   }

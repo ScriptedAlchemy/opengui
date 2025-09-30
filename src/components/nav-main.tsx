@@ -62,10 +62,7 @@ export function NavMain({
                   }
                   tooltip={item.title}
                   isActive={isActive}
-                  onClick={() => {
-                    console.log("navigation to", item)
-                    return navigate(item.url)
-                  }}
+                  onClick={() => navigate(item.url)}
                 >
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>

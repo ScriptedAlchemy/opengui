@@ -112,6 +112,16 @@ export function createServer(config: ServerConfig = {}) {
   // Create a sub-app for API routes to ensure they're handled first
   const apiApp = new Hono()
 
+  // Optional request logger (enable by setting AGENT_ORANGE_REQUEST_LOG=1)
+  apiApp.use("*", async (c, next) => {
+    if (process.env["AGENT_ORANGE_REQUEST_LOG"] === "1") {
+      try {
+        console.log(JSON.stringify({ service: "api", method: c.req.method, path: c.req.path }))
+      } catch {}
+    }
+    await next()
+  })
+
   // Health check endpoint
   apiApp.get("/api/health", async (c) => {
     const sessions = cliSessionManager.listSessions()
@@ -163,12 +173,12 @@ export function createServer(config: ServerConfig = {}) {
   // Serve static assets with Node.js static file serving
   // Only if the directory exists (to avoid warnings in tests)
   if (staticDirExists) {
-    // Per @hono/node-server docs, `root` must be relative to process.cwd().
-    // Our server runs from `server-dist`, so default `staticDir` of "./web-dist" is correct.
+    // Ensure serve-static root points to the built web assets from the current cwd
+    const staticRoot = path.relative(process.cwd(), resolvedStaticDir) || "."
     app.use(
       "/*",
       serveStatic({
-        root: staticDir,
+        root: staticRoot,
         rewriteRequestPath: (path) => {
           if (path === "/") return "/index.html"
           return path
