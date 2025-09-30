@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
@@ -65,15 +66,24 @@ export function CreateSessionDialog({
 
     setIsCreating(true)
     try {
-      await onCreateSession({
+      const result = await onCreateSession({
         projectId,
         worktreeId,
         tool,
         title: title || undefined,
       })
-      onOpenChange(false)
+      if (result) {
+        onOpenChange(false)
+      } else {
+        toast.error("Failed to create session", {
+          description: "The server did not create a session. Check logs and try again.",
+        })
+      }
     } catch (error) {
       console.error("Failed to create session:", error)
+      toast.error("Failed to create session", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      })
     } finally {
       setIsCreating(false)
     }
