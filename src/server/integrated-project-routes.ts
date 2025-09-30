@@ -1,24 +1,15 @@
 /**
  * Integrated Project Routes
  *
- * This module provides project management routes for the OpenCode app.
- * The server manages project metadata and provides the backend URL to clients.
- * Clients connect directly to the OpenCode backend using the SDK.
+ * This module provides project/worktree management and GitHub helper routes
+ * for the Operator Hub application.
  */
 
 import { Hono } from "hono"
-import { describeRoute } from "hono-openapi"
-import { resolver, validator as zValidator } from "hono-openapi/zod"
+import { zValidator } from "@hono/zod-validator"
 import { z } from "zod"
 import { projectManager } from "./project-manager"
-import {
-  ProjectInfoSchema,
-  ProjectCreateSchema,
-  ProjectUpdateSchema,
-  DirectoryListingSchema,
-  HomeDirectorySchema,
-} from "./project-schemas"
-import { ERRORS } from "./shared-schemas"
+import { ProjectCreateSchema, ProjectUpdateSchema } from "./project-schemas"
 import { Log } from "../util/log"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
@@ -35,31 +26,15 @@ import {
 
 const log = Log.create({ service: "integrated-project-routes" })
 
-// In-memory agent store per project
-// This keeps agents ephemeral for each project during server lifetime
-// It satisfies Agent Management e2e without persisting to disk
-type AgentRecord = {
-  id: string
-  name: string
-  description?: string
-  temperature?: number
-  maxTokens?: number
-  systemPrompt?: string
-  tools: string[]
-  model?: string
-  enabled: boolean
-  isTemplate?: boolean
-  createdAt: number
-}
-
-const agentsStore = new Map<string, Map<string, AgentRecord>>()
 const execFileAsync = promisify(execFile)
 
 const normalizePath = (value: string) =>
   nodePath.resolve(value).replace(/\\/g, "/").replace(/\/+$/, "")
 
 const HOME_DIRECTORY = normalizePath(process.env["HOME"] || nodeOs.homedir())
+const TMP_DIRECTORY = normalizePath(nodeOs.tmpdir())
 const DIRECTORY_ENTRY_LIMIT = 200
+
 
 const GitHubRepoSchema = z.object({
   owner: z.string().min(1, "Repository owner is required"),
@@ -129,13 +104,7 @@ const GitHubPullStatusRequestSchema = z.object({
   repo: GitHubRepoSchema,
 })
 
-const PullRequestStatusResponseSchema = z.object({
-  sha: z.string(),
-  overallState: z.enum(["success", "pending", "failure", "error"]),
-  combinedStatus: z.unknown().optional(),
-  checkRuns: z.unknown().optional(),
-  checkSuites: z.unknown().optional(),
-})
+// (OpenAPI schemas removed during rewrite)
 
 const formatGitHubError = (error: unknown): string => {
   if (error instanceof GhNotInstalledError) {
@@ -165,28 +134,41 @@ const formatGitHubError = (error: unknown): string => {
   }
 }
 
-const PackageJsonResponseSchema = z.object({
-  path: z.string(),
-  packageJson: z.record(z.unknown()),
-})
+// (OpenAPI schemas removed during rewrite)
 
 /**
- * Resolve a filesystem path to its realpath and ensure it remains within HOME.
- * This prevents symlink escapes (e.g., $HOME/foo -> /etc) and enforces an
- * absolute, normalized path for subsequent operations.
+ * Resolve a filesystem path to its realpath and ensure it remains within the
+ * allowed sandbox: the user's HOME directory or the system tmp directory.
+ * This prevents traversal outside expected roots and avoids symlink escapes.
  */
-const realpathWithinHome = async (inputPath: string): Promise<string> => {
+const realpathWithinAllowed = async (inputPath: string): Promise<string> => {
   const absolute = normalizePath(inputPath)
   const resolved = normalizePath(await nodeFs.realpath(absolute))
-  if (!(resolved === HOME_DIRECTORY || resolved.startsWith(`${HOME_DIRECTORY}/`))) {
-    throw Object.assign(new Error("Path must be within the home directory"), { status: 400 })
+
+  const tmpReal = await (async () => {
+    try {
+      return normalizePath(await nodeFs.realpath(TMP_DIRECTORY))
+    } catch {
+      return TMP_DIRECTORY
+    }
+  })()
+
+  const within =
+    resolved === HOME_DIRECTORY ||
+    resolved.startsWith(`${HOME_DIRECTORY}/`) ||
+    resolved === TMP_DIRECTORY ||
+    resolved.startsWith(`${TMP_DIRECTORY}/`) ||
+    resolved === tmpReal ||
+    resolved.startsWith(`${tmpReal}/`)
+
+  if (!within) {
+    const err = new Error("Path must be within the home or temp directory") as Error & {
+      status?: number
+    }
+    err.status = 400
+    throw err
   }
   return resolved
-}
-
-const getAgentStoreKey = (projectId: string, worktreePath?: string) => {
-  if (!worktreePath) return `${projectId}::default`
-  return `${projectId}::${normalizePath(worktreePath)}`
 }
 
 const resolveProjectRecord = (id: string) => {
@@ -269,11 +251,7 @@ const createEmptyGitStatus = (): GitStatusPayload => ({
   recentCommits: [],
 })
 
-const GitFileSchema = z.object({
-  path: z.string(),
-  status: z.string(),
-  staged: z.boolean(),
-})
+// (OpenAPI schemas removed during rewrite)
 
 const parseGitStatusOutput = (output: string) => {
   const lines = output
@@ -479,7 +457,9 @@ const buildWorktreeResponses = async (projectId: string): Promise<WorktreeRespon
   }
   const metadataList = projectManager.getWorktrees(projectId)
 
-  const responses = parsed.map((entry) => {
+  const responses: WorktreeResponse[] = []
+
+  for (const entry of parsed) {
     const metadata =
       metadataList.find((candidate) => normalizePath(candidate.path) === entry.path) ||
       projectManager.ensureWorktreeMetadata(
@@ -511,19 +491,36 @@ const buildWorktreeResponses = async (projectId: string): Promise<WorktreeRespon
       }
     }
 
-    return {
+    // Fix isPrimary detection across platforms by comparing realpaths
+    let effectiveIsPrimary = entry.isPrimary
+    try {
+      const realEntry = normalizePath(await nodeFs.realpath(entry.path))
+      let realProject: string
+      try {
+        realProject = normalizePath(await nodeFs.realpath(project.path))
+      } catch {
+        realProject = normalizePath(project.path)
+      }
+      if (realEntry === realProject) {
+        effectiveIsPrimary = true
+      }
+    } catch {
+      // ignore
+    }
+
+    responses.push({
       id: metadata.id,
       title: metadata.title,
       path: metadata.path,
       relativePath: entry.relativePath,
       branch: entry.branch,
       head: entry.head,
-      isPrimary: entry.isPrimary,
+      isPrimary: effectiveIsPrimary,
       isDetached: entry.isDetached,
       isLocked: entry.isLocked,
       lockReason: entry.lockReason,
-    }
-  })
+    })
+  }
 
   // Clean up orphaned metadata: any non-default worktree not present in git list
   try {
@@ -546,34 +543,12 @@ const buildWorktreeResponses = async (projectId: string): Promise<WorktreeRespon
   return responses
 }
 
-function getProjectAgents(projectId: string, worktreePath?: string) {
-  const key = getAgentStoreKey(projectId, worktreePath)
-  if (!agentsStore.has(key)) {
-    const initial = new Map<string, AgentRecord>()
-    // Seed with a built-in example agent for UX/tests
-    initial.set("claude", {
-      id: "claude",
-      name: "Claude",
-      description: "Built-in assistant",
-      temperature: 0.7,
-      maxTokens: 1000,
-      systemPrompt: "You are Claude, a helpful built-in agent.",
-      tools: [],
-      model: "default",
-      enabled: true,
-      isTemplate: true,
-      createdAt: Date.now(),
-    })
-    agentsStore.set(key, initial)
-  }
-  return agentsStore.get(key)!
-}
 
 /**
  * Adds integrated project management routes to a Hono app instance.
  *
  * This function extends the provided Hono app with project management
- * capabilities that directly bootstrap OpenCode instances.
+ * capabilities used by the Operator Hub UI (projects, worktrees, git, GitHub).
  *
  * @param app - The Hono app instance to extend with integrated project routes
  * @returns The extended Hono app with integrated project routes added
@@ -581,58 +556,10 @@ function getProjectAgents(projectId: string, worktreePath?: string) {
 export function addIntegratedProjectRoutes(app: Hono) {
   return (
     app
-      // GET /api/backend-url - get the OpenCode backend URL for client usage
-      .get(
-        "/api/backend-url",
-        describeRoute({
-          description: "Get base URL for OpenCode API calls",
-          operationId: "backend.url",
-          responses: {
-            200: {
-              description: "Base URL",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      url: z.string(),
-                    })
-                  ),
-                },
-              },
-            },
-            503: {
-              description: "Backend not available",
-            },
-          },
-        }),
-        async (c) => {
-          // Ensure backend has started
-          if (!process.env.OPENCODE_API_URL) {
-            return c.json({ error: "OpenCode backend not available" }, 503)
-          }
-          // Return proxied base path so clients avoid CORS and hit this server
-          return c.json({ url: "/opencode" })
-        }
-      )
 
       // GET /api/projects - list all projects
       .get(
         "/api/system/home",
-        describeRoute({
-          description: "Get the current user's home directory",
-          operationId: "system.home",
-          responses: {
-            200: {
-              description: "Home directory path",
-              content: {
-                "application/json": {
-                  schema: resolver(HomeDirectorySchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         async (c) => {
           return c.json({ path: HOME_DIRECTORY })
         }
@@ -640,21 +567,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
 
       .get(
         "/api/system/package-json",
-        describeRoute({
-          description: "Read a package.json file within the user's home directory",
-          operationId: "system.packageJson",
-          responses: {
-            200: {
-              description: "package.json contents",
-              content: {
-                "application/json": {
-                  schema: resolver(PackageJsonResponseSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "query",
           z.object({
@@ -670,7 +582,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
 
           let packageJsonPath: string
           try {
-            packageJsonPath = await realpathWithinHome(requestedPath)
+            packageJsonPath = await realpathWithinAllowed(requestedPath)
           } catch (e) {
             return c.json({ error: (e as Error).message }, 400)
           }
@@ -693,7 +605,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
 
           // Re-validate after potential directory-to-file resolution
           try {
-            packageJsonPath = await realpathWithinHome(packageJsonPath)
+            packageJsonPath = await realpathWithinAllowed(packageJsonPath)
           } catch (e) {
             return c.json({ error: (e as Error).message }, 400)
           }
@@ -731,21 +643,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
 
       .get(
         "/api/system/list-directory",
-        describeRoute({
-          description: "List directories within the user's home directory",
-          operationId: "system.listDirectory",
-          responses: {
-            200: {
-              description: "Directory listing",
-              content: {
-                "application/json": {
-                  schema: resolver(DirectoryListingSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "query",
           z.object({
@@ -756,7 +653,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
           const { path } = c.req.valid("query")
           let target = path && path.trim() ? path : HOME_DIRECTORY
           try {
-            target = await realpathWithinHome(target)
+            target = await realpathWithinAllowed(target)
           } catch (e) {
             return c.json({ error: (e as Error).message }, 400)
           }
@@ -798,51 +695,16 @@ export function addIntegratedProjectRoutes(app: Hono) {
 
       .get(
         "/api/projects",
-        describeRoute({
-          description: "List all projects",
-          operationId: "projects.list",
-          responses: {
-            200: {
-              description: "List of projects",
-              content: {
-                "application/json": {
-                  schema: resolver(ProjectInfoSchema.array()),
-                },
-              },
-            },
-          },
-        }),
         async (c) => {
           const projects = projectManager.getAllProjects()
-          // Add instance structure for compatibility
-          const projectsWithInstance = projects.map((p) => ({
-            ...p,
-            instance: {
-              status: p.status || "stopped",
-            },
-          }))
-          return c.json(projectsWithInstance)
+          // Return bare array to match client expectations
+          return c.json(projects)
         }
       )
 
       // POST /api/projects - add new project
       .post(
         "/api/projects",
-        describeRoute({
-          description: "Add a new project",
-          operationId: "projects.create",
-          responses: {
-            200: {
-              description: "Successfully created project",
-              content: {
-                "application/json": {
-                  schema: resolver(ProjectInfoSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator("json", ProjectCreateSchema),
         async (c) => {
           const { path, name } = c.req.valid("json")
@@ -850,6 +712,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
 
           try {
             const project = await projectManager.addProject(path, name)
+            // Return bare project object
             return c.json(project)
           } catch (error) {
             log.error("Failed to add project:", error)
@@ -864,21 +727,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       // GET /api/projects/:id - get project details
       .get(
         "/api/projects/:id",
-        describeRoute({
-          description: "Get project details",
-          operationId: "projects.get",
-          responses: {
-            200: {
-              description: "Project details",
-              content: {
-                "application/json": {
-                  schema: resolver(ProjectInfoSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -894,34 +742,13 @@ export function addIntegratedProjectRoutes(app: Hono) {
             return c.json({ error: "Project not found" }, 404)
           }
 
-          // Add instance structure for compatibility
-          return c.json({
-            ...project,
-            instance: {
-              status: project.status || "stopped",
-            },
-          })
+          return c.json(project)
         }
       )
 
       // PATCH /api/projects/:id - update project
       .patch(
         "/api/projects/:id",
-        describeRoute({
-          description: "Update project properties",
-          operationId: "projects.update",
-          responses: {
-            200: {
-              description: "Successfully updated project",
-              content: {
-                "application/json": {
-                  schema: resolver(ProjectInfoSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -962,21 +789,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       // PUT /api/projects/:id - update project (alias)
       .put(
         "/api/projects/:id",
-        describeRoute({
-          description: "Update project properties (alias for PATCH)",
-          operationId: "projects.updateAlias",
-          responses: {
-            200: {
-              description: "Successfully updated project",
-              content: {
-                "application/json": {
-                  schema: resolver(ProjectInfoSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -1017,21 +829,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       // DELETE /api/projects/:id - remove project
       .delete(
         "/api/projects/:id",
-        describeRoute({
-          description: "Remove a project",
-          operationId: "projects.delete",
-          responses: {
-            200: {
-              description: "Successfully removed project",
-              content: {
-                "application/json": {
-                  schema: resolver(z.boolean()),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -1047,7 +844,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
             if (!success) {
               return c.json({ error: "Project not found" }, 404)
             }
-            return c.json(true)
+            return c.json({ success: true })
           } catch (error) {
             log.error("Failed to remove project:", error)
             return c.json(
@@ -1058,202 +855,15 @@ export function addIntegratedProjectRoutes(app: Hono) {
         }
       )
 
-      // POST /api/projects/:id/start - mark project as started (SDK handles actual operations)
-      .post(
-        "/api/projects/:id/start",
-        describeRoute({
-          description: "Mark project as running (no process spawning, SDK-only)",
-          operationId: "projects.start",
-          responses: {
-            200: {
-              description: "Successfully marked as started",
-              content: {
-                "application/json": {
-                  schema: resolver(ProjectInfoSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator(
-          "param",
-          z.object({
-            id: z.string(),
-          })
-        ),
-        async (c) => {
-          const { id } = c.req.valid("param")
-
-          try {
-            const project = projectManager.getProject(id)
-            if (!project) {
-              return c.json({ error: "Project not found" }, 404)
-            }
-
-            // Just mark as running - SDK handles actual operations
-            project.status = "running"
-            project.lastAccessed = Date.now()
-            await projectManager.saveProjects()
-
-            // Return with instance structure for compatibility
-            return c.json({
-              ...project,
-              instance: {
-                status: "running",
-              },
-            })
-          } catch (error) {
-            log.error("Failed to start project:", error)
-            return c.json(
-              { error: error instanceof Error ? error.message : "Failed to start project" },
-              400
-            )
-          }
-        }
-      )
-
-      // POST /api/projects/:id/stop - mark project as stopped (SDK handles actual operations)
-      .post(
-        "/api/projects/:id/stop",
-        describeRoute({
-          description: "Mark project as stopped (no process management, SDK-only)",
-          operationId: "projects.stop",
-          responses: {
-            200: {
-              description: "Successfully marked as stopped",
-              content: {
-                "application/json": {
-                  schema: resolver(ProjectInfoSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator(
-          "param",
-          z.object({
-            id: z.string(),
-          })
-        ),
-        async (c) => {
-          const { id } = c.req.valid("param")
-
-          try {
-            const project = projectManager.getProject(id)
-            if (!project) {
-              return c.json({ error: "Project not found" }, 404)
-            }
-
-            // Just mark as stopped - SDK handles actual operations
-            project.status = "stopped"
-            project.lastAccessed = Date.now()
-            await projectManager.saveProjects()
-
-            // Return with instance structure for compatibility
-            return c.json({
-              ...project,
-              instance: {
-                status: "stopped",
-              },
-            })
-          } catch (error) {
-            log.error("Failed to stop project:", error)
-            return c.json(
-              { error: error instanceof Error ? error.message : "Failed to stop project" },
-              400
-            )
-          }
-        }
-      )
-
-      // GET /api/projects/:id/status - get project status (simplified for SDK)
-      .get(
-        "/api/projects/:id/status",
-        describeRoute({
-          description: "Get project status",
-          operationId: "projects.status",
-          responses: {
-            200: {
-              description: "Project status",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      status: z.enum(["stopped", "running"]),
-                      lastAccessed: z.number().optional(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator(
-          "param",
-          z.object({
-            id: z.string(),
-          })
-        ),
-        async (c) => {
-          const { id } = c.req.valid("param")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-
-          if (!project) {
-            return c.json({ error: "Project not found" }, 404)
-          }
-
-          // Return simplified status for SDK architecture
-          const status = project.status === "running" ? "running" : "stopped"
-
-          return c.json({
-            status,
-            lastAccessed: project.lastAccessed,
-          })
-        }
-      )
-
       // GET /api/projects/:id/worktrees - list git worktrees
       .get(
         "/api/projects/:id/worktrees",
-        describeRoute({
-          description: "List git worktrees for a project",
-          operationId: "projects.worktrees.list",
-          responses: {
-            200: {
-              description: "Worktree list",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.array(
-                      z.object({
-                        id: z.string(),
-                        title: z.string(),
-                        path: z.string(),
-                        relativePath: z.string(),
-                        branch: z.string().optional(),
-                        head: z.string().optional(),
-                        isPrimary: z.boolean(),
-                        isDetached: z.boolean(),
-                        isLocked: z.boolean(),
-                        lockReason: z.string().optional(),
-                      })
-                    )
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator("param", z.object({ id: z.string() })),
         async (c) => {
           const { id } = c.req.valid("param")
           try {
             const worktrees = await buildWorktreeResponses(id)
+            // Return bare array to match client expectations
             return c.json(worktrees)
           } catch (error) {
             log.error("Failed to list worktrees:", error)
@@ -1268,34 +878,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       // POST /api/projects/:id/worktrees - create a new git worktree
       .post(
         "/api/projects/:id/worktrees",
-        describeRoute({
-          description: "Create a git worktree",
-          operationId: "projects.worktrees.create",
-          responses: {
-            201: {
-              description: "Created worktree",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      id: z.string(),
-                      title: z.string(),
-                      path: z.string(),
-                      relativePath: z.string(),
-                      branch: z.string().optional(),
-                      head: z.string().optional(),
-                      isPrimary: z.boolean(),
-                      isDetached: z.boolean(),
-                      isLocked: z.boolean(),
-                      lockReason: z.string().optional(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator("param", z.object({ id: z.string() })),
         zValidator(
           "json",
@@ -1334,20 +916,29 @@ export function addIntegratedProjectRoutes(app: Hono) {
             // Terminate options before path to avoid option-like path segments being parsed
             args.push("--", resolvedPath)
             if (body.createBranch) {
-              const baseRef = body.baseRef || "HEAD"
+              const baseRef = (body.baseRef || "HEAD").trim()
+              if (!baseRef) {
+                return c.json({ error: "Base ref cannot be empty" }, 400)
+              }
               if (baseRef.startsWith("-")) {
                 return c.json({ error: "Invalid base ref" }, 400)
               }
-              // Separate commit-ish with another -- for safety
-              args.push("--", baseRef)
+              args.push(baseRef)
             } else if (body.branch) {
-              if (body.branch.startsWith("-")) {
+              const branchRef = body.branch.trim()
+              if (!branchRef) {
+                return c.json({ error: "Branch name cannot be empty" }, 400)
+              }
+              if (branchRef.startsWith("-")) {
                 return c.json({ error: "Invalid branch name" }, 400)
               }
-              args.push("--", body.branch)
+              args.push(branchRef)
             }
 
             await execFileAsync("git", args, { cwd: project.path })
+
+            // Wait briefly for filesystem to settle
+            await new Promise(resolve => setTimeout(resolve, 100))
 
             const metadata = projectManager.ensureWorktreeMetadata(id, resolvedPath, body.title)
             if (!metadata) {
@@ -1357,9 +948,31 @@ export function addIntegratedProjectRoutes(app: Hono) {
             await projectManager.saveProjects()
 
             const worktrees = await buildWorktreeResponses(id)
-            const created = worktrees.find((worktree) => worktree.id === metadata.id)
+            // Compare by normalized path and realpath to avoid macOS /var ↔ /private/var mismatches
+            const normalizedTarget = normalizePath(resolvedPath)
+            let realTarget: string | null = null
+            try {
+              realTarget = normalizePath(await nodeFs.realpath(resolvedPath))
+            } catch {
+              // ignore if not resolvable yet
+            }
+            const candidates = await Promise.all(
+              worktrees.map(async (w) => {
+                const norm = normalizePath(w.path)
+                let real: string | null = null
+                try {
+                  real = normalizePath(await nodeFs.realpath(w.path))
+                } catch {
+                  // ignore
+                }
+                return { w, norm, real }
+              })
+            )
+            const created = candidates.find((c) =>
+              c.norm === normalizedTarget || (realTarget && c.real === realTarget)
+            )?.w
             if (!created) {
-              throw new Error("Unable to locate created worktree")
+              throw new Error(`Unable to locate created worktree at ${normalizedTarget}`)
             }
             return c.json(created, 201)
           } catch (error) {
@@ -1375,34 +988,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       // PATCH /api/projects/:id/worktrees/:worktreeId - update metadata
       .patch(
         "/api/projects/:id/worktrees/:worktreeId",
-        describeRoute({
-          description: "Update worktree metadata",
-          operationId: "projects.worktrees.update",
-          responses: {
-            200: {
-              description: "Updated worktree",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      id: z.string(),
-                      title: z.string(),
-                      path: z.string(),
-                      relativePath: z.string(),
-                      branch: z.string().optional(),
-                      head: z.string().optional(),
-                      isPrimary: z.boolean(),
-                      isDetached: z.boolean(),
-                      isLocked: z.boolean(),
-                      lockReason: z.string().optional(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator("param", z.object({ id: z.string(), worktreeId: z.string() })),
         zValidator("json", z.object({ title: z.string().min(1) })),
         async (c) => {
@@ -1430,21 +1015,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       // DELETE /api/projects/:id/worktrees/:worktreeId - remove worktree
       .delete(
         "/api/projects/:id/worktrees/:worktreeId",
-        describeRoute({
-          description: "Remove a git worktree",
-          operationId: "projects.worktrees.delete",
-          responses: {
-            200: {
-              description: "Removal result",
-              content: {
-                "application/json": {
-                  schema: resolver(z.object({ success: z.boolean() })),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator("param", z.object({ id: z.string(), worktreeId: z.string() })),
         zValidator("query", z.object({ force: z.coerce.boolean().optional() })),
         async (c) => {
@@ -1485,520 +1055,10 @@ export function addIntegratedProjectRoutes(app: Hono) {
         }
       )
 
-      // GET /api/projects/:id/resources - get minimal resource info (SDK handles actual resources)
-      .get(
-        "/api/projects/:id/resources",
-        describeRoute({
-          description: "Get minimal resource information",
-          operationId: "projects.resources",
-          responses: {
-            200: {
-              description: "Minimal resource information",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      memory: z.object({
-                        used: z.number(),
-                        total: z.number(),
-                      }),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator(
-          "param",
-          z.object({
-            id: z.string(),
-          })
-        ),
-        zValidator(
-          "query",
-          z.object({
-            worktree: z.string().optional(),
-          })
-        ),
-        async (c) => {
-          const { id } = c.req.valid("param")
-          const { worktree } = c.req.valid("query")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
+      // (Removed legacy resource/activity stubs during rewrite)
 
-          if (!project) {
-            return c.json({ error: "Project not found" }, 404)
-          }
-
-          if (worktree) {
-            projectManager.ensureWorktreeMetadata(id, worktree)
-          }
-
-          // Return minimal resource data - SDK handles actual resource monitoring
-          return c.json({
-            memory: { used: 0, total: 0 },
-          })
-        }
-      )
-
-      // GET /api/projects/:id/activity - get activity feed
-      .get(
-        "/api/projects/:id/activity",
-        describeRoute({
-          description: "Get project activity feed",
-          operationId: "projects.activity",
-          responses: {
-            200: {
-              description: "Activity feed events",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.array(
-                      z.object({
-                        id: z.string(),
-                        type: z.enum([
-                          "session_created",
-                          "file_changed",
-                          "git_commit",
-                          "agent_used",
-                        ]),
-                        message: z.string(),
-                        timestamp: z.string(),
-                      })
-                    )
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator(
-          "param",
-          z.object({
-            id: z.string(),
-          })
-        ),
-        zValidator(
-          "query",
-          z.object({
-            worktree: z.string().optional(),
-          })
-        ),
-        async (c) => {
-          const { id } = c.req.valid("param")
-          const { worktree } = c.req.valid("query")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-
-          if (!project) {
-            return c.json({ error: "Project not found" }, 404)
-          }
-
-          if (worktree) {
-            projectManager.ensureWorktreeMetadata(id, worktree)
-          }
-
-          // Return basic activity data
-          const activity = []
-
-          // Check if project is running
-          const isRunning = project.status === "running"
-
-          if (isRunning) {
-            activity.push({
-              id: `project-start-${project.lastAccessed}`,
-              type: "session_created" as const,
-              message: `Project started`,
-              timestamp: new Date(project.lastAccessed).toISOString(),
-            })
-          }
-
-          return c.json(activity)
-        }
-      )
-
-      // GET /api/projects/:id/agents - list agents
-      .get(
-        "/api/projects/:id/agents",
-        describeRoute({
-          description: "List agents for project",
-          operationId: "projects.agents.list",
-          responses: {
-            200: {
-              description: "List of agents",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.array(
-                      z.object({
-                        id: z.string(),
-                        name: z.string(),
-                        description: z.string().optional(),
-                        temperature: z.number().optional(),
-                        maxTokens: z.number().optional(),
-                        systemPrompt: z.string().optional(),
-                        tools: z.array(z.string()).default([]),
-                        model: z.string().optional(),
-                        enabled: z.boolean(),
-                        isTemplate: z.boolean().optional(),
-                        createdAt: z.number().optional(),
-                      })
-                    )
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator(
-          "param",
-          z.object({
-            id: z.string(),
-          })
-        ),
-        zValidator(
-          "query",
-          z.object({
-            worktree: z.string().optional(),
-          })
-        ),
-        async (c) => {
-          const { id } = c.req.valid("param")
-          const { worktree } = c.req.valid("query")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-
-          if (!project) {
-            return c.json({ error: "Project not found" }, 404)
-          }
-
-          const metadata = worktree
-            ? projectManager.ensureWorktreeMetadata(id, worktree)
-            : projectManager.findWorktreeById(id, "default")
-          const agents = getProjectAgents(id, metadata?.path)
-          const list = Array.from(agents.values())
-          return c.json(list)
-        }
-      )
-
-      // POST /api/projects/:id/agents - create agent
-      .post(
-        "/api/projects/:id/agents",
-        describeRoute({
-          description: "Create an agent for project",
-          operationId: "projects.agents.create",
-          responses: {
-            200: {
-              description: "Created agent",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      id: z.string(),
-                      name: z.string(),
-                      description: z.string().optional(),
-                      temperature: z.number().optional(),
-                      maxTokens: z.number().optional(),
-                      systemPrompt: z.string().optional(),
-                      tools: z.array(z.string()).default([]),
-                      model: z.string().optional(),
-                      enabled: z.boolean(),
-                      isTemplate: z.boolean().optional(),
-                      createdAt: z.number().optional(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator(
-          "param",
-          z.object({
-            id: z.string(),
-          })
-        ),
-        zValidator(
-          "query",
-          z.object({
-            worktree: z.string().optional(),
-          })
-        ),
-        zValidator(
-          "json",
-          z.object({
-            name: z.string().min(1),
-            description: z.string().optional(),
-            temperature: z.number().optional(),
-            maxTokens: z.number().optional(),
-            systemPrompt: z.string().optional(),
-            tools: z.array(z.string()).default([]),
-            model: z.string().optional(),
-            enabled: z.boolean().default(true),
-          })
-        ),
-        async (c) => {
-          const { id } = c.req.valid("param")
-          const { worktree } = c.req.valid("query")
-          const body = c.req.valid("json")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-          if (!project) {
-            return c.json({ error: "Project not found" }, 404)
-          }
-
-          const metadata = worktree
-            ? projectManager.ensureWorktreeMetadata(id, worktree)
-            : projectManager.findWorktreeById(id, "default")
-
-          const agents = getProjectAgents(id, metadata?.path)
-          const agentId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`
-          const record: AgentRecord = {
-            id: agentId,
-            name: body.name,
-            description: body.description ?? "",
-            temperature: body.temperature ?? 0.7,
-            maxTokens: body.maxTokens ?? 1000,
-            systemPrompt: body.systemPrompt ?? "",
-            tools: body.tools ?? [],
-            model: body.model ?? "default",
-            enabled: body.enabled ?? true,
-            isTemplate: false,
-            createdAt: Date.now(),
-          }
-          agents.set(agentId, record)
-          return c.json(record)
-        }
-      )
-
-      // GET /api/projects/:id/agents/:agentId - get agent
-      .get(
-        "/api/projects/:id/agents/:agentId",
-        describeRoute({
-          description: "Get agent details",
-          operationId: "projects.agents.get",
-          responses: {
-            200: {
-              description: "Agent details",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      id: z.string(),
-                      name: z.string(),
-                      description: z.string().optional(),
-                      temperature: z.number().optional(),
-                      maxTokens: z.number().optional(),
-                      systemPrompt: z.string().optional(),
-                      tools: z.array(z.string()).default([]),
-                      model: z.string().optional(),
-                      enabled: z.boolean(),
-                      isTemplate: z.boolean().optional(),
-                      createdAt: z.number().optional(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator("param", z.object({ id: z.string(), agentId: z.string() })),
-        zValidator("query", z.object({ worktree: z.string().optional() })),
-        async (c) => {
-          const { id, agentId } = c.req.valid("param")
-          const { worktree } = c.req.valid("query")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-          if (!project) return c.json({ error: "Project not found" }, 404)
-          const metadata = worktree
-            ? projectManager.ensureWorktreeMetadata(id, worktree)
-            : projectManager.findWorktreeById(id, "default")
-          const agent = getProjectAgents(id, metadata?.path).get(agentId)
-          if (!agent) return c.json({ error: "Agent not found" }, 404)
-          return c.json(agent)
-        }
-      )
-
-      // PUT /api/projects/:id/agents/:agentId - update agent
-      .put(
-        "/api/projects/:id/agents/:agentId",
-        describeRoute({
-          description: "Update an agent",
-          operationId: "projects.agents.update",
-          responses: {
-            200: {
-              description: "Updated agent",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      id: z.string(),
-                      name: z.string(),
-                      description: z.string().optional(),
-                      temperature: z.number().optional(),
-                      maxTokens: z.number().optional(),
-                      systemPrompt: z.string().optional(),
-                      tools: z.array(z.string()).default([]),
-                      model: z.string().optional(),
-                      enabled: z.boolean(),
-                      isTemplate: z.boolean().optional(),
-                      createdAt: z.number().optional(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator("param", z.object({ id: z.string(), agentId: z.string() })),
-        zValidator("query", z.object({ worktree: z.string().optional() })),
-        zValidator(
-          "json",
-          z.object({
-            name: z.string().optional(),
-            description: z.string().optional(),
-            temperature: z.number().optional(),
-            maxTokens: z.number().optional(),
-            systemPrompt: z.string().optional(),
-            tools: z.array(z.string()).optional(),
-            model: z.string().optional(),
-            enabled: z.boolean().optional(),
-          })
-        ),
-        async (c) => {
-          const { id, agentId } = c.req.valid("param")
-          const { worktree } = c.req.valid("query")
-          const updates = c.req.valid("json")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-          if (!project) return c.json({ error: "Project not found" }, 404)
-          const metadata = worktree
-            ? projectManager.ensureWorktreeMetadata(id, worktree)
-            : projectManager.findWorktreeById(id, "default")
-          const agents = getProjectAgents(id, metadata?.path)
-          const existing = agents.get(agentId)
-          if (!existing) return c.json({ error: "Agent not found" }, 404)
-
-          const updated: AgentRecord = {
-            ...existing,
-            ...updates,
-          }
-          agents.set(agentId, updated)
-          return c.json(updated)
-        }
-      )
-
-      // DELETE /api/projects/:id/agents/:agentId - delete agent
-      .delete(
-        "/api/projects/:id/agents/:agentId",
-        describeRoute({
-          description: "Delete an agent",
-          operationId: "projects.agents.delete",
-          responses: {
-            200: {
-              description: "Deleted",
-              content: {
-                "application/json": {
-                  schema: resolver(z.boolean()),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator("param", z.object({ id: z.string(), agentId: z.string() })),
-        zValidator("query", z.object({ worktree: z.string().optional() })),
-        async (c) => {
-          const { id, agentId } = c.req.valid("param")
-          const { worktree } = c.req.valid("query")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-          if (!project) return c.json({ error: "Project not found" }, 404)
-          const metadata = worktree
-            ? projectManager.ensureWorktreeMetadata(id, worktree)
-            : projectManager.findWorktreeById(id, "default")
-          const agents = getProjectAgents(id, metadata?.path)
-          const ok = agents.delete(agentId)
-          if (!ok) return c.json({ error: "Agent not found" }, 404)
-          return c.json(true)
-        }
-      )
-
-      // POST /api/projects/:id/agents/:agentId/test - stubbed test endpoint
-      .post(
-        "/api/projects/:id/agents/:agentId/test",
-        describeRoute({
-          description: "Test an agent (stubbed)",
-          operationId: "projects.agents.test",
-          responses: {
-            200: {
-              description: "Test result",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      success: z.boolean(),
-                      response: z.string().optional(),
-                      error: z.string().optional(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator("param", z.object({ id: z.string(), agentId: z.string() })),
-        zValidator("query", z.object({ worktree: z.string().optional() })),
-        zValidator("json", z.object({ prompt: z.string() })),
-        async (c) => {
-          const { id, agentId } = c.req.valid("param")
-          const { worktree } = c.req.valid("query")
-          const { prompt } = c.req.valid("json")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-          if (!project) return c.json({ success: false, error: "Project not found" }, 404)
-          const metadata = worktree
-            ? projectManager.ensureWorktreeMetadata(id, worktree)
-            : projectManager.findWorktreeById(id, "default")
-          const agent = getProjectAgents(id, metadata?.path).get(agentId)
-          if (!agent) return c.json({ success: false, error: "Agent not found" }, 404)
-
-          // Minimal stubbed behavior
-          return c.json({
-            success: true,
-            response: `Agent ${agent.name} received: ${prompt}`,
-          })
-        }
-      )
       .post(
         "/api/projects/:id/github/issues/list",
-        describeRoute({
-          description: "List GitHub issues for a repository",
-          operationId: "projects.github.issues.list",
-          responses: {
-            200: {
-              description: "GitHub issues",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      items: z.array(z.unknown()),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -2033,25 +1093,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       )
       .post(
         "/api/projects/:id/github/pulls/list",
-        describeRoute({
-          description: "List GitHub pull requests for a repository",
-          operationId: "projects.github.pulls.list",
-          responses: {
-            200: {
-              description: "GitHub pull requests",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      items: z.array(z.unknown()),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -2086,21 +1127,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       )
       .post(
         "/api/projects/:id/github/pulls/:number/status",
-        describeRoute({
-          description: "Get rollup status information for a GitHub pull request",
-          operationId: "projects.github.pulls.status",
-          responses: {
-            200: {
-              description: "Pull request status summary",
-              content: {
-                "application/json": {
-                  schema: resolver(PullRequestStatusResponseSchema),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -2137,26 +1163,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       )
       .post(
         "/api/projects/:id/github/content",
-        describeRoute({
-          description: "Fetch GitHub issue and pull request content with caching",
-          operationId: "projects.github.content",
-          responses: {
-            200: {
-              description: "Cached GitHub content",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      items: z.array(z.unknown()),
-                      errors: z.array(z.unknown()),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -2203,53 +1209,6 @@ export function addIntegratedProjectRoutes(app: Hono) {
       // GET /api/projects/:id/git/status - get git status
       .get(
         "/api/projects/:id/git/status",
-        describeRoute({
-          description: "Get git status for project",
-          operationId: "projects.git.status",
-          responses: {
-            200: {
-              description: "Git status information",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      branch: z.string(),
-                      ahead: z.number(),
-                      behind: z.number(),
-                      changedFiles: z.number(),
-                      stagedCount: z.number(),
-                      unstagedCount: z.number(),
-                      untrackedCount: z.number(),
-                      staged: z.array(GitFileSchema),
-                      modified: z.array(GitFileSchema),
-                      untracked: z.array(GitFileSchema),
-                      remoteUrl: z.string().optional(),
-                      lastCommit: z
-                        .object({
-                          hash: z.string(),
-                          author: z.string(),
-                          date: z.string(),
-                          message: z.string(),
-                        })
-                        .optional(),
-                      recentCommits: z
-                        .array(
-                          z.object({
-                            hash: z.string(),
-                            author: z.string(),
-                            date: z.string(),
-                            message: z.string(),
-                          })
-                        )
-                        .optional(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
         zValidator(
           "param",
           z.object({
@@ -2294,9 +1253,12 @@ export function addIntegratedProjectRoutes(app: Hono) {
           }
 
           const repoPath = normalizePath(targetPath)
-          // Enforce repoPath stays within the user's HOME to avoid arbitrary FS access
-          if (!(repoPath === HOME_DIRECTORY || repoPath.startsWith(`${HOME_DIRECTORY}/`))) {
-            log.warn("Rejected git status for path outside HOME", { repoPath })
+
+          // Enforce repoPath stays within HOME or TMP to avoid arbitrary FS access
+          try {
+            await realpathWithinAllowed(repoPath)
+          } catch (error) {
+            log.warn("Rejected git status for disallowed path", { repoPath, error })
             return c.json(createEmptyGitStatus())
           }
 
@@ -2392,63 +1354,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
         }
       )
 
-      // GET /api/projects/:id/sdk-info - get SDK connection information
-      .get(
-        "/api/projects/:id/sdk-info",
-        describeRoute({
-          description: "Get SDK connection information for project",
-          operationId: "projects.sdkInfo",
-          responses: {
-            200: {
-              description: "SDK connection information",
-              content: {
-                "application/json": {
-                  schema: resolver(
-                    z.object({
-                      baseUrl: z.string(),
-                      projectPath: z.string(),
-                      status: z.enum(["ready", "not_initialized"]),
-                      message: z.string(),
-                    })
-                  ),
-                },
-              },
-            },
-            ...ERRORS,
-          },
-        }),
-        zValidator(
-          "param",
-          z.object({
-            id: z.string(),
-          })
-        ),
-        async (c) => {
-          const { id } = c.req.valid("param")
-          // Use the imported projectManager directly
-          const project = projectManager.getProject(id)
-
-          if (!project) {
-            return c.json({ error: "Project not found" }, 404)
-          }
-
-          // Return SDK connection info for direct client access
-          const sdkInstance = projectManager.getSDKInstance(id)
-          const status = sdkInstance ? "ready" : "not_initialized"
-
-          return c.json({
-            // Always direct clients to the proxy path
-            baseUrl: "/opencode",
-            projectPath: project.path,
-            status,
-            message:
-              status === "ready"
-                ? "SDK is ready for use with this project"
-                : "Project needs to be started first",
-          })
-        }
-      )
-
+      
     // Client connects directly to OpenCode backend using SDK
   )
 }

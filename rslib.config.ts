@@ -22,6 +22,9 @@ export default defineConfig({
         distPath: {
           root: './server-dist',
         },
+        // Externalize native/optional modules used only at runtime.
+        // See: https://rslib.rs/guide/advanced/third-party-deps and https://rslib.rs/config/lib/auto-external
+        externals: ['node-pty', 'ws', 'bufferutil', 'utf-8-validate'],
       },
     },
   ],

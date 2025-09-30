@@ -205,7 +205,7 @@ const warmRecords = new Map<string, WarmRecord>()
 let warmTimer: NodeJS.Timeout | null = null
 
 const cacheRoot = () =>
-  process.env["OPENCODE_GITHUB_CACHE_DIR"] ?? path.resolve(process.cwd(), ".cache/github")
+  process.env["AGENT_ORANGE_GITHUB_CACHE_DIR"] ?? path.resolve(process.cwd(), ".cache/github")
 
 const ensureDirectory = async (dir: string) => {
   await fs.mkdir(dir, { recursive: true })

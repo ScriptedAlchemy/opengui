@@ -18,7 +18,7 @@ export namespace Log {
   }
 
   const envLevel = (() => {
-    const v = (getEnv("LOG_LEVEL") || getEnv("OPENCODE_LOG_LEVEL") || "").toLowerCase()
+    const v = (getEnv("LOG_LEVEL") || getEnv("AGENT_ORANGE_LOG_LEVEL") || "").toLowerCase()
     if (v === "silent" || v === "error" || v === "warn" || v === "info" || v === "debug")
       return v as Level
     return "info" as Level

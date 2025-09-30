@@ -20,11 +20,10 @@ export default defineConfig({
     'node_modules/**/*',
     'dist/**/*',
     'build/**/*',
-    'opencode/**/*'
+    
   ],
   
-  // Setup files
-  setupFiles: ['./test/setup.ts'],
+  // Setup files (none needed; E2E handles bootstrapping)
   
   // Test timeout
   testTimeout: 45000,
@@ -45,11 +44,7 @@ export default defineConfig({
       '@/services': './src/services',
       '@/stores': './src/stores',
       '@/types': './src/types',
-      '@/util': './src/util',
-      
-      '@opencode-ai/sdk': 'node_modules/@opencode-ai/sdk/dist/index.js',
-      '@opencode-ai/sdk/client': 'node_modules/@opencode-ai/sdk/dist/client.js',
-      '@opencode-ai/sdk/server': 'node_modules/@opencode-ai/sdk/dist/server.js'
+      '@/util': './src/util'
     }
   },
   

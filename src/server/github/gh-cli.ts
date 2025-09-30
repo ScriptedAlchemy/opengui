@@ -17,7 +17,7 @@ import { Log } from "@/util/log"
 
 const execFileAsync = promisify(execFile)
 
-const GH_BINARY = process.env.OPENCODE_GH_PATH || "gh"
+const GH_BINARY = process.env.AGENT_ORANGE_GH_PATH || "gh"
 const MAX_BUFFER = 20 * 1024 * 1024 // 20MB safeguard for large responses
 const RATE_LIMIT_MAX_RETRIES = 3
 const log = Log.create({ service: "github-cli" })

@@ -16,37 +16,23 @@ import { cors } from "hono/cors"
 import { serveStatic } from "@hono/node-server/serve-static"
 import { serve } from "@hono/node-server"
 import { addIntegratedProjectRoutes } from "./integrated-project-routes"
+import { registerCliRoutes } from "./cli-routes"
 import { projectManager } from "./project-manager"
 import { Log } from "../util/log"
-import { createOpencodeServer } from "@opencode-ai/sdk/server"
+import { cliSessionManager } from "./cli-session-manager"
+import { WebSocketServer, WebSocket } from "ws"
+import { verifySessionToken } from "./ws-auth"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import type Dispatcher from "undici-types/dispatcher"
-// For controlling fetch timeouts and connection reuse with Node's undici
-// Note: avoid static import of 'undici' Agent to prevent bundling/runtime issues
-// in certain environments. We'll require it dynamically when available.
-type UndiciAgentCtor = typeof import("undici").Agent
-type UndiciAgentOptions = ConstructorParameters<UndiciAgentCtor>[0]
-type StreamingDispatcher = Dispatcher & { close: () => Promise<void> | void }
-type StreamingFetchInit = Omit<RequestInit, "duplex"> & {
-  duplex?: "half"
-  dispatcher?: StreamingDispatcher
-}
-
-let streamingAgentGlobal: StreamingDispatcher | undefined
-
 const log = Log.create({ service: "app-server" })
 
 // Global OpenCode backend server instance
-let opencodeBackend: { url: string; close: () => void } | null = null
 
 export interface ServerConfig {
   port?: number
   hostname?: string
   staticDir?: string
-  opencodePort?: number
-  opencodeHostname?: string
 }
 
 export function createServer(config: ServerConfig = {}) {
@@ -63,29 +49,6 @@ export function createServer(config: ServerConfig = {}) {
   const staticDirExists = fs.existsSync(resolvedStaticDir)
 
   const app = new Hono()
-
-  // A long‑lived Agent for streaming/SSE proxying.
-  // - bodyTimeout: 0 disables per-chunk inactivity timeout (important for LLM streams)
-  // - headersTimeout: 0 disables header timeout for slow backends
-  // - keepAlive improves reuse when many requests are made
-  // Create a streaming-friendly dispatcher if undici is available at runtime
-  // without forcing it into the bundle.
-  let streamingAgent: StreamingDispatcher | undefined
-  try {
-    const { Agent } = require("undici") as { Agent: UndiciAgentCtor }
-    const agentOptions: UndiciAgentOptions = {
-      connect: { timeout: 30_000 },
-      bodyTimeout: 0,
-      headersTimeout: 0,
-      keepAliveTimeout: 60_000,
-      keepAliveMaxTimeout: 60_000,
-    }
-    streamingAgent = new Agent(agentOptions) as unknown as StreamingDispatcher
-  } catch {
-    // undici not available; fetch will fall back to defaults
-    streamingAgent = undefined
-  }
-  streamingAgentGlobal = streamingAgent
 
   // Error handling middleware - must be first
   app.onError((err: Error & { message?: string }, c: Context) => {
@@ -150,106 +113,51 @@ export function createServer(config: ServerConfig = {}) {
 
   // Health check endpoint
   apiApp.get("/api/health", async (c) => {
-    try {
-      await projectManager.monitorHealth()
-    } catch {
-      // In tests or when backend isn't started, health should still return 200
-    }
+    const sessions = cliSessionManager.listSessions()
+    const runningSessions = sessions.filter(s => s.status === "running").length
+
     return c.json({
       status: "ok",
       timestamp: new Date().toISOString(),
       projects: projectManager.getAllProjects().length,
+      cli: {
+        totalSessions: sessions.length,
+        runningSessions,
+      },
+    })
+  })
+
+  // Readiness check endpoint
+  apiApp.get("/api/health/ready", async (c) => {
+    const tools = await cliSessionManager.listTools()
+    const availableTools = tools.filter(t => t.available).length
+
+    return c.json({
+      status: "ready",
+      timestamp: new Date().toISOString(),
+      cli: {
+        availableTools,
+        totalTools: tools.length,
+      },
+    })
+  })
+
+  // Liveness check endpoint
+  apiApp.get("/api/health/live", async (c) => {
+    return c.json({
+      status: "alive",
+      timestamp: new Date().toISOString(),
     })
   })
 
   // Add integrated project management routes to API sub-app
   // These routes manage projects and provide backend URL to clients
   addIntegratedProjectRoutes(apiApp)
+  registerCliRoutes(apiApp)
 
   // Mount the API app at root (routes already have /api prefix)
   // This must come before static file serving to ensure API routes are handled first
   app.route("/", apiApp)
-
-  // Proxy OpenCode API requests to the backend under a single prefix
-  // Clients should use baseUrl "/opencode" to avoid CORS
-  const proxyOpencode = async (c: Context) => {
-    const backendUrl = process.env["OPENCODE_API_URL"]
-    if (!backendUrl) {
-      return c.json({ error: "OpenCode backend not available" }, 503)
-    }
-
-    const url = new URL(c.req.url)
-    // Strip the "/opencode" prefix when forwarding
-    const forwardedPath = url.pathname.replace(/^\/opencode/, "") || "/"
-    const targetUrl = `${backendUrl}${forwardedPath}${url.search}`
-
-    // Forward the request to the OpenCode backend
-    const headers = new Headers(c.req.raw.headers)
-    // Remove hop-by-hop headers; they are not end-to-end and may corrupt proxying
-    ;[
-      "host",
-      "connection",
-      "proxy-connection",
-      "transfer-encoding",
-      "te",
-      "trailer",
-      "upgrade",
-      "keep-alive",
-      "content-length",
-    ].forEach((h) => headers.delete(h))
-
-    try {
-      // Forward client aborts to the upstream request to prevent "terminated" errors
-      const signal = c.req.raw.signal
-
-      const init: StreamingFetchInit = {
-        method: c.req.method,
-        headers,
-        body: c.req.raw.body,
-        ...(c.req.raw.body ? { duplex: "half" } : {}),
-        signal,
-      }
-      if (streamingAgent) {
-        init.dispatcher = streamingAgent
-      }
-      const response = await fetch(targetUrl, init as RequestInit)
-
-      // Return the backend response as-is
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      })
-    } catch (err: unknown) {
-      // Map common undici errors to a quiet response; avoid noisy logs
-      const e = err as { code?: string; cause?: { code?: string }; message?: string }
-      const code = e?.code || e?.cause?.code
-      const msg: string = e?.message || "fetch error"
-
-      // Client navigated away / connection closed
-      if (msg.includes("terminated") || msg.includes("aborted") || code === "ABORT_ERR") {
-        return new Response(null, { status: 499, statusText: "Client Closed Request" })
-      }
-
-      // Upstream was too slow sending body chunks
-      if (code === "UND_ERR_BODY_TIMEOUT") {
-        return new Response(JSON.stringify({ error: "Upstream timeout" }), {
-          status: 504,
-          headers: { "content-type": "application/json" },
-        })
-      }
-
-      // Fallback
-      return new Response(JSON.stringify({ error: "Proxy error", detail: msg }), {
-        status: 502,
-        headers: { "content-type": "application/json" },
-      })
-    }
-  }
-
-  // Catch-all proxy for anything under /opencode
-  app.all("/opencode", proxyOpencode)
-  app.all("/opencode/*", proxyOpencode)
 
   // Serve static assets with Node.js static file serving
   // Only if the directory exists (to avoid warnings in tests)
@@ -273,16 +181,15 @@ export function createServer(config: ServerConfig = {}) {
       const indexPath = path.join(resolvedStaticDir, "index.html")
 
       try {
-        const fsPromises = require("fs/promises")
-        const content = await fsPromises.readFile(indexPath, "utf-8")
+        const content = await fs.promises.readFile(indexPath, "utf-8")
 
         return new Response(content, {
           headers: {
             "Content-Type": "text/html; charset=utf-8",
             "Cache-Control": "public, max-age=300",
             // Signal test mode to the client for E2E-only behavior (non-HttpOnly so client can read)
-            ...(process.env["OPENCODE_TEST_MODE"] === "1"
-              ? { "Set-Cookie": "OPENCODE_TEST_MODE=1; Path=/; SameSite=Lax" }
+            ...(process.env["AGENT_ORANGE_TEST_MODE"] === "1"
+              ? { "Set-Cookie": "AGENT_ORANGE_TEST_MODE=1; Path=/; SameSite=Lax" }
               : {}),
           },
         })
@@ -297,32 +204,8 @@ export function createServer(config: ServerConfig = {}) {
 }
 
 export async function startServer(config: ServerConfig = {}) {
-  const {
-    port = 3099,
-    hostname = "127.0.0.1",
-    opencodePort, // Don't set a default - let OpenCode choose
-    opencodeHostname = "127.0.0.1",
-  } = config
+  const { port = 3099, hostname = "127.0.0.1" } = config
   const development = process.env["NODE_ENV"] === "development"
-
-  // Start OpenCode backend server first
-  try {
-    log.info("Starting OpenCode backend server (auto-selecting port)...")
-    const serverOptions = {
-      hostname: opencodeHostname,
-      timeout: 10000,
-      port: opencodePort || 0, // Use 0 to auto-select available port
-    }
-    opencodeBackend = await createOpencodeServer(serverOptions)
-    log.info(`OpenCode backend started at ${opencodeBackend!.url}`)
-
-    // Store the backend URL for clients to retrieve via API
-    process.env["OPENCODE_API_URL"] = opencodeBackend!.url
-  } catch (error) {
-    log.error("Failed to start OpenCode backend:", error)
-    // If we can't start the backend, we can't continue
-    throw new Error("Unable to start OpenCode backend server")
-  }
 
   const app = createServer(config)
 
@@ -333,28 +216,77 @@ export async function startServer(config: ServerConfig = {}) {
     hostname,
   })
 
+  const wss = new WebSocketServer({ noServer: true })
+
+  server.on("upgrade", (request, socket, head) => {
+    try {
+      const url = new URL(request.url || "", `http://${request.headers.host}`)
+      if (url.pathname !== "/ws/cli") {
+        socket.destroy()
+        return
+      }
+
+      // Verify token
+      const token = url.searchParams.get("token")
+      if (!token) {
+        log.warn("WebSocket upgrade rejected: missing token")
+        socket.destroy()
+        return
+      }
+
+      const tokenData = verifySessionToken(token)
+      if (!tokenData) {
+        log.warn("WebSocket upgrade rejected: invalid token")
+        socket.destroy()
+        return
+      }
+
+      const sessionId = tokenData.sessionId
+
+      // Verify session exists
+      const session = cliSessionManager.getSession(sessionId)
+      if (!session) {
+        log.warn("WebSocket upgrade rejected: session not found", { sessionId })
+        socket.destroy()
+        return
+      }
+
+      wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+        log.info("WebSocket connected", { sessionId })
+        cliSessionManager.attachWebSocket(sessionId, ws)
+      })
+    } catch (error) {
+      log.error("WebSocket upgrade failed", error)
+      socket.destroy()
+    }
+  })
+
+  wss.on("close", () => {
+    // ensure all CLI sessions are torn down when websocket server closes
+    for (const session of cliSessionManager.listSessions()) {
+      void cliSessionManager.close(session.id)
+    }
+  })
+
   log.info("Server started", {
     port,
     hostname,
     development,
     url: `http://${hostname}:${port}`,
-    opencodeBackend: process.env["OPENCODE_API_URL"],
   })
 
   // Graceful shutdown
   process.on("SIGINT", async () => {
     log.info("Shutting down server...")
+    cliSessionManager.shutdown()
     await projectManager.shutdown()
-    if (opencodeBackend) {
-      log.info("Stopping OpenCode backend...")
-      opencodeBackend.close()
-    }
-    if (streamingAgentGlobal && typeof streamingAgentGlobal.close === "function") {
-      try {
-        await streamingAgentGlobal.close()
-      } catch (e) {
-        log.warn("Failed to close streaming agent", e)
+    try {
+      for (const client of wss.clients) {
+        client.terminate()
       }
+      wss.close()
+    } catch (error) {
+      log.warn("Failed to close WebSocket server", error)
     }
     server.close()
     process.exit(0)
@@ -362,17 +294,15 @@ export async function startServer(config: ServerConfig = {}) {
 
   process.on("SIGTERM", async () => {
     log.info("Shutting down server...")
+    cliSessionManager.shutdown()
     await projectManager.shutdown()
-    if (opencodeBackend) {
-      log.info("Stopping OpenCode backend...")
-      opencodeBackend.close()
-    }
-    if (streamingAgentGlobal && typeof streamingAgentGlobal.close === "function") {
-      try {
-        await streamingAgentGlobal.close()
-      } catch (e) {
-        log.warn("Failed to close streaming agent", e)
+    try {
+      for (const client of wss.clients) {
+        client.terminate()
       }
+      wss.close()
+    } catch (error) {
+      log.warn("Failed to close WebSocket server", error)
     }
     server.close()
     process.exit(0)
