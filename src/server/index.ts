@@ -11,6 +11,7 @@
  */
 
 import { Hono } from "hono"
+import type { HttpBindings } from "@hono/node-server"
 import type { Context } from "hono"
 import { cors } from "hono/cors"
 import { serveStatic } from "@hono/node-server/serve-static"
@@ -48,7 +49,7 @@ export function createServer(config: ServerConfig = {}) {
   // Check if static directory exists
   const staticDirExists = fs.existsSync(resolvedStaticDir)
 
-  const app = new Hono()
+  const app = new Hono<{ Bindings: HttpBindings }>()
 
   // Error handling middleware - must be first
   app.onError((err: Error & { message?: string }, c: Context) => {
@@ -162,12 +163,13 @@ export function createServer(config: ServerConfig = {}) {
   // Serve static assets with Node.js static file serving
   // Only if the directory exists (to avoid warnings in tests)
   if (staticDirExists) {
+    // Per @hono/node-server docs, `root` must be relative to process.cwd().
+    // Our server runs from `server-dist`, so default `staticDir` of "./web-dist" is correct.
     app.use(
       "/*",
       serveStatic({
-        root: resolvedStaticDir,
+        root: staticDir,
         rewriteRequestPath: (path) => {
-          // Handle root path to serve index.html
           if (path === "/") return "/index.html"
           return path
         },

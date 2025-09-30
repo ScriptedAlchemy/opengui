@@ -711,6 +711,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
           // Use the imported projectManager directly
 
           try {
+            log.info("Adding project", { path, name })
             const project = await projectManager.addProject(path, name)
             // Return bare project object
             return c.json(project)

@@ -163,6 +163,7 @@ export const useProjectsStore = create<ProjectsStore>()(
 
       // Create a new project
       createProject: async (params: CreateProjectParams) => {
+        console.log('[projects-store] createProject called', params)
         set((state) => {
           state.loading = true
           state.error = null
@@ -170,7 +171,9 @@ export const useProjectsStore = create<ProjectsStore>()(
 
         try {
           const client = await getProjectClient()
+          console.log('[projects-store] posting /api/projects')
           const newProject = await client.createProject(params)
+          console.log('[projects-store] created', newProject)
 
           set((state) => {
             state.projects.push(newProject)
@@ -179,6 +182,7 @@ export const useProjectsStore = create<ProjectsStore>()(
 
           return newProject
         } catch (error) {
+          console.log('[projects-store] createProject failed', error)
           set((state) => {
             state.loading = false
             state.error = error instanceof Error ? error.message : "Failed to create project"

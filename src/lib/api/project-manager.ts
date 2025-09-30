@@ -105,7 +105,11 @@ export class ProjectManagerClient {
         throw new Error(`${errorMessage} (${options?.method || "GET"} ${url})`)
       }
 
-      return response.json()
+      const data = await response.json()
+      if ((options?.method || 'GET') === 'POST' && path === '/projects') {
+        console.log('[pmc] createProject OK', data)
+      }
+      return data
     } catch (error) {
       if (error instanceof Error) {
         throw error
