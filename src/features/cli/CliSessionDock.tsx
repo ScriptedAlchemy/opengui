@@ -14,6 +14,8 @@ import { useCurrentProject } from "@/stores/projects"
 import { useWorktreesForProject } from "@/stores/worktrees"
 import { useCliSessionsStore } from "@/stores/cliSessions"
 import { CreateSessionDialog } from "./CreateSessionDialog"
+import { Tooltip as ShadTooltip, TooltipContent as ShadTooltipContent, TooltipProvider as ShadTooltipProvider, TooltipTrigger as ShadTooltipTrigger } from "@/components/ui/tooltip"
+import { toast } from "sonner"
 
 interface CliSessionDockProps {
   className?: string
@@ -37,11 +39,11 @@ export function CliSessionDock({ className }: CliSessionDockProps) {
 
   const handleLaunchClick = () => {
     if (!project?.id) {
-      alert("Select a project first")
+      toast.error("Select a project first")
       return
     }
     if (worktrees.length === 0) {
-      alert("No worktrees available")
+      toast.error("No worktrees available")
       return
     }
     setDialogOpen(true)
@@ -57,10 +59,25 @@ export function CliSessionDock({ className }: CliSessionDockProps) {
               {sessions.length} active
             </p>
           </div>
-          <Button variant="default" size="sm" onClick={handleLaunchClick}>
-            <PlugZap className="mr-2 h-4 w-4" />
-            Launch
-          </Button>
+          {(() => {
+            const canLaunch = !!project?.id && worktrees.length > 0
+            const reason = !project?.id ? "Select a project first" : worktrees.length === 0 ? "No worktrees available" : null
+            return (
+              <ShadTooltipProvider>
+                <ShadTooltip>
+                  <ShadTooltipTrigger asChild>
+                    <span>
+                      <Button variant="default" size="sm" onClick={handleLaunchClick} disabled={!canLaunch}>
+                        <PlugZap className="mr-2 h-4 w-4" />
+                        Launch
+                      </Button>
+                    </span>
+                  </ShadTooltipTrigger>
+                  {reason ? <ShadTooltipContent>{reason}</ShadTooltipContent> : null}
+                </ShadTooltip>
+              </ShadTooltipProvider>
+            )
+          })()}
         </div>
 
         {project && (

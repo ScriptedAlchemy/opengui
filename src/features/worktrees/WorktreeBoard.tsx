@@ -20,6 +20,17 @@ import {
 import { useCliSessionsStore } from "@/stores/cliSessions"
 import { CreateSessionDialog } from "../cli/CreateSessionDialog"
 import { CreateWorktreeDialog } from "./CreateWorktreeDialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface WorktreeBoardProps {
   className?: string
@@ -36,6 +47,9 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [selectedWorktreeId, setSelectedWorktreeId] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteForce, setDeleteForce] = useState(false)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
     if (project?.id) {
@@ -62,9 +76,9 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
 
   const handleRemove = async (worktreeId: string) => {
     if (!project?.id || worktreeId === "default") return
-    const confirmed = confirm("Remove worktree? This will run git worktree remove.")
-    if (!confirmed) return
-    await removeWorktree(project.id, worktreeId, true)
+    setPendingDeleteId(worktreeId)
+    setDeleteForce(false)
+    setDeleteOpen(true)
   }
 
   return (
@@ -105,6 +119,49 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
             onCreateSession={createSession}
           />
         )}
+
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remove worktree?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will run <code className="font-mono">git worktree remove</code>. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {(() => {
+              const wt = worktrees.find((w) => w.id === pendingDeleteId)
+              return wt ? (
+                <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+                  <div>Title: {wt.title}</div>
+                  <div>Path: {wt.path}</div>
+                  {wt.branch ? <div>Branch: {wt.branch}</div> : null}
+                </div>
+              ) : null
+            })()}
+            <div className="flex items-center gap-2">
+              <Checkbox id="force-remove" checked={deleteForce} onCheckedChange={(v) => setDeleteForce(Boolean(v))} />
+              <label htmlFor="force-remove" className="text-sm">Force remove</label>
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button variant="outline">Cancel</Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  variant="destructive"
+                  onClick={async () => {
+                    if (!project?.id || !pendingDeleteId) return
+                    await removeWorktree(project.id, pendingDeleteId, deleteForce)
+                    setDeleteOpen(false)
+                    setPendingDeleteId(null)
+                  }}
+                >
+                  Remove
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {error ? <div className="p-3 text-sm text-red-500">{error}</div> : null}
         <ScrollArea className="flex-1">
