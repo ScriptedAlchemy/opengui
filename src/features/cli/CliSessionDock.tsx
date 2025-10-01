@@ -111,6 +111,7 @@ export function CliSessionDock({ className }: CliSessionDockProps) {
               <button
                 key={session.id}
                 type="button"
+                data-testid="cli-session-row"
                 onClick={() => setActiveSession(session.id)}
                 className={cn(
                   "group flex w-full items-start justify-between rounded border px-3 py-2 text-left",
@@ -141,6 +142,7 @@ export function CliSessionDock({ className }: CliSessionDockProps) {
                         size="icon"
                         variant="ghost"
                         className="opacity-0 transition group-hover:opacity-100"
+                        data-testid="session-close"
                         onClick={(event) => {
                           event.stopPropagation()
                           if (session.status === "running" || session.status === "starting") {

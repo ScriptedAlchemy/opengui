@@ -195,6 +195,7 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
                           <Button
                             size="icon"
                             variant="ghost"
+                            data-testid={`worktree-remove-${worktree.id}`}
                             onClick={() => void handleRemove(worktree.id)}
                           >
                             <Trash2 className="h-4 w-4" />
