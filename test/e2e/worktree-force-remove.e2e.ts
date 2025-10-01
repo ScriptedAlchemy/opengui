@@ -42,6 +42,8 @@ test.describe("Worktree Force Remove", () => {
     // Click Remove and ensure the request carried force=true
     await page.getByRole("button", { name: /^Remove$/ }).click()
     await expect.poll(() => sawForceTrue).toBeTruthy()
+    // After successful delete, the worktree card should be gone
+    await expect(page.locator("[data-slot='card']").filter({ hasText: wtTitle })).toHaveCount(0)
     await page.unroute(`**/api/projects/${project.id}/worktrees/${worktree.id}*`)
   })
 })

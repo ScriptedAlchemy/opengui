@@ -92,7 +92,13 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
               {project ? project.name : "Select a project"}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(true)} disabled={!project}>
+          <Button
+            variant="outline"
+            size="sm"
+            data-testid="open-new-worktree"
+            onClick={() => setCreateDialogOpen(true)}
+            disabled={!project}
+          >
             New Worktree
           </Button>
         </div>

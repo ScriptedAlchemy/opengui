@@ -109,7 +109,7 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]">
+      <DialogContent className="sm:max-w-[560px]" data-testid="create-worktree-dialog">
         <DialogHeader>
           <DialogTitle>New Worktree</DialogTitle>
           <DialogDescription>Create a git worktree from a new or existing branch.</DialogDescription>
@@ -184,4 +184,3 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
     </Dialog>
   )
 }
-
