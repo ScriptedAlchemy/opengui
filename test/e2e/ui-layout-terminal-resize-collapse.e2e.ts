@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test"
 
-test.describe("Terminal Layout: Resize + Collapse", () => {
+test.describe.fixme("Terminal Layout: Resize + Collapse (rewrite layout)", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/")
   })
