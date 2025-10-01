@@ -17,10 +17,11 @@ const pick = () => {
     fs.writeFileSync(f, String(v))
     return v
   }
-  const n = 40000 + Math.floor(Math.random() * 10000)
+  // Default to 3099 for E2E tests
+  const defaultPort = 3099
   fs.mkdirSync(path.dirname(f), { recursive: true })
-  fs.writeFileSync(f, String(n))
-  return n
+  fs.writeFileSync(f, String(defaultPort))
+  return defaultPort
 }
 
 const port = pick()

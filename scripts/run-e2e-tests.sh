@@ -6,7 +6,7 @@ PORT_FILE="test/.e2e-port"
 if [ ! -f "$PORT_FILE" ]; then
   echo "[run-e2e-tests] Creating port file..."
   mkdir -p test
-  echo "49670" > "$PORT_FILE"
+  echo "3099" > "$PORT_FILE"
 fi
 
 PORT=$(cat "$PORT_FILE")
@@ -22,10 +22,15 @@ echo "[run-e2e-tests] Preparing demo projects..."
 node scripts/e2e-prep.cjs
 
 # Start the server in the background with logging
-# Use caffeinate to prevent system from suspending the process
 SERVER_LOG="/tmp/e2e-server-$PORT.log"
 echo "[run-e2e-tests] Starting server on port $PORT (log: $SERVER_LOG)..."
-caffeinate -i bash -c "PORT=$PORT HOST=127.0.0.1 NODE_ENV=production LOG_LEVEL=error AGENT_ORANGE_CONFIG_DIR='$(pwd)/test-results/.agent-orange-e2e' AGENT_ORANGE_TEST_MODE=1 node server-dist/index.js" > "$SERVER_LOG" 2>&1 &
+PORT=$PORT \
+HOST=127.0.0.1 \
+NODE_ENV=production \
+LOG_LEVEL=error \
+AGENT_ORANGE_CONFIG_DIR="$(pwd)/test-results/.agent-orange-e2e" \
+AGENT_ORANGE_TEST_MODE=1 \
+pnpm dev > "$SERVER_LOG" 2>&1 &
 
 SERVER_PID=$!
 echo "[run-e2e-tests] Server started with PID $SERVER_PID"
