@@ -38,10 +38,10 @@ import { useCurrentProject } from "@/stores/projects"
 import rehypeRaw from "rehype-raw"
 import rehypeSanitize from "rehype-sanitize"
 import { useWorktreesStore } from "@/stores/worktrees"
-import { useSessionsStore } from "@/stores/sessions"
-import { Response, type ResponseProps } from "@/components/ui/shadcn-io/ai/response"
+import { useCliSessionsStore } from "@/stores/cliSessions"
 import { cn } from "@/lib/utils"
 import { formatDistanceToNowStrict } from "date-fns"
+import ReactMarkdown from "react-markdown"
 
 interface PullRequestStatusMap {
   [pullNumber: number]: PullRequestStatusSummary | null
@@ -52,14 +52,7 @@ const SESSION_TITLE_MAX = 100
 const ISSUES_PAGE_DEFAULT = 10
 const ISSUES_PAGE_STEP = 10
 
-const GITHUB_MARKDOWN_OPTIONS: NonNullable<ResponseProps["options"]> = {
-  // Be permissive for GitHub content: allow raw HTML but sanitize after merge.
-  rehypePlugins: [rehypeRaw, rehypeSanitize],
-  // Allow all link and image URLs (the hardened renderer still blocks javascript:/data:).
-  allowedLinkPrefixes: ["*"],
-  allowedImagePrefixes: ["*"],
-  defaultOrigin: "https://github.com",
-}
+const MARKDOWN_PLUGINS = [rehypeRaw, rehypeSanitize]
 
 function truncate(text: string, max = SESSION_TITLE_MAX) {
   if (text.length <= max) return text
@@ -134,13 +127,9 @@ function formatRelativeDate(iso: string | undefined | null) {
 
 function MarkdownRenderer({ content, className }: { content: string; className?: string }) {
   return (
-    <Response
-      className={cn("prose prose-sm dark:prose-invert max-w-none", className)}
-      options={GITHUB_MARKDOWN_OPTIONS}
-      parseIncompleteMarkdown={false}
-    >
-      {content}
-    </Response>
+    <div className={cn("prose prose-sm dark:prose-invert max-w-none", className)}>
+      <ReactMarkdown rehypePlugins={MARKDOWN_PLUGINS}>{content}</ReactMarkdown>
+    </div>
   )
 }
 
@@ -252,7 +241,7 @@ export default function GitHubIntegration() {
   const navigate = useNavigate()
   const currentProject = useCurrentProject()
   const createWorktree = useWorktreesStore((state) => state.createWorktree)
-  const createSession = useSessionsStore((state) => state.createSession)
+  const launchCliSession = useCliSessionsStore((state) => state.createSession)
 
   const [activeTab, setActiveTab] = useState<"issues" | "pulls">("issues")
   const [actionStates, setActionStates] = useState<Record<string, boolean>>({})
@@ -433,8 +422,13 @@ export default function GitHubIntegration() {
           baseRef: baseBranch,
           createBranch: true,
         })
-        const session = await createSession(projectId, worktree.path, truncate(params.sessionTitle))
-        navigate(`/projects/${projectId}/${worktree.id}/sessions/${session.id}/chat`)
+        await launchCliSession({
+          projectId,
+          worktreeId: worktree.id,
+          tool: "codex",
+          title: truncate(params.sessionTitle),
+        })
+        navigate("/")
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to perform action"
         setActionError(message)
@@ -443,7 +437,7 @@ export default function GitHubIntegration() {
         setActionStates((prev) => ({ ...prev, [key]: false }))
       }
     },
-    [projectId, createWorktree, createSession, navigate, baseBranch]
+    [projectId, createWorktree, launchCliSession, navigate, baseBranch]
   )
 
   const handleIssueAction = useCallback(

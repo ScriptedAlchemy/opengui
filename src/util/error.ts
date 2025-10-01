@@ -1,6 +1,5 @@
 /**
- * Error utilities for OpenCode Web UI
- * Compatible with OpenCode core error system
+ * Error utilities for Operator Hub
  */
 
 import { z, type ZodSchema, type ZodTypeAny } from "zod"

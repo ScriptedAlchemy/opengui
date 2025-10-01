@@ -25,7 +25,7 @@ const pick = () => {
 const port = pick()
 const host = "127.0.0.1"
 const base = `http://${host}:${port}`
-const e2eConfigDir = path.join(process.cwd(), "test-results", ".opencode-e2e")
+const e2eConfigDir = path.join(process.cwd(), "test-results", ".agent-orange-e2e")
 
 const enableHd = process.env.E2E_HD === "1"
 
@@ -97,10 +97,8 @@ export default defineConfig({
       NODE_ENV: "production",
       LOG_LEVEL: "warn",
       // Keep E2E-created projects isolated from user data
-      OPENCODE_CONFIG_DIR: e2eConfigDir,
-      OPENCODE_TEST_MODE: "1",
-      // Force backend-url endpoint to be available for SDK clients
-      OPENCODE_API_URL: "http://127.0.0.1:0",
+      AGENT_ORANGE_CONFIG_DIR: e2eConfigDir,
+      AGENT_ORANGE_TEST_MODE: "1",
     },
   },
 })

@@ -5,10 +5,6 @@
  */
 
 import { z } from "zod"
-import { extendZodWithOpenApi } from "zod-openapi"
-
-// Extend zod with OpenAPI functionality
-extendZodWithOpenApi(z)
 
 /**
  * Schema for creating a new project
@@ -22,7 +18,7 @@ export const ProjectCreateSchema = z.object({
     .refine((value) => absolutePathRegex.test(value.trim()), {
       message: "Project path must be absolute",
     }),
-  name: z.string().min(1, "Project name is required"),
+  name: z.string().min(1, "Project name is required").optional(),
 })
 
 /**
@@ -32,6 +28,19 @@ export const ProjectUpdateSchema = z.object({
   name: z.string().optional(),
 })
 
+export const WorktreeInfoSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  path: z.string(),
+  relativePath: z.string().optional(),
+  branch: z.string().optional(),
+  head: z.string().optional(),
+  isPrimary: z.boolean().optional(),
+  isDetached: z.boolean().optional(),
+  isLocked: z.boolean().optional(),
+  lockReason: z.string().optional(),
+})
+
 /**
  * Schema for project information response
  */
@@ -39,11 +48,11 @@ export const ProjectInfoSchema = z.object({
   id: z.string(),
   name: z.string(),
   path: z.string(),
-  port: z.number(),
-  status: z.enum(["stopped", "starting", "running", "error"]),
+  status: z.enum(["running", "stopped"]).optional(),
   lastAccessed: z.number(),
   gitRoot: z.string().optional(),
   commitHash: z.string().optional(),
+  worktrees: z.array(WorktreeInfoSchema).optional(),
 })
 
 export const DirectoryEntrySchema = z.object({
@@ -63,49 +72,9 @@ export const HomeDirectorySchema = z.object({
 })
 
 /**
- * Schema for resource usage information
- */
-export const ResourceUsageSchema = z.object({
-  memory: z.object({
-    used: z.number(),
-    total: z.number(),
-  }),
-  port: z.number().optional(),
-  cpu: z
-    .object({
-      usage: z.number(),
-    })
-    .optional(),
-})
-
-/**
- * Schema for activity events
- */
-export const ActivityEventSchema = z.object({
-  id: z.string(),
-  type: z.enum([
-    "session_created",
-    "file_changed",
-    "agent_used",
-    "project_started",
-    "project_stopped",
-  ]),
-  message: z.string(),
-  timestamp: z.string(),
-})
-
-/**
- * Schema for activity feed (array of events)
- */
-export const ActivityFeedSchema = z.array(ActivityEventSchema)
-
-/**
  * TypeScript types inferred from schemas
  */
 export type ProjectInfo = z.infer<typeof ProjectInfoSchema>
 export type ProjectCreate = z.infer<typeof ProjectCreateSchema>
 export type ProjectUpdate = z.infer<typeof ProjectUpdateSchema>
-export type ResourceUsage = z.infer<typeof ResourceUsageSchema>
-export type ActivityEvent = z.infer<typeof ActivityEventSchema>
-export type ActivityFeed = z.infer<typeof ActivityFeedSchema>
 export type DirectoryListing = z.infer<typeof DirectoryListingSchema>

@@ -6,7 +6,6 @@
  */
 
 import { z } from "zod"
-import { resolver } from "hono-openapi/zod"
 
 /**
  * Common error response schemas for API endpoints
@@ -16,31 +15,19 @@ export const ERRORS = {
     description: "Bad request",
     content: {
       "application/json": {
-        schema: resolver(
-          z
-            .object({
-              data: z.record(z.string(), z.any()),
-            })
-            .openapi({
-              ref: "Error",
-            })
-        ),
+        schema: z.object({
+          error: z.string(),
+        }),
       },
     },
   },
   404: {
-    description: "Project not found",
+    description: "Not found",
     content: {
       "application/json": {
-        schema: resolver(
-          z
-            .object({
-              data: z.record(z.string(), z.any()),
-            })
-            .openapi({
-              ref: "Error",
-            })
-        ),
+        schema: z.object({
+          error: z.string(),
+        }),
       },
     },
   },

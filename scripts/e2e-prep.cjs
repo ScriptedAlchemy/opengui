@@ -8,6 +8,7 @@ const CWD = process.cwd();
 const RESULTS_DIR = path.join(CWD, 'test-results');
 const DEMO_ROOT = path.join(RESULTS_DIR, 'e2e-demo-project');
 const CRYSTAL_ROOT = path.join(RESULTS_DIR, 'e2e-crystal-project');
+const E2E_TMP = process.env.TMPDIR ? path.join(process.env.TMPDIR) : null;
 
 function ensureProjectOnDisk(rootDir, name) {
   const srcDir = path.join(rootDir, 'src');
@@ -32,6 +33,7 @@ function ensureProjectOnDisk(rootDir, name) {
 }
 
 try { fs.mkdirSync(RESULTS_DIR, { recursive: true }); } catch {}
+if (E2E_TMP) { try { fs.mkdirSync(E2E_TMP, { recursive: true }); } catch {} }
 ensureProjectOnDisk(DEMO_ROOT, 'e2e-demo-project');
 ensureProjectOnDisk(CRYSTAL_ROOT, 'e2e-crystal-project');
 

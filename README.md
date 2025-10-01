@@ -1,6 +1,6 @@
-# OpenCode Web UI
+# Operator Hub
 
-A modern web interface for OpenCode that enables managing multiple projects/repositories from a single browser-based UI.
+A high-density web interface for managing multiple projects, their Git worktrees, and CLI-based coding agents (Codex CLI, Claude Code, OpenCode) from a single browser-based UI.
 
 ## Quick Start
 
@@ -15,7 +15,7 @@ pnpm run dev:full         # Run client + server concurrently
 # Production build
 pnpm run build            # Minified build in ./web-dist and server-dist
 
-# Serve builds
+# Serve build
 pnpm start                # Production server (./server-dist)
 
 # Run tests
@@ -29,48 +29,45 @@ pnpm run test:components  # Component tests only
 | Command              | Description                        | Default Port |
 | -------------------- | ---------------------------------- | ------------ |
 | `pnpm run dev`       | Development server with HMR        | 3099         |
-| `pnpm run dev:server`| API server only                    | 3002         |
-| `pnpm run dev:full`  | Client + server concurrently       | 3099/3002    |
+| `pnpm run dev:server`| API server only                    | 3099         |
+| `pnpm run dev:full`  | Client + server sequential build   | 3099         |
 | `pnpm run build`     | Production build (client + server) | -            |
 | `pnpm start`         | Serve production build             | 3099         |
 
 ## Features
 
-- 🚀 **Multi-Project Management** - Add and manage multiple projects/repositories
-- 💬 **AI Chat Interface** - Powered by assistant-ui with streaming responses
-- 🔧 **Git Integration** - Visual git operations, commits, branches, and per-worktree views
-- 🤖 **Agent Management** - Create, edit, and test AI agents
-- 📁 **File Browser** - Navigate and manage project files
-- ⚡ **Real-time Updates** - Server-Sent Events for live streaming
-- 🎨 **Modern UI** - Built with shadcn/ui and Tailwind CSS
-- 💾 **Persistent Projects** - Your project list is saved and restored
-- 🌳 **Worktree Aware** - Switch between Git worktrees and run isolated agent/chat sessions per worktree
+- 📂 **Project & Worktree Control** – Manage multiple repositories and their git worktrees from a single high-density console.
+- 🖥️ **CLI Agent Sessions** – Launch Codex CLI, Claude Code shell, or OpenCode chat CLI sessions bound to a specific worktree and stream them in tabbed terminals.
+- 🔄 **Fast Switching** – Snap between projects, worktrees, and active terminals without leaving the operations hub.
+- 🔌 **WebSocket I/O** – Real-time terminal streaming backed by a single WebSocket per session for low-latency command and output handling.
+- 🐙 **GitHub Insight** – Preserve the GitHub integration view for issues, pull requests, and status checks with worktree-aware automation hooks.
+- 🧱 **Shadcn UI Base** – Keep shadcn/ui components and Tailwind styling for consistent theming and responsive layouts.
 
 ## Worktrees
 
 Each project exposes its primary checkout as the `default` worktree. Creating additional worktrees lets you:
 
-- Launch isolated chat sessions tied to feature branches.
-- Run terminal/git/file operations against a separate working directory.
-- Manage worktree-specific agents and settings.
+- Launch isolated CLI coding agents tied to feature branches.
+- Run git/file automation against a dedicated working directory.
+- Stage follow-up work without disturbing the primary checkout.
 
-You can switch worktrees from the project sidebar or the dashboard. URLs now take the form `/projects/:projectId/:worktreeId/...`, so deep links remain stable per worktree.
+Switch worktrees from the operations hub. CLI sessions inherit the selected worktree automatically so tooling starts in the correct directory.
 
 ## Architecture
 
-The app consists of a Hono server that serves both the React app and provides API endpoints:
+The app consists of a Hono server that serves both the React app and provides REST/WebSocket endpoints for CLI sessions:
 
 ```
 Browser → Hono Server (Port 3099)
-            ├── / → React App (dev: transpiled on-the-fly, prod: pre-built)
-            ├── /api/* → Project Management APIs
-            └── SDK Integration → Direct SDK access (no proxy)
+            ├── / → React Operations Hub
+            ├── /api/* → Project & worktree APIs + CLI session lifecycle
+            └── /ws/cli → WebSocket stream for interactive terminals
 ```
 
 ### Development Mode
 
-- Current dev flow runs a local build then starts the Node server.
-- For live edits, re-run `pnpm run dev` or wire up `rsbuild dev` if desired.
+- Current dev flow builds the client and server, then starts the Node server.
+- For live edits, re-run `pnpm run dev` or switch to iterative build tooling as needed.
 
 ### Production Mode
 
@@ -86,102 +83,83 @@ Browser → Hono Server (Port 3099)
 ## Project Structure
 
 ```
-app/
-├── src/
-│   ├── server/        # Hono API server
-│   │   ├── index.ts   # Main server entry
-│   │   ├── project-manager.ts        # Project & worktree metadata
-│   │   └── integrated-project-routes.ts   # API route handlers (projects, worktrees, agents)
-│   ├── lib/           # Core libraries
-│   │   ├── api/       # API clients and types
-│   │   └── chat/      # assistant-ui runtime
-│   ├── components/    # React components
-│   │   ├── assistant-ui/  # Chat interface components
-│   │   ├── ui/        # shadcn/ui components
-│   │   └── layout/    # Layout components
-│   ├── pages/         # Route pages
-│   ├── stores/        # Zustand state management (projects, worktrees, sessions, etc.)
-│   └── App.tsx        # Main app with worktree-aware routing
-├── scripts/           # Build and dev scripts
-│   ├── dev.ts         # Development server
-│   ├── build.ts       # Production build
-│   ├── build-debug.ts # Debug build
-│   └── serve-debug.ts # Debug server
-├── test/              # Test files
-│   ├── integration/   # API integration tests
-│   ├── components/    # React component tests
-│   └── e2e/          # Playwright E2E tests
-└── package.json       # Dependencies
+src/
+├── features/              # High-level UI modules
+│   ├── cli/               # Terminal dock components
+│   ├── projects/          # Project rail
+│   └── worktrees/         # Worktree board
+├── pages/
+│   ├── OperationsHub.tsx  # Primary dashboard
+│   └── GitHubIntegration.tsx
+├── stores/                # Zustand stores
+│   ├── cliSessions.ts
+│   ├── projects.ts
+│   └── worktrees.ts
+├── server/
+│   ├── cli-session-manager.ts
+│   ├── cli-routes.ts
+│   ├── integrated-project-routes.ts
+│   └── project-manager.ts
+└── components/
+    ├── ui/                # shadcn/ui primitives
+    ├── nav-*.tsx          # Navigation helpers
+    └── app-sidebar.tsx
 ```
 
 ## Routes
 
-- `/` - Project list/dashboard
-- `/projects/:projectId/:worktreeId` - Project overview (default worktree id: `default`)
-- `/projects/:projectId/:worktreeId/sessions` - Session management
-- `/projects/:projectId/:worktreeId/sessions/:sessionId/chat` - AI chat interface
-- `/projects/:projectId/:worktreeId/git` - Git operations
-- `/projects/:projectId/:worktreeId/agents` - Agent management
-- `/projects/:projectId/:worktreeId/files` - File browser
-- `/projects/:projectId/:worktreeId/settings` - Project & worktree settings
+- `/` — Operations hub for projects, worktrees, and CLI sessions.
+- `/github` — Global GitHub integration dashboard (project optional).
+- `/projects/:projectId/:worktreeId/github` — Worktree-scoped GitHub view with automation actions.
 
 ## API Endpoints
 
-- `GET /api/health` - Health check
-- `GET /api/projects` - List all projects
-- `POST /api/projects` - Create new project
-- `GET /api/projects/:id` - Get project details (includes worktree metadata)
-- `PUT /api/projects/:id` - Update project
-- `DELETE /api/projects/:id` - Remove project
-- `POST /api/projects/:id/start` - Start project instance
-- `POST /api/projects/:id/stop` - Stop project instance
-- `GET /api/projects/:id/status` - Get instance status
-- `GET /api/projects/:id/worktrees` - List git worktrees for a project
-- `POST /api/projects/:id/worktrees` - Create a new worktree (title + directory)
-- `PATCH /api/projects/:id/worktrees/:worktreeId` - Update worktree metadata
-- `DELETE /api/projects/:id/worktrees/:worktreeId` - Remove a non-default worktree
+- `GET /api/health` — Server health probe.
+- `GET /api/projects` — List all registered projects.
+- `POST /api/projects` — Register a new project (path + optional name).
+- `GET /api/projects/:id` — Retrieve project metadata (including worktrees).
+- `PATCH /api/projects/:id` — Update project properties.
+- `DELETE /api/projects/:id` — Remove a project from the hub (does not delete files).
+- `GET /api/projects/:id/worktrees` — List git worktrees for a project.
+- `POST /api/projects/:id/worktrees` — Create a new worktree (supports branch/base args).
+- `PATCH /api/projects/:id/worktrees/:worktreeId` — Update worktree metadata such as title.
+- `DELETE /api/projects/:id/worktrees/:worktreeId` — Remove a non-default worktree.
+- `GET /api/cli/tools` — Enumerate available CLI tool presets.
+- `GET /api/cli/sessions` — List active CLI terminal sessions.
+- `POST /api/cli/sessions` — Launch a new CLI session bound to a project/worktree.
+- `DELETE /api/cli/sessions/:id` — Terminate an existing CLI session.
 
 ## Technology Stack
 
-- **Runtime**: Node.js (managed with pnpm)
+- **Runtime**: Node.js (pnpm managed)
 - **Frontend**: React 18 + TypeScript
-- **Server**: Hono (lightweight web framework)
+- **Server**: Hono + WebSocket bridge (ws) + node-pty for PTY management
 - **Build Tool**: Rsbuild (client) + Rslib (server)
-- **UI Components**: shadcn/ui + assistant-ui
-- **Styling**: Tailwind CSS v4
+- **UI Components**: shadcn/ui primitives + Tailwind CSS v4
 - **State Management**: Zustand + React Query
 - **Routing**: React Router v6
-- **Real-time**: Server-Sent Events (SSE)
-- **Testing**: Rstest + Playwright
+- **Terminal Streaming**: Native WebSockets bound to PTY streams
 
 ## Testing
 
+The legacy chat-focused test suite has been removed. A new test harness for the CLI-first
+workflow is planned—today you can smoke-test by running the dev server and launching CLI
+sessions:
+
 ```bash
-# Run all tests
-pnpm test
-
-# Run specific test suites
-pnpm run test:components      # React component tests
-pnpm run test:integration     # API integration tests
-pnpm run test:runtime         # Runtime tests
-pnpm run test:stores          # Store tests
-
-# E2E tests (requires Playwright)
-pnpm run test:e2e             # Run all E2E tests
-
-# CI E2E run (real models)
-pnpm run test:e2e:ci          # Runs Playwright against real providers/models
-
-Notes:
-- E2E tests select Anthropic as provider and Claude Sonnet 4 as model.
-- Ensure ANTHROPIC_API_KEY is set in your environment before running E2E.
+pnpm run dev
+# open http://localhost:3099 and launch sessions from the Operations Hub
 ```
 
 ## Environment Variables
 
+Primary variables (see docs/environment-variables.md for full list):
+
 - `PORT` - Server port (default: 3099)
 - `HOST` - Server hostname (default: 127.0.0.1)
 - `NODE_ENV` - Environment (development/production)
+- `AGENT_ORANGE_CONFIG_DIR` - Config directory (default: `$HOME/.agent-orange`)
+- `AGENT_ORANGE_TEST_MODE` - Enables test behaviors (default: 0)
 
 ## Troubleshooting
 
@@ -219,7 +197,9 @@ Tailwind CSS v4 runs via PostCSS during build and dev; no manual step required.
 
 ## Documentation
 
-- API Types: `src/lib/api/types.ts`
+- Environment variables: `docs/environment-variables.md`
+- Requirements: `docs/requirements.md`
+- TODO/Status: `docs/todo.md`
 - Server entry: `src/server/index.ts`
 - Project routes: `src/server/integrated-project-routes.ts`
 - GitHub integration client: `src/server/github/gh-cli.ts`
