@@ -128,7 +128,7 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
         )}
 
         <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent>
+          <AlertDialogContent data-testid="remove-worktree-dialog">
             <AlertDialogHeader>
               <AlertDialogTitle>Remove worktree?</AlertDialogTitle>
               <AlertDialogDescription>

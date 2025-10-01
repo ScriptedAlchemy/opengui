@@ -49,7 +49,7 @@ test.describe("Worktree Force Remove", () => {
     await expect(removeBtn).toBeVisible({ timeout: 15000 })
     await removeBtn.scrollIntoViewIfNeeded()
     await removeBtn.click({ force: true })
-    await expect(page.getByText(/Remove worktree\?/)).toBeVisible({ timeout: 10000 })
+    await expect(page.getByTestId("remove-worktree-dialog")).toBeVisible({ timeout: 10000 })
 
     // Check the Force remove checkbox
     await page.getByLabel("Force remove").check()

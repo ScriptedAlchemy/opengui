@@ -29,6 +29,36 @@ export default function OperationsHub() {
     void loadTools()
   }, [loadProjects, loadSessions, loadTools])
 
+  // Keyboard shortcuts for overlays and quick actions
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (!e.shiftKey && (e.key === 'w' || e.key === 'W')) { // Alt+W
+          e.preventDefault()
+          setWorktreesOpen((v) => !v)
+          return
+        }
+        if (!e.shiftKey && (e.key === 's' || e.key === 'S')) { // Alt+S
+          e.preventDefault()
+          setSessionsOpen((v) => !v)
+          return
+        }
+        if (!e.shiftKey && (e.key === 'n' || e.key === 'N')) { // Alt+N
+          e.preventDefault()
+          setNewSessionOpen(true)
+          return
+        }
+        if (e.shiftKey && (e.key === 'N')) { // Alt+Shift+N
+          e.preventDefault()
+          setNewWorktreeOpen(true)
+          return
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   return (
     <div className="flex h-full overflow-hidden">
       {/* Slim project rail for quick switching */}
@@ -37,11 +67,11 @@ export default function OperationsHub() {
       {/* Terminal-first workspace */}
       <div className="flex min-h-0 flex-1 flex-col">
         <div className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/30">
-          <div className="flex items-center gap-2 px-3 py-2">
-            <Button size="sm" variant="outline" onClick={() => setWorktreesOpen(true)} title="Worktrees">
+          <div className="flex items-center gap-2 px-3 py-2" data-testid="command-bar">
+            <Button size="sm" variant="outline" onClick={() => setWorktreesOpen(true)} title="Worktrees" data-testid="btn-worktrees">
               <GitBranch className="mr-2 h-4 w-4" /> Worktrees
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setSessionsOpen(true)} title="Sessions">
+            <Button size="sm" variant="outline" onClick={() => setSessionsOpen(true)} title="Sessions" data-testid="btn-sessions">
               <PanelsTopLeft className="mr-2 h-4 w-4" /> Sessions
             </Button>
             <div className="ml-auto flex items-center gap-2">
@@ -62,7 +92,7 @@ export default function OperationsHub() {
       {/* Worktrees side sheet */}
       <Sheet open={worktreesOpen} onOpenChange={setWorktreesOpen}>
         <SheetTrigger asChild><span className="hidden" /></SheetTrigger>
-        <SheetContent side="left" className="w-[560px] p-0">
+        <SheetContent side="left" className="w-[560px] p-0" data-testid="worktrees-sheet">
           <SheetHeader className="border-b px-4 py-3">
             <SheetTitle className="flex items-center gap-2"><LayoutPanelLeft className="h-4 w-4" /> Worktrees</SheetTitle>
           </SheetHeader>
@@ -73,7 +103,7 @@ export default function OperationsHub() {
       {/* Sessions side sheet */}
       <Sheet open={sessionsOpen} onOpenChange={setSessionsOpen}>
         <SheetTrigger asChild><span className="hidden" /></SheetTrigger>
-        <SheetContent side="right" className="w-[420px] p-0">
+        <SheetContent side="right" className="w-[420px] p-0" data-testid="sessions-sheet">
           <SheetHeader className="border-b px-4 py-3">
             <SheetTitle className="flex items-center gap-2"><PanelsTopLeft className="h-4 w-4" /> Sessions</SheetTitle>
           </SheetHeader>
