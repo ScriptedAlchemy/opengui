@@ -92,6 +92,12 @@ export class CliSessionManager {
     this.detectToolAvailability()
   }
 
+  // Reserved for future behavior differences in tests; currently unused
+  // private isTestMode(): boolean {
+  //   const v = process.env["AGENT_ORANGE_TEST_MODE"]
+  //   return typeof v === "string" && /^(1|true)$/i.test(v)
+  // }
+
   private startIdleCheck(): void {
     this.idleCheckInterval = setInterval(() => {
       this.cleanupIdleSessions()

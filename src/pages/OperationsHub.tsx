@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { FolderGit2, PanelsTopLeft, PlugZap, GitBranch, LayoutPanelLeft } from "lucide-react"
+import { FolderGit2, PanelsTopLeft, PlugZap, GitBranch, LayoutPanelLeft, X } from "lucide-react"
 import { ProjectRail } from "@/features/projects/ProjectRail"
 import { WorktreeBoard } from "@/features/worktrees/WorktreeBoard"
 import { CliSessionDock } from "@/features/cli/CliSessionDock"
@@ -8,6 +8,7 @@ import { useProjectsActions, useCurrentProject } from "@/stores/projects"
 import { useCliSessionsStore } from "@/stores/cliSessions"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { Drawer, DrawerClose, DrawerContent, DrawerTrigger } from "@/components/ui/drawer"
 import { CreateWorktreeDialog } from "@/features/worktrees/CreateWorktreeDialog"
 import { CreateSessionDialog } from "@/features/cli/CreateSessionDialog"
 import { useWorktreesForProject } from "@/stores/worktrees"
@@ -22,6 +23,15 @@ export default function OperationsHub() {
   const [sessionsOpen, setSessionsOpen] = useState(false)
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [newWorktreeOpen, setNewWorktreeOpen] = useState(false)
+  // Initialize persisted project rail width
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('project_rail_width')
+      if (saved) {
+        document.documentElement.style.setProperty('--project-rail-width', `${parseInt(saved, 10)}px`)
+      }
+    } catch {}
+  }, [])
 
   useEffect(() => {
     void loadProjects()
@@ -61,8 +71,50 @@ export default function OperationsHub() {
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Slim project rail for quick switching */}
-      <ProjectRail className="w-14 border-r" />
+      {/* Project rail — wider and resizable */}
+      <div className="relative border-r" style={{ width: 'var(--project-rail-width, 280px)' }} data-testid="project-rail-container">
+        <ProjectRail className="w-full" />
+        {/* Drag handle */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          title="Drag to resize"
+          className="absolute right-[-3px] top-0 h-full w-1.5 cursor-col-resize select-none bg-transparent hover:bg-muted/40"
+          onMouseDown={(e) => {
+            const startX = e.clientX
+            const container = (e.currentTarget.parentElement as HTMLDivElement)!
+            const rect = container.getBoundingClientRect()
+            const startWidth = rect.width
+            const min = 220
+            const max = 480
+            const applyWidth = (next: number) => {
+              const value = `${next}px`
+              container.style.setProperty('--project-rail-width', value)
+              document.documentElement.style.setProperty('--project-rail-width', value)
+              try { localStorage.setItem('project_rail_width', String(next)) } catch {}
+            }
+            const onMove = (ev: MouseEvent) => {
+              const delta = ev.clientX - startX
+              const next = Math.min(max, Math.max(min, Math.round(startWidth + delta)))
+              applyWidth(next)
+            }
+            const onUp = () => {
+              window.removeEventListener('mousemove', onMove)
+              window.removeEventListener('mouseup', onUp)
+            }
+            window.addEventListener('mousemove', onMove)
+            window.addEventListener('mouseup', onUp)
+          }}
+          onDoubleClick={(e) => {
+            const container = (e.currentTarget.parentElement as HTMLDivElement)!
+            const reset = 280
+            const value = `${reset}px`
+            container.style.setProperty('--project-rail-width', value)
+            document.documentElement.style.setProperty('--project-rail-width', value)
+            try { localStorage.setItem('project_rail_width', String(reset)) } catch {}
+          }}
+        />
+      </div>
 
       {/* Terminal-first workspace */}
       <div className="flex min-h-0 flex-1 flex-col">
@@ -89,27 +141,38 @@ export default function OperationsHub() {
         </div>
       </div>
 
-      {/* Worktrees side sheet */}
-      <Sheet open={worktreesOpen} onOpenChange={setWorktreesOpen}>
-        <SheetTrigger asChild><span className="hidden" /></SheetTrigger>
-        <SheetContent
-          side="left"
-          className="w-[560px] p-0 top-[var(--header-height)] h-[calc(100vh-var(--header-height))] z-50"
-          data-testid="worktrees-sheet"
+      {/* Worktrees drawer */}
+      <Drawer open={worktreesOpen} onOpenChange={setWorktreesOpen} direction="left">
+        <DrawerTrigger asChild><span className="hidden" /></DrawerTrigger>
+        <DrawerContent
+          className="w-[560px] max-w-none p-0 top-[var(--header-height)] h-[calc(100vh-var(--header-height))] border-r"
+          style={{
+            left: 'calc(var(--sidebar-width, 16rem) + var(--project-rail-width, 280px))',
+            bottom: "auto",
+          }}
+          data-testid="worktrees-drawer"
         >
-          <SheetHeader className="border-b px-4 py-3">
-            <SheetTitle className="flex items-center gap-2"><LayoutPanelLeft className="h-4 w-4" /> Worktrees</SheetTitle>
-          </SheetHeader>
+          <div className="flex items-center justify-between border-b px-4 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <LayoutPanelLeft className="h-4 w-4" /> Worktrees
+            </div>
+            <DrawerClose asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <X className="h-4 w-4" />
+                <span className="sr-only">Close</span>
+              </Button>
+            </DrawerClose>
+          </div>
           <WorktreeBoard className="h-[calc(100%-49px)]" />
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
       {/* Sessions side sheet */}
       <Sheet open={sessionsOpen} onOpenChange={setSessionsOpen}>
         <SheetTrigger asChild><span className="hidden" /></SheetTrigger>
         <SheetContent
           side="right"
-          className="w-[420px] p-0 top-[var(--header-height)] h-[calc(100vh-var(--header-height))] z-50"
+          className="sm:max-w-none w-[420px] p-0 top-[var(--header-height)] h-[calc(100vh-var(--header-height))] z-50"
           data-testid="sessions-sheet"
         >
           <SheetHeader className="border-b px-4 py-3">

@@ -11,6 +11,35 @@ import type { GitBranchInfo } from "@/lib/api/project-manager"
 import { projectManager } from "@/lib/api/project-manager"
 import { toast } from "sonner"
 
+const WORKTREES_PREFIX = "worktrees/"
+
+const slugifyTitle = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s/-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/(^-|-$)/g, "")
+
+const sanitizePathInput = (value: string) => {
+  const normalized = value.toLowerCase().trim()
+  if (!normalized) return ""
+  const segments = normalized
+    .replace(/^\/+/, "")
+    .split("/")
+    .map((segment) =>
+      segment
+        .trim()
+        .replace(/\s+/g, "-")
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/(^-|-$)/g, "")
+    )
+    .filter(Boolean)
+  return segments.join("/")
+}
+
 interface CreateWorktreeDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -31,6 +60,7 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
   const [mode, setMode] = useState<"new" | "existing">("new")
   const [title, setTitle] = useState("")
   const [path, setPath] = useState("")
+  const [pathManuallyEdited, setPathManuallyEdited] = useState(false)
   const [branch, setBranch] = useState("")
   const [baseRef, setBaseRef] = useState("HEAD")
   const [error, setError] = useState("")
@@ -58,6 +88,7 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
     if (!open) {
       setTitle("")
       setPath("")
+      setPathManuallyEdited(false)
       setBranch("")
       setBaseRef("HEAD")
       setMode("new")
@@ -67,15 +98,16 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
   }, [open])
 
   useEffect(() => {
-    if (!title) return
-    const slug = title
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\-\s/]/g, "")
-      .replace(/\s+/g, "-")
-    if (!path) setPath(`worktrees/${slug}`)
-    if (mode === "new" && !branch) setBranch(slug.replace(/^.*\//, ""))
-  }, [title, mode, branch, path])
+    const slug = slugifyTitle(title)
+    if (!pathManuallyEdited) {
+      const nextPath = slug ? `${WORKTREES_PREFIX}${slug}` : ""
+      setPath((current) => (current === nextPath ? current : nextPath))
+    }
+    if (mode === "new") {
+      const suggestion = slug.split("/").filter(Boolean).pop() ?? slug
+      setBranch((current) => (current ? current : suggestion))
+    }
+  }, [title, mode, pathManuallyEdited])
 
   const existingBranchNames = useMemo(() => branches.map((b) => b.name), [branches])
   const disabledExisting = useMemo(() => new Set(branches.filter((b) => b.checkedOut).map((b) => b.name)), [branches])
@@ -121,7 +153,16 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
           </div>
           <div className="grid gap-2">
             <Label htmlFor="path">Relative Path</Label>
-            <Input id="path" value={path} onChange={(e) => setPath(e.target.value)} placeholder="worktrees/feature-abc" />
+            <Input
+              id="path"
+              value={path}
+              onChange={(e) => {
+                const sanitized = sanitizePathInput(e.target.value)
+                setPath(sanitized)
+                setPathManuallyEdited(sanitized.length > 0)
+              }}
+              placeholder="worktrees/feature-abc"
+            />
           </div>
 
           <div className="flex gap-2">
