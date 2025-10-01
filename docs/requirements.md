@@ -105,9 +105,9 @@ Open items: CSP headers (`Content‑Security‑Policy`), stricter default header
 ### 3.2 Reliability & Performance
 - Bounded snapshot buffer (64KB) to prevent uncontrolled memory growth.
 - Idle cleanup (1h) for orphaned PTYs.
-- Health endpoints: `GET /api/health` (summary), `GET /api/health/live` (liveness).
+- Health endpoints: `GET /api/health` (summary), `GET /api/health/live` (liveness), `GET /api/health/ready` (readiness).
 
-Open items: readiness endpoint, metrics (session durations, spawn failures, git timings), backpressure tuning under sustained high‑throughput terminals.
+Open items: metrics (session durations, spawn failures, git timings), backpressure tuning under sustained high‑throughput terminals.
 
 ### 3.3 Build & Tooling
 - Client build with Rsbuild; server with Rslib to ESM (`server-dist/index.js`).
@@ -235,4 +235,4 @@ Open items: CSP, referrer/permissions policies, audit logging of sensitive actio
 
 --------------------------------------------------------------------------------
 
-Last updated: 2025‑09‑29
+Last updated: 2025‑09‑30

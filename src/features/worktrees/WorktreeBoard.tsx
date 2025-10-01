@@ -19,6 +19,7 @@ import {
 } from "@/stores/worktrees"
 import { useCliSessionsStore } from "@/stores/cliSessions"
 import { CreateSessionDialog } from "../cli/CreateSessionDialog"
+import { CreateWorktreeDialog } from "./CreateWorktreeDialog"
 
 interface WorktreeBoardProps {
   className?: string
@@ -33,6 +34,7 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
   const removeWorktree = useWorktreesStore((state) => state.removeWorktree)
   const { createSession, tools, loadTools } = useCliSessionsStore()
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [selectedWorktreeId, setSelectedWorktreeId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -75,25 +77,22 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
               {project ? project.name : "Select a project"}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              if (!project?.id) return
-              const title = prompt("Worktree title")?.trim()
-              if (!title) return
-              const path = prompt("Relative path", `worktrees/${title.replace(/\s+/g, "-")}`)?.trim()
-              if (!path) return
-              void useWorktreesStore.getState().createWorktree(project.id, {
-                title,
-                path,
-              })
-            }}
-            disabled={!project}
-          >
+          <Button variant="outline" size="sm" onClick={() => setCreateDialogOpen(true)} disabled={!project}>
             New Worktree
           </Button>
         </div>
+
+        {project && (
+          <CreateWorktreeDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            projectId={project.id}
+            onCreate={async (params) => {
+              await useWorktreesStore.getState().createWorktree(project.id, params)
+              await loadWorktrees(project.id)
+            }}
+          />
+        )}
 
         {project && (
           <CreateSessionDialog

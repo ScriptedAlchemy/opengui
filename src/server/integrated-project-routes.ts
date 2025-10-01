@@ -988,6 +988,65 @@ export function addIntegratedProjectRoutes(app: Hono) {
         }
       )
 
+      // GET /api/projects/:id/git/branches - list local branches and their checkout status
+      .get(
+        "/api/projects/:id/git/branches",
+        zValidator("param", z.object({ id: z.string() })),
+        async (c) => {
+          const { id } = c.req.valid("param")
+          const project = projectManager.getProject(id)
+          if (!project) {
+            return c.json({ error: "Project not found" }, 404)
+          }
+
+          try {
+            // List local branches
+            const { stdout: branchesStdout } = await execFileAsync(
+              "git",
+              [
+                "for-each-ref",
+                "--format=%(refname:short)",
+                "refs/heads",
+              ],
+              { cwd: project.path }
+            )
+            const branchNames = branchesStdout
+              .split(/\r?\n/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+
+            // Determine which branches are checked out by any worktree
+            const { stdout: wtStdout } = await execFileAsync(
+              "git",
+              ["worktree", "list", "--porcelain"],
+              { cwd: project.path }
+            )
+            const checkedOut = new Set<string>()
+            for (const line of wtStdout.split(/\r?\n/)) {
+              if (line.startsWith("branch ")) {
+                const ref = line.substring("branch ".length).trim()
+                // Expect format like "refs/heads/feature/foo"
+                const short = ref.startsWith("refs/heads/") ? ref.substring("refs/heads/".length) : ref
+                if (short) checkedOut.add(short)
+              }
+            }
+
+            const result = branchNames.map((name) => ({
+              name,
+              checkedOut: checkedOut.has(name),
+            }))
+
+            return c.json(result)
+          } catch (error) {
+            log.error("Failed to list branches:", error)
+            return c.json(
+              { error: error instanceof Error ? error.message : "Failed to list branches" },
+              400
+            )
+          }
+        }
+      )
+
       // PATCH /api/projects/:id/worktrees/:worktreeId - update metadata
       .patch(
         "/api/projects/:id/worktrees/:worktreeId",

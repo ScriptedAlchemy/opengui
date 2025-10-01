@@ -61,7 +61,7 @@ This checklist tracks the CLI‑first rewrite to completion. It reflects current
 - [ ] Add worktree naming guidance for issue/PR flows.
 
 ## Tests & CI
-- [x] Comprehensive E2E API tests: **56 tests, 56 passing (100%)** ✨
+- [x] Comprehensive E2E API tests: **61 tests, 61 passing (100%)** ✨
   - [x] Projects CRUD (create, read, list, delete)
   - [x] Worktree operations (create, update, delete, multiple worktrees)
   - [x] CLI session lifecycle (create → WS attach → input/resize → exit → delete)

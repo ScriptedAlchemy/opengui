@@ -60,16 +60,20 @@ export function ProjectRail({ className }: ProjectRailProps) {
               </TooltipTrigger>
               <TooltipContent>Refresh projects</TooltipContent>
             </Tooltip>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => setDialogOpen(true)}
-              aria-label="Add project"
-              data-testid="add-project-button"
-              title="Add project"
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => setDialogOpen(true)}
+                  aria-label="Add project"
+                  data-testid="add-project-button"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Add project</TooltipContent>
+            </Tooltip>
           </div>
         </div>
 

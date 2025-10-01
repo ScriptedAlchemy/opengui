@@ -45,6 +45,11 @@ export interface CreateWorktreeParams {
   force?: boolean
 }
 
+export interface GitBranchInfo {
+  name: string
+  checkedOut: boolean
+}
+
 export class ProjectManagerClient {
   constructor(private baseURL = "/api") {}
 
@@ -176,6 +181,13 @@ export class ProjectManagerClient {
       method: "POST",
       body: JSON.stringify(params),
     })
+  }
+
+  /**
+   * List local branches for a project and whether each is checked out by any worktree
+   */
+  async getBranches(projectId: string): Promise<GitBranchInfo[]> {
+    return this.request<GitBranchInfo[]>(`/projects/${projectId}/git/branches`)
   }
 
   /**
