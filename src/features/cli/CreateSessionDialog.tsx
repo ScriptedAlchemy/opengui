@@ -132,7 +132,7 @@ export function CreateSessionDialog({
               </SelectTrigger>
               <SelectContent>
                 {availableTools.map((t) => (
-                  <SelectItem key={t.id} value={t.id}>
+                  <SelectItem key={t.id} value={t.id} data-testid={`tool-option-${t.id}`}>
                     {t.name || t.id}
                   </SelectItem>
                 ))}
