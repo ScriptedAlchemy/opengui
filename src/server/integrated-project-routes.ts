@@ -988,7 +988,7 @@ export function addIntegratedProjectRoutes(app: Hono) {
         }
       )
 
-      // GET /api/projects/:id/git/branches - list local branches and their checkout status
+      // GET /api/projects/:id/git/branches - list local and remote branches and their checkout status
       .get(
         "/api/projects/:id/git/branches",
         zValidator("param", z.object({ id: z.string() })),
@@ -1000,8 +1000,22 @@ export function addIntegratedProjectRoutes(app: Hono) {
           }
 
           try {
+            // Best-effort refresh of remotes to keep branch list current
+            try {
+              await execFileAsync(
+                "git",
+                ["fetch", "--all", "--prune"],
+                { cwd: project.path, timeout: 20000 }
+              )
+            } catch (fetchError) {
+              // Do not fail the request if fetch fails; continue with existing refs
+              log.debug("git fetch --all --prune failed (continuing)", {
+                error: fetchError instanceof Error ? fetchError.message : String(fetchError),
+              })
+            }
+
             // List local branches
-            const { stdout: branchesStdout } = await execFileAsync(
+            const { stdout: localStdout } = await execFileAsync(
               "git",
               [
                 "for-each-ref",
@@ -1010,31 +1024,54 @@ export function addIntegratedProjectRoutes(app: Hono) {
               ],
               { cwd: project.path }
             )
-            const branchNames = branchesStdout
+            const localBranches = localStdout
               .split(/\r?\n/)
               .map((s) => s.trim())
               .filter(Boolean)
 
-            // Determine which branches are checked out by any worktree
+            // List remote-tracking branches (exclude symbolic refs like origin/HEAD)
+            const { stdout: remoteStdout } = await execFileAsync(
+              "git",
+              [
+                "for-each-ref",
+                "--format=%(refname:short)",
+                "refs/remotes",
+              ],
+              { cwd: project.path }
+            )
+            const remoteBranches = remoteStdout
+              .split(/\r?\n/)
+              .map((s) => s.trim())
+              .filter((name) => Boolean(name) && !/\/?HEAD$/.test(name))
+
+            // Determine which local branches are checked out by any worktree
             const { stdout: wtStdout } = await execFileAsync(
               "git",
               ["worktree", "list", "--porcelain"],
               { cwd: project.path }
             )
-            const checkedOut = new Set<string>()
+            const checkedOutLocal = new Set<string>()
             for (const line of wtStdout.split(/\r?\n/)) {
               if (line.startsWith("branch ")) {
                 const ref = line.substring("branch ".length).trim()
                 // Expect format like "refs/heads/feature/foo"
                 const short = ref.startsWith("refs/heads/") ? ref.substring("refs/heads/".length) : ref
-                if (short) checkedOut.add(short)
+                if (short) checkedOutLocal.add(short)
               }
             }
 
-            const result = branchNames.map((name) => ({
-              name,
-              checkedOut: checkedOut.has(name),
-            }))
+            // Build combined result: locals first, then remotes
+            const result = [
+              ...localBranches.map((name) => ({ name, checkedOut: checkedOutLocal.has(name) })),
+              ...remoteBranches.map((name) => {
+                // Mark remote as in-use if its local counterpart is checked out (e.g., origin/foo → foo)
+                const localEquivalent = name.includes("/") ? name.split("/").slice(1).join("/") : name
+                return {
+                  name,
+                  checkedOut: checkedOutLocal.has(localEquivalent),
+                }
+              }),
+            ]
 
             return c.json(result)
           } catch (error) {

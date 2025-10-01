@@ -184,7 +184,9 @@ export class ProjectManagerClient {
   }
 
   /**
-   * List local branches for a project and whether each is checked out by any worktree
+   * List branches (local + remote-tracking) for a project and whether each is checked out by any worktree
+   * Remote branches are reported as e.g. `origin/feature/foo` and are marked `checkedOut`
+   * if their local counterpart (e.g. `feature/foo`) is currently checked out in a worktree.
    */
   async getBranches(projectId: string): Promise<GitBranchInfo[]> {
     return this.request<GitBranchInfo[]>(`/projects/${projectId}/git/branches`)
