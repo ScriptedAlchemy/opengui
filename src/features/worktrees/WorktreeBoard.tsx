@@ -49,6 +49,7 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
   const [selectedWorktreeId, setSelectedWorktreeId] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteForce, setDeleteForce] = useState(false)
+  const [deleteBusy, setDeleteBusy] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -144,19 +145,25 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
             </div>
             <AlertDialogFooter>
               <AlertDialogCancel asChild>
-                <Button variant="outline">Cancel</Button>
+                <Button variant="outline" disabled={deleteBusy}>Cancel</Button>
               </AlertDialogCancel>
               <AlertDialogAction asChild>
                 <Button
                   variant="destructive"
+                  disabled={deleteBusy}
                   onClick={async () => {
                     if (!project?.id || !pendingDeleteId) return
-                    await removeWorktree(project.id, pendingDeleteId, deleteForce)
-                    setDeleteOpen(false)
-                    setPendingDeleteId(null)
+                    setDeleteBusy(true)
+                    try {
+                      await removeWorktree(project.id, pendingDeleteId, deleteForce)
+                      setDeleteOpen(false)
+                      setPendingDeleteId(null)
+                    } finally {
+                      setDeleteBusy(false)
+                    }
                   }}
                 >
-                  Remove
+                  {deleteBusy ? 'Removing…' : 'Remove'}
                 </Button>
               </AlertDialogAction>
             </AlertDialogFooter>

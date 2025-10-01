@@ -15,6 +15,17 @@ import { useWorktreesForProject } from "@/stores/worktrees"
 import { useCliSessionsStore } from "@/stores/cliSessions"
 import { CreateSessionDialog } from "./CreateSessionDialog"
 import { Tooltip as ShadTooltip, TooltipContent as ShadTooltipContent, TooltipProvider as ShadTooltipProvider, TooltipTrigger as ShadTooltipTrigger } from "@/components/ui/tooltip"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 
 interface CliSessionDockProps {
@@ -32,6 +43,9 @@ export function CliSessionDock({ className }: CliSessionDockProps) {
   const loadTools = useCliSessionsStore((state) => state.loadTools)
   const tools = useCliSessionsStore((state) => state.tools)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [confirmBusy, setConfirmBusy] = useState(false)
+  const [confirmSessionId, setConfirmSessionId] = useState<string | null>(null)
 
   useEffect(() => {
     void loadTools()
@@ -129,7 +143,12 @@ export function CliSessionDock({ className }: CliSessionDockProps) {
                         className="opacity-0 transition group-hover:opacity-100"
                         onClick={(event) => {
                           event.stopPropagation()
-                          void closeSession(session.id)
+                          if (session.status === "running" || session.status === "starting") {
+                            setConfirmSessionId(session.id)
+                            setConfirmOpen(true)
+                          } else {
+                            void closeSession(session.id)
+                          }
                         }}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -148,6 +167,37 @@ export function CliSessionDock({ className }: CliSessionDockProps) {
           </div>
         </ScrollArea>
       </div>
+      <AlertDialog open={confirmOpen} onOpenChange={(o) => { if (!o) { setConfirmBusy(false); setConfirmSessionId(null) } setConfirmOpen(o) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>End session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will terminate the running CLI process and close the terminal.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="outline" disabled={confirmBusy}>Cancel</Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="destructive"
+                disabled={confirmBusy || !confirmSessionId}
+                onClick={async () => {
+                  if (!confirmSessionId) return
+                  setConfirmBusy(true)
+                  await closeSession(confirmSessionId)
+                  setConfirmBusy(false)
+                  setConfirmOpen(false)
+                  setConfirmSessionId(null)
+                }}
+              >
+                {confirmBusy ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Ending...</>) : 'End Session'}
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   )
 }
