@@ -180,8 +180,8 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
         <ScrollArea className="flex-1">
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
             {sorted.map((worktree) => (
-              <Card key={worktree.id} className="border-muted-foreground/20">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <Card key={worktree.id} className="border-muted-foreground/20 overflow-hidden">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 relative z-10">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <GitBranch className="h-4 w-4" />
                     {worktree.title || worktree.id}

@@ -92,7 +92,11 @@ export default function OperationsHub() {
       {/* Worktrees side sheet */}
       <Sheet open={worktreesOpen} onOpenChange={setWorktreesOpen}>
         <SheetTrigger asChild><span className="hidden" /></SheetTrigger>
-        <SheetContent side="left" className="w-[560px] p-0" data-testid="worktrees-sheet">
+        <SheetContent
+          side="left"
+          className="w-[560px] p-0 top-[var(--header-height)] h-[calc(100vh-var(--header-height))] z-50"
+          data-testid="worktrees-sheet"
+        >
           <SheetHeader className="border-b px-4 py-3">
             <SheetTitle className="flex items-center gap-2"><LayoutPanelLeft className="h-4 w-4" /> Worktrees</SheetTitle>
           </SheetHeader>
@@ -103,7 +107,11 @@ export default function OperationsHub() {
       {/* Sessions side sheet */}
       <Sheet open={sessionsOpen} onOpenChange={setSessionsOpen}>
         <SheetTrigger asChild><span className="hidden" /></SheetTrigger>
-        <SheetContent side="right" className="w-[420px] p-0" data-testid="sessions-sheet">
+        <SheetContent
+          side="right"
+          className="w-[420px] p-0 top-[var(--header-height)] h-[calc(100vh-var(--header-height))] z-50"
+          data-testid="sessions-sheet"
+        >
           <SheetHeader className="border-b px-4 py-3">
             <SheetTitle className="flex items-center gap-2"><PanelsTopLeft className="h-4 w-4" /> Sessions</SheetTitle>
           </SheetHeader>
