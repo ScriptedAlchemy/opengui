@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test"
+import { execSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
 
@@ -23,11 +24,16 @@ const pick = () => {
 }
 
 const port = pick()
+
+// Proactively free the selected port in case a manual dev server is still running.
+try {
+  execSync(`npx kill-port ${port}`, { stdio: "ignore" })
+} catch {
+  // ignore errors (port may already be free)
+}
 const host = "127.0.0.1"
 const base = `http://${host}:${port}`
-const e2eConfigDir = path.join(process.cwd(), "test-results", ".agent-orange-e2e")
 
-const enableHd = process.env.E2E_HD === "1"
 
 export default defineConfig({
   // Include all e2e-style specs across subfolders (e2e + visual)
@@ -43,9 +49,9 @@ export default defineConfig({
   // Enable more parallelism for faster test execution
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: 0,
   workers: 1,
-  maxFailures: 5,
+  maxFailures: 1,
 
   // Quieter reporter locally
   reporter: process.env.CI ? "github" : "line",
@@ -68,37 +74,5 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
       },
     },
-    ...(enableHd
-      ? [
-          {
-            name: "chromium-hd",
-            use: {
-              ...devices["Desktop Chrome"],
-              viewport: { width: 1600, height: 1000 },
-              deviceScaleFactor: 2,
-            },
-          },
-        ]
-      : []),
   ],
-
-  // Use production build for E2E tests to avoid any HMR/dev server behavior
-  webServer: {
-    // Ensure demo project directories exist before server boots to avoid warnings.
-    command: "node scripts/e2e-prep.cjs && pnpm run dev:server",
-    url: base,
-    reuseExistingServer: true,
-    timeout: 120000,
-    stdout: "pipe",
-    stderr: "pipe",
-    env: {
-      PORT: String(port),
-      HOST: host,
-      NODE_ENV: "production",
-      LOG_LEVEL: "warn",
-      // Keep E2E-created projects isolated from user data
-      AGENT_ORANGE_CONFIG_DIR: e2eConfigDir,
-      AGENT_ORANGE_TEST_MODE: "1",
-    },
-  },
 })
