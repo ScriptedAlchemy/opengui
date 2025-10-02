@@ -22,7 +22,7 @@ import { createOpencodeServer } from "@opencode-ai/sdk/server"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import type Dispatcher from "undici-types/dispatcher"
+import type { Dispatcher } from "undici"
 // For controlling fetch timeouts and connection reuse with Node's undici
 // Note: avoid static import of 'undici' Agent to prevent bundling/runtime issues
 // in certain environments. We'll require it dynamically when available.

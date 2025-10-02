@@ -69,9 +69,8 @@ test.describe("ChatInterfaceV2 - Simple Test", () => {
       )
       
       if (criticalErrors.length > 0) {
-        const _errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-        
         // Temporarily disable failing on API errors to focus on UI functionality
+        // const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
         // throw new Error(`Critical API calls failed: ${errorDetails}. Test should fail when API returns error status codes.`)
       }
     }

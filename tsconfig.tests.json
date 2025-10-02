@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node", "@testing-library/jest-dom", "@playwright/test"]
+  },
+  "include": [
+    "test/**/*.ts",
+    "test/**/*.tsx"
+  ]
+}

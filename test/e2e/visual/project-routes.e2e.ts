@@ -9,8 +9,8 @@ test("project route snapshots", async ({ page }) => {
   await page.addInitScript((frozenNow) => {
     const OriginalDate = Date
     class FrozenDate extends OriginalDate {
-      constructor(...args: any[]) {
-        if (args.length === 0) {
+      constructor(...args: ConstructorParameters<typeof Date>) {
+        if (args[0] === undefined) {
           super(frozenNow)
         } else {
           super(...args)

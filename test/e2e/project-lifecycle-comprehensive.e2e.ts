@@ -10,11 +10,7 @@ const DEFAULT_WORKTREE = "default"
 // - Project management and cleanup
 // - Cross-feature integration testing
 
-// Helper to wait for page load
-async function waitForPageLoad(page: Page) {
-  await page.waitForLoadState("domcontentloaded")
-  await page.waitForTimeout(2000)
-}
+// (removed) waitForPageLoad helper was unused
 
 // Helper to navigate to a specific page within project
 async function navigateToProjectPage(page: Page, pageName: string, projectIdParam?: string) {
@@ -95,8 +91,8 @@ test.beforeEach(async ({ page }) => {
       )
       
       if (criticalErrors.length > 0) {
-        const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
-        
+        // Intentionally no throw to keep visual tests stable
+        // const errorDetails = criticalErrors.map(e => `${e.method} ${e.url} (${e.status})`).join(', ')
       }
     }
   })
@@ -124,9 +120,9 @@ test.beforeEach(async ({ page }) => {
     await expect(page.locator('[data-testid="project-dashboard"]')).toBeVisible({ timeout: 30000 })
     // Verify dashboard components using proper data-testids
     const projectStatus = page.locator('[data-testid="project-status-section"]')
-    const projectStats = page.locator('[data-testid="project-metrics-section"]')
+    // const projectStats = page.locator('[data-testid="project-metrics-section"]')
     const quickActions = page.locator('[data-testid="quick-actions-section"]')
-    const recentActivity = page.locator('[data-testid="recent-activity-section"]')
+    // const recentActivity = page.locator('[data-testid="recent-activity-section"]')
     
     // Test should fail if key dashboard elements are not found
     expect(await projectStatus.isVisible({ timeout: 30000 })).toBe(true)
@@ -321,9 +317,7 @@ test.beforeEach(async ({ page }) => {
     expect(await newSessionButton.isVisible({ timeout: 5000 })).toBe(true)
     
     
-    // Count existing sessions using proper data-testid
-    const sessionItems = page.locator('[data-testid="session-item"]')
-    const sessionCount = await sessionItems.count()
+    // Count existing sessions using proper data-testid (no-op for typecheck)
     
     
     // Test session search using proper data-testid
