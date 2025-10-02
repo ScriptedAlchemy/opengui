@@ -13,31 +13,52 @@ import { toast } from "sonner"
 
 const WORKTREES_PREFIX = "worktrees/"
 
-const slugifyTitle = (value: string) =>
+const normalize = (value: string) =>
   value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s/-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/(^-|-$)/g, "")
 
-const sanitizePathInput = (value: string) => {
-  const normalized = value.toLowerCase().trim()
+const sanitizeSegments = (value: string) => {
+  const normalized = normalize(value).trim()
   if (!normalized) return ""
-  const segments = normalized
+  return normalized
     .replace(/^\/+/, "")
     .split("/")
     .map((segment) =>
       segment
         .trim()
-        .replace(/\s+/g, "-")
+        .replace(/[\s_]+/g, "-")
         .replace(/[^a-z0-9-]/g, "-")
         .replace(/-+/g, "-")
         .replace(/(^-|-$)/g, "")
     )
     .filter(Boolean)
-  return segments.join("/")
+    .join("/")
+}
+
+const slugifyTitle = (value: string) => sanitizeSegments(value)
+
+const sanitizePathInput = (value: string) => sanitizeSegments(value)
+
+const sanitizeBranchInput = (value: string) => sanitizeSegments(value)
+
+const BRANCH_NAME_REGEX = /^[a-zA-Z0-9._\-\/]+$/
+const validateBranchName = (name: string): string | null => {
+  if (!name.trim()) return "Branch name is required"
+  if (!BRANCH_NAME_REGEX.test(name)) {
+    return "Branch name can only contain letters, numbers, dots, dashes, underscores, and slashes"
+  }
+  if (name.startsWith("/") || name.endsWith("/")) {
+    return "Branch name cannot start or end with a slash"
+  }
+  if (name.includes("//")) {
+    return "Branch name cannot contain consecutive slashes"
+  }
+  if (name.length > 255) {
+    return "Branch name is too long (max 255 characters)"
+  }
+  return null
 }
 
 interface CreateWorktreeDialogProps {
@@ -62,6 +83,7 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
   const [path, setPath] = useState("")
   const [pathManuallyEdited, setPathManuallyEdited] = useState(false)
   const [branch, setBranch] = useState("")
+  const [branchManuallyEdited, setBranchManuallyEdited] = useState(false)
   const [baseRef, setBaseRef] = useState("HEAD")
   const [error, setError] = useState("")
   const [branchPopoverOpen, setBranchPopoverOpen] = useState(false)
@@ -90,6 +112,7 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
       setPath("")
       setPathManuallyEdited(false)
       setBranch("")
+      setBranchManuallyEdited(false)
       setBaseRef("HEAD")
       setMode("new")
       setError("")
@@ -103,11 +126,10 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
       const nextPath = slug ? `${WORKTREES_PREFIX}${slug}` : ""
       setPath((current) => (current === nextPath ? current : nextPath))
     }
-    if (mode === "new") {
-      const suggestion = slug.split("/").filter(Boolean).pop() ?? slug
-      setBranch((current) => (current ? current : suggestion))
+    if (mode === "new" && !branchManuallyEdited) {
+      setBranch((current) => (current === slug ? current : slug))
     }
-  }, [title, mode, pathManuallyEdited])
+  }, [title, mode, pathManuallyEdited, branchManuallyEdited])
 
   const existingBranchNames = useMemo(() => branches.map((b) => b.name), [branches])
   const disabledExisting = useMemo(() => new Set(branches.filter((b) => b.checkedOut).map((b) => b.name)), [branches])
@@ -121,6 +143,17 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
 
   const handleSubmit = async () => {
     setError("")
+
+    // Validate branch name for new branches
+    if (mode === "new") {
+      const branchError = validateBranchName(branch)
+      if (branchError) {
+        setError(branchError)
+        toast.error(branchError)
+        return
+      }
+    }
+
     setLoading(true)
     try {
       if (mode === "new") {
@@ -173,7 +206,16 @@ export function CreateWorktreeDialog({ open, onOpenChange, projectId, onCreate }
           {mode === "new" ? (
             <div className="grid gap-2">
               <Label htmlFor="branch">New Branch Name</Label>
-              <Input id="branch" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="feature/abc" />
+              <Input
+                id="branch"
+                value={branch}
+                onChange={(e) => {
+                  const sanitized = sanitizeBranchInput(e.target.value)
+                  setBranch(sanitized)
+                  setBranchManuallyEdited(sanitized.length > 0)
+                }}
+                placeholder="feature/abc"
+              />
               <Label htmlFor="base">Base Ref</Label>
               <Input id="base" value={baseRef} onChange={(e) => setBaseRef(e.target.value)} placeholder="HEAD or main" />
             </div>

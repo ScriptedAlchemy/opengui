@@ -1,6 +1,7 @@
 import { Log } from "../util/log"
 // removed expensive git helpers from hot path
 import * as fs from "fs/promises"
+import fsSync from "node:fs"
 import * as crypto from "crypto"
 import * as path from "node:path"
 
@@ -61,6 +62,19 @@ export class ProjectManager {
     return path.resolve(value).replace(/\\/g, "/").replace(/\/+$/, "")
   }
 
+  private canonicalizePath(value: string): string {
+    const normalized = this.normalizePath(value)
+    try {
+      const real =
+        typeof fsSync.realpathSync.native === "function"
+          ? fsSync.realpathSync.native(normalized)
+          : fsSync.realpathSync(normalized)
+      return this.normalizePath(real)
+    } catch {
+      return normalized
+    }
+  }
+
   private slugify(value: string): string {
     return (
       value
@@ -72,7 +86,8 @@ export class ProjectManager {
   }
 
   private ensureDefaultWorktree(info: ProjectInfo): void {
-    const normalizedProjectPath = this.normalizePath(info.path)
+    const normalizedProjectPath = this.canonicalizePath(info.path)
+    info.path = normalizedProjectPath
     if (!info.worktrees) {
       info.worktrees = []
     }
@@ -93,7 +108,7 @@ export class ProjectManager {
 
     info.worktrees = info.worktrees.map((worktree) => ({
       ...worktree,
-      path: this.normalizePath(worktree.path || normalizedProjectPath),
+      path: this.canonicalizePath(worktree.path || normalizedProjectPath),
       title: worktree.title || worktree.id,
     }))
   }
@@ -259,7 +274,14 @@ export class ProjectManager {
       throw new Error(message)
     }
 
-    const projectId = await this.getGitProjectId(normalizedPath)
+    let canonicalPath = normalizedPath
+    try {
+      canonicalPath = this.normalizePath(await fs.realpath(normalizedPath))
+    } catch {
+      // Keep normalizedPath when realpath cannot resolve (e.g., permission issues)
+    }
+
+    const projectId = await this.getGitProjectId(canonicalPath)
 
     // Check if project already exists
     if (this.projects.has(projectId)) {
@@ -267,8 +289,8 @@ export class ProjectManager {
       const incomingName = name?.trim()
 
       let updated = false
-      if (existing.info.path !== normalizedPath) {
-        existing.info.path = normalizedPath
+      if (existing.info.path !== canonicalPath) {
+        existing.info.path = canonicalPath
         updated = true
       }
       if (incomingName && existing.info.name !== incomingName) {
@@ -286,10 +308,11 @@ export class ProjectManager {
       return existing.info
     }
 
+    const fallbackName = canonicalPath.split("/").pop() || "Unknown Project"
     const projectInfo: ProjectInfo = {
       id: projectId,
-      name: name || normalizedPath.split("/").pop() || "Unknown Project",
-      path: normalizedPath,
+      name: name || fallbackName,
+      path: canonicalPath,
       status: "running", // SDK mode - projects are always ready
       lastAccessed: Date.now(),
       gitRoot: undefined,
@@ -297,8 +320,8 @@ export class ProjectManager {
       worktrees: [
         {
           id: "default",
-          path: normalizedPath,
-          title: `${name || normalizedPath.split("/").pop() || "Unknown Project"} (default)`.trim(),
+          path: canonicalPath,
+          title: `${name || fallbackName} (default)`.trim(),
         },
       ],
     }
@@ -365,14 +388,36 @@ export class ProjectManager {
     if (!instance) return undefined
     this.ensureDefaultWorktree(instance.info)
 
-    const normalizedPath = this.normalizePath(worktreePath)
+    const normalizedPath = this.canonicalizePath(worktreePath)
     const existing = instance.info.worktrees?.find(
-      (worktree) => this.normalizePath(worktree.path) === normalizedPath
+      (worktree) => this.canonicalizePath(worktree.path) === normalizedPath
     )
     if (existing) {
-      if (title && !existing.title) {
-        existing.title = title
+      if (existing.path !== normalizedPath) {
+        existing.path = normalizedPath
         this.markDirty()
+      }
+      if (title && existing.title !== title) {
+        const normalizedIncoming = title.trim()
+        const current = existing.title?.trim() ?? ""
+        const incomingSlug = this.slugify(normalizedIncoming)
+        const currentSlug = current ? this.slugify(current) : ""
+        const incomingLooksSluggy =
+          !normalizedIncoming ||
+          normalizedIncoming === incomingSlug ||
+          /[\/_]/.test(normalizedIncoming)
+        const currentLooksSluggy =
+          !current ||
+          current === existing.id ||
+          current === existing.path ||
+          current === path.basename(existing.path) ||
+          current === currentSlug ||
+          /[\/_]/.test(current)
+        const shouldOverwrite = !current || (currentLooksSluggy && !incomingLooksSluggy)
+        if (shouldOverwrite) {
+          existing.title = normalizedIncoming
+          this.markDirty()
+        }
       }
       return existing
     }

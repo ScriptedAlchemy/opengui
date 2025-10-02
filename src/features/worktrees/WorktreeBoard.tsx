@@ -164,6 +164,11 @@ export function WorktreeBoard({ className }: WorktreeBoardProps) {
                       await removeWorktree(project.id, pendingDeleteId, deleteForce)
                       setDeleteOpen(false)
                       setPendingDeleteId(null)
+                    } catch (error) {
+                      const message = error instanceof Error ? error.message : "Failed to remove worktree"
+                      const { toast } = await import("sonner")
+                      toast.error(message)
+                      console.error("Worktree remove error:", error)
                     } finally {
                       setDeleteBusy(false)
                     }

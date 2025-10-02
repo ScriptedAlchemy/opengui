@@ -55,6 +55,9 @@ interface CliSessionRecord extends CliSessionInfo {
 
 const BUFFER_LIMIT = 64 * 1024 // 64KB snapshot buffer
 const SESSION_IDLE_TIMEOUT = 60 * 60 * 1000 // 1 hour
+const MAX_SESSIONS_PER_PROJECT = 10
+const MAX_TOTAL_SESSIONS = 50
+const PTY_KILL_TIMEOUT = 5000 // 5 seconds to wait for graceful exit
 
 export class CliSessionManager {
   private sessions = new Map<string, CliSessionRecord>()
@@ -156,6 +159,18 @@ export class CliSessionManager {
   }
 
   async createSession(input: CreateCliSessionInput): Promise<CliSessionInfo> {
+    // Enforce session limits
+    const totalSessions = this.sessions.size
+    if (totalSessions >= MAX_TOTAL_SESSIONS) {
+      throw new Error(`Maximum total sessions (${MAX_TOTAL_SESSIONS}) reached`)
+    }
+
+    const projectSessions = Array.from(this.sessions.values()).filter(
+      (s) => s.projectId === input.projectId
+    ).length
+    if (projectSessions >= MAX_SESSIONS_PER_PROJECT) {
+      throw new Error(`Maximum sessions per project (${MAX_SESSIONS_PER_PROJECT}) reached`)
+    }
 
     const toolConfig = this.tools[input.tool]
     if (!toolConfig) {
@@ -300,7 +315,23 @@ export class CliSessionManager {
     const session = this.sessions.get(sessionId)
     if (!session) return
     this.log("info", `Closing session: ${sessionId}`, { sessionId })
-    session.pty.kill()
+
+    // Attempt graceful shutdown with timeout
+    const ptyKilled = new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        this.log("warn", `PTY did not exit gracefully within ${PTY_KILL_TIMEOUT}ms, forcing cleanup`, { sessionId })
+        resolve()
+      }, PTY_KILL_TIMEOUT)
+
+      session.pty.onExit(() => {
+        clearTimeout(timeout)
+        resolve()
+      })
+
+      session.pty.kill()
+    })
+
+    await ptyKilled
     this.cleanup(sessionId)
   }
 

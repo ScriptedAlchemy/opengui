@@ -1,212 +1,150 @@
-import { describe, it, expect, vi, beforeEach } from '@rstest/core'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { CreateWorktreeDialog } from '@/features/worktrees/CreateWorktreeDialog'
-import { useWorktreesStore } from '@/stores/worktrees'
-import { useCurrentProject } from '@/stores/projects'
+import { describe, it, expect, beforeEach, afterEach, rstest } from "@rstest/core"
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 
-// Mock stores
-vi.mock('@/stores/worktrees')
-vi.mock('@/stores/projects')
+import { CreateWorktreeDialog } from "@/features/worktrees/CreateWorktreeDialog"
 
-const renderCreateWorktreeDialog = (open = true) => {
-  const mockOnOpenChange = vi.fn()
-  return render(
-    <CreateWorktreeDialog open={open} onOpenChange={mockOnOpenChange} />
-  )
+const sanitizeSegments = (value: string) => {
+  const normalized = value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+  if (!normalized) return ""
+  return normalized
+    .replace(/^\/+/, "")
+    .split("/")
+    .map((segment) =>
+      segment
+        .trim()
+        .replace(/[\s_]+/g, "-")
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/(^-|-$)/g, "")
+    )
+    .filter(Boolean)
+    .join("/")
 }
 
-describe('CreateWorktreeDialog', () => {
-  const mockCreateWorktree = vi.fn()
-  const mockBranches = [
-    { name: 'main', isLocal: true, isRemote: false },
-    { name: 'develop', isLocal: true, isRemote: false },
-    { name: 'origin/feature-x', isLocal: false, isRemote: true },
-  ]
-
-  const mockProject = {
-    id: 'proj-1',
-    name: 'Test Project',
-    path: '/test/project',
-  }
+describe("CreateWorktreeDialog", () => {
+  let fetchMock: ReturnType<typeof rstest.fn>
+  let onCreate: ReturnType<typeof rstest.fn>
+  let onOpenChange: ReturnType<typeof rstest.fn>
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    const branches = [
+      { name: "main", checkedOut: true },
+      { name: "feature/one", checkedOut: false },
+    ]
 
-    vi.mocked(useWorktreesStore).mockReturnValue({
-      createWorktree: mockCreateWorktree,
-      branches: mockBranches,
-      loadBranches: vi.fn(),
-    } as any)
-
-    vi.mocked(useCurrentProject).mockReturnValue(mockProject as any)
-  })
-
-  it('renders dialog when open', () => {
-    renderCreateWorktreeDialog(true)
-
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText(/create worktree/i)).toBeInTheDocument()
-  })
-
-  it('does not render when closed', () => {
-    renderCreateWorktreeDialog(false)
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  })
-
-  it('displays branch selection', () => {
-    renderCreateWorktreeDialog()
-
-    expect(screen.getByLabelText(/branch/i)).toBeInTheDocument()
-  })
-
-  it('displays worktree name input', () => {
-    renderCreateWorktreeDialog()
-
-    expect(screen.getByLabelText(/worktree name/i)).toBeInTheDocument()
-  })
-
-  it('lists available branches', async () => {
-    const user = userEvent.setup()
-    renderCreateWorktreeDialog()
-
-    const branchSelect = screen.getByRole('combobox', { name: /select branch/i })
-    await user.click(branchSelect)
-
-    expect(screen.getByText('main')).toBeInTheDocument()
-    expect(screen.getByText('develop')).toBeInTheDocument()
-    expect(screen.getByText('origin/feature-x')).toBeInTheDocument()
-  })
-
-  it('creates worktree with selected branch', async () => {
-    const user = userEvent.setup()
-    renderCreateWorktreeDialog()
-
-    // Select branch
-    const branchSelect = screen.getByRole('combobox', { name: /select branch/i })
-    await user.click(branchSelect)
-    await user.click(screen.getByText('develop'))
-
-    // Enter name
-    const nameInput = screen.getByLabelText(/worktree name/i)
-    await user.type(nameInput, 'develop-wt')
-
-    // Submit
-    const createButton = screen.getByRole('button', { name: /create/i })
-    await user.click(createButton)
-
-    await waitFor(() => {
-      expect(mockCreateWorktree).toHaveBeenCalledWith({
-        projectId: 'proj-1',
-        branch: 'develop',
-        name: 'develop-wt',
+    fetchMock = rstest.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : (input instanceof URL ? input.href : (input as Request).url)
+      if (url.includes("/projects/proj-1/git/branches")) {
+        return new Response(JSON.stringify(branches), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
       })
     })
+
+    rstest.stubGlobal("fetch", fetchMock)
+
+    onCreate = rstest.fn()
+    onOpenChange = rstest.fn()
   })
 
-  it('auto-generates worktree name from branch', async () => {
-    const user = userEvent.setup()
-    renderCreateWorktreeDialog()
-
-    // Select branch
-    const branchSelect = screen.getByRole('combobox', { name: /select branch/i })
-    await user.click(branchSelect)
-    await user.click(screen.getByText('origin/feature-x'))
-
-    // Name should be auto-filled
-    const nameInput = screen.getByLabelText(/worktree name/i) as HTMLInputElement
-    expect(nameInput.value).toBe('feature-x')
+  afterEach(() => {
+    rstest.clearAllMocks()
+    rstest.unstubAllGlobals()
   })
 
-  it('validates worktree name is not empty', async () => {
-    const user = userEvent.setup()
-    renderCreateWorktreeDialog()
-
-    // Select branch
-    const branchSelect = screen.getByRole('combobox', { name: /select branch/i })
-    await user.click(branchSelect)
-    await user.click(screen.getByText('main'))
-
-    // Clear name
-    const nameInput = screen.getByLabelText(/worktree name/i)
-    await user.clear(nameInput)
-
-    // Try to create
-    const createButton = screen.getByRole('button', { name: /create/i })
-    expect(createButton).toBeDisabled()
-  })
-
-  it('shows option to create new branch', async () => {
-    const user = userEvent.setup()
-    renderCreateWorktreeDialog()
-
-    const newBranchCheckbox = screen.getByLabelText(/create new branch/i)
-    expect(newBranchCheckbox).toBeInTheDocument()
-
-    await user.click(newBranchCheckbox)
-
-    expect(screen.getByLabelText(/new branch name/i)).toBeInTheDocument()
-  })
-
-  it('creates worktree with new branch', async () => {
-    const user = userEvent.setup()
-    renderCreateWorktreeDialog()
-
-    // Enable new branch
-    const newBranchCheckbox = screen.getByLabelText(/create new branch/i)
-    await user.click(newBranchCheckbox)
-
-    // Enter new branch name
-    const newBranchInput = screen.getByLabelText(/new branch name/i)
-    await user.type(newBranchInput, 'feature/new-feature')
-
-    // Enter worktree name
-    const nameInput = screen.getByLabelText(/worktree name/i)
-    await user.type(nameInput, 'new-feature-wt')
-
-    // Submit
-    const createButton = screen.getByRole('button', { name: /create/i })
-    await user.click(createButton)
-
-    await waitFor(() => {
-      expect(mockCreateWorktree).toHaveBeenCalledWith({
-        projectId: 'proj-1',
-        branch: 'feature/new-feature',
-        name: 'new-feature-wt',
-        createBranch: true,
-      })
-    })
-  })
-
-  it('shows error when no project is selected', () => {
-    vi.mocked(useCurrentProject).mockReturnValue(null)
-    renderCreateWorktreeDialog()
-
-    expect(screen.getByText(/select a project first/i)).toBeInTheDocument()
-  })
-
-  it('closes dialog after successful creation', async () => {
-    const user = userEvent.setup()
-    const mockOnOpenChange = vi.fn()
-
+  const renderDialog = () =>
     render(
-      <CreateWorktreeDialog open={true} onOpenChange={mockOnOpenChange} />
+      <CreateWorktreeDialog
+        open
+        onOpenChange={onOpenChange}
+        projectId="proj-1"
+        onCreate={onCreate}
+      />
     )
 
-    // Select branch and create
-    const branchSelect = screen.getByRole('combobox', { name: /select branch/i })
-    await user.click(branchSelect)
-    await user.click(screen.getByText('main'))
-
-    const nameInput = screen.getByLabelText(/worktree name/i)
-    await user.type(nameInput, 'main-wt')
-
-    const createButton = screen.getByRole('button', { name: /create/i })
-    await user.click(createButton)
+  it("prefills path and branch based on the title", async () => {
+    const user = userEvent.setup()
+    renderDialog()
 
     await waitFor(() => {
-      expect(mockOnOpenChange).toHaveBeenCalledWith(false)
+      const urls = fetchMock.mock.calls.map(([input]) =>
+        typeof input === "string" ? input : (input instanceof URL ? input.href : (input as Request).url)
+      )
+      expect(urls.some((url) => url.includes("/projects/proj-1/git/branches"))).to.be.true
     })
+
+    const titleInput = await screen.findByLabelText("Title")
+    await user.type(titleInput, "Drawer Launch Pad")
+
+    const pathInput = (await screen.findByLabelText("Relative Path")) as HTMLInputElement
+    await waitFor(() => expect(pathInput.value).to.equal("worktrees/drawer-launch-pad"))
+
+    const branchInput = (await screen.findByLabelText("New Branch Name")) as HTMLInputElement
+    await waitFor(() => expect(branchInput.value).to.equal("drawer-launch-pad"))
   })
+
+  it("sanitises and preserves manually edited path", async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    const titleInput = await screen.findByLabelText("Title")
+    await user.type(titleInput, "Initial Feature")
+
+    const pathInput = (await screen.findByLabelText("Relative Path")) as HTMLInputElement
+    await user.clear(pathInput)
+    await user.type(pathInput, "Custom // Path 🚀")
+
+    await waitFor(() => {
+      expect(pathInput.value).to.match(/^custom[\w-]*$/)
+    })
+
+    await user.clear(titleInput)
+    await user.type(titleInput, "Updated Title")
+
+    expect(pathInput.value).to.equal(pathInput.value.toLowerCase())
+    expect(pathInput.value.includes(" ")).to.be.false
+  })
+
+  it("sanitises manually edited branch names and sends them on submit", async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    const titleInput = await screen.findByLabelText("Title")
+    await user.type(titleInput, "Telemetry")
+
+    const branchInput = (await screen.findByLabelText("New Branch Name")) as HTMLInputElement
+    await user.clear(branchInput)
+    await user.type(branchInput, "QA Release / v1.0 🧪")
+
+    await waitFor(() => {
+      expect(branchInput.value).to.match(/^[a-z0-9/-]+$/)
+    })
+
+    const pathInput = (await screen.findByLabelText("Relative Path")) as HTMLInputElement
+    expect(pathInput.value).to.equal("worktrees/telemetry")
+
+    const createButton = screen.getByRole("button", { name: /create worktree/i })
+    await user.click(createButton)
+
+    await waitFor(() => expect(onCreate.mock.calls.length).to.equal(1))
+    const payload = onCreate.mock.calls[0][0] as Record<string, unknown>
+    expect(payload.title).to.equal("Telemetry")
+    expect(payload.path).to.equal("worktrees/telemetry")
+    expect(typeof payload.branch).to.equal("string")
+    expect((payload.branch as string)).to.equal((payload.branch as string).toLowerCase())
+    expect((payload.branch as string).includes(" ")).to.be.false
+    expect(payload.createBranch).to.be.true
+    expect(payload.baseRef).to.equal("HEAD")
+  })
+
 })

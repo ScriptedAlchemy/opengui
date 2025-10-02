@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { FolderGit2, PanelsTopLeft, PlugZap, GitBranch, LayoutPanelLeft, X } from "lucide-react"
+import { FolderGit2, PanelsTopLeft, PlugZap, GitBranch, LayoutPanelLeft } from "lucide-react"
 import { ProjectRail } from "@/features/projects/ProjectRail"
 import { WorktreeBoard } from "@/features/worktrees/WorktreeBoard"
 import { CliSessionDock } from "@/features/cli/CliSessionDock"
@@ -7,8 +7,7 @@ import { TerminalCanvas } from "@/features/cli/TerminalCanvas"
 import { useProjectsActions, useCurrentProject } from "@/stores/projects"
 import { useCliSessionsStore } from "@/stores/cliSessions"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Drawer, DrawerClose, DrawerContent, DrawerTrigger } from "@/components/ui/drawer"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { CreateWorktreeDialog } from "@/features/worktrees/CreateWorktreeDialog"
 import { CreateSessionDialog } from "@/features/cli/CreateSessionDialog"
 import { useWorktreesForProject } from "@/stores/worktrees"
@@ -141,31 +140,25 @@ export default function OperationsHub() {
         </div>
       </div>
 
-      {/* Worktrees drawer */}
-      <Drawer open={worktreesOpen} onOpenChange={setWorktreesOpen} direction="left">
-        <DrawerTrigger asChild><span className="hidden" /></DrawerTrigger>
-        <DrawerContent
-          className="w-[560px] max-w-none p-0 top-[var(--header-height)] h-[calc(100vh-var(--header-height))] border-r"
-          style={{
-            left: 'calc(var(--sidebar-width, 16rem) + var(--project-rail-width, 280px))',
-            bottom: "auto",
-          }}
+      {/* Worktrees sheet (left side) */}
+      <Sheet open={worktreesOpen} onOpenChange={setWorktreesOpen}>
+        <SheetTrigger asChild><span className="hidden" /></SheetTrigger>
+        <SheetContent
+          side="left"
+          className="sm:max-w-none w-full p-0 top-[var(--header-height)] h-[calc(100vh-var(--header-height))] border-r z-50"
           data-testid="worktrees-drawer"
         >
-          <div className="flex items-center justify-between border-b px-4 py-3">
-            <div className="flex items-center gap-2 text-sm font-semibold">
+          <SheetHeader className="border-b px-4 py-3">
+            <SheetTitle className="flex items-center gap-2 text-sm font-semibold">
               <LayoutPanelLeft className="h-4 w-4" /> Worktrees
-            </div>
-            <DrawerClose asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <X className="h-4 w-4" />
-                <span className="sr-only">Close</span>
-              </Button>
-            </DrawerClose>
-          </div>
+            </SheetTitle>
+            <SheetDescription className="text-xs text-muted-foreground">
+              Manage git worktrees for the selected project.
+            </SheetDescription>
+          </SheetHeader>
           <WorktreeBoard className="h-[calc(100%-49px)]" />
-        </DrawerContent>
-      </Drawer>
+        </SheetContent>
+      </Sheet>
 
       {/* Sessions side sheet */}
       <Sheet open={sessionsOpen} onOpenChange={setSessionsOpen}>

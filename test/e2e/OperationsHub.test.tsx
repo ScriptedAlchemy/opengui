@@ -1,251 +1,275 @@
-import { describe, it, expect, vi, beforeEach } from '@rstest/core'
-import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { BrowserRouter } from 'react-router-dom'
-import OperationsHub from '@/pages/OperationsHub'
-import { useProjectsActions, useCurrentProject } from '@/stores/projects'
-import { useCliSessionsStore } from '@/stores/cliSessions'
-import { useWorktreesForProject } from '@/stores/worktrees'
+import { describe, it, expect, beforeEach, afterEach, rstest } from "@rstest/core"
+import { render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { BrowserRouter } from "react-router-dom"
 
-// Mock stores
-vi.mock('@/stores/projects')
-vi.mock('@/stores/cliSessions')
-vi.mock('@/stores/worktrees')
+import OperationsHub from "@/pages/OperationsHub"
+import { useProjectsStore } from "@/stores/projects"
+import { useCliSessionsStore } from "@/stores/cliSessions"
+import { useWorktreesStore } from "@/stores/worktrees"
 
-// Mock child components
-vi.mock('@/features/projects/ProjectRail', () => ({
-  ProjectRail: () => <div data-testid="project-rail">Project Rail</div>,
+rstest.mock("@/features/projects/ProjectRail", () => ({
+  ProjectRail: ({ className }: { className?: string }) => (
+    <div data-testid="project-rail" className={className}>
+      Project Rail
+    </div>
+  ),
 }))
-vi.mock('@/features/worktrees/WorktreeBoard', () => ({
-  WorktreeBoard: () => <div data-testid="worktree-board">Worktree Board</div>,
+rstest.mock("@/features/worktrees/WorktreeBoard", () => ({
+  WorktreeBoard: ({ className }: { className?: string }) => (
+    <div data-testid="worktree-board" className={className}>
+      Worktree Board
+    </div>
+  ),
 }))
-vi.mock('@/features/cli/CliSessionDock', () => ({
-  CliSessionDock: () => <div data-testid="cli-session-dock">CLI Session Dock</div>,
+rstest.mock("@/features/cli/CliSessionDock", () => ({
+  CliSessionDock: ({ className }: { className?: string }) => (
+    <div data-testid="cli-session-dock" className={className}>
+      CLI Session Dock
+    </div>
+  ),
 }))
-vi.mock('@/features/cli/TerminalCanvas', () => ({
-  TerminalCanvas: () => <div data-testid="terminal-canvas">Terminal Canvas</div>,
+rstest.mock("@/features/cli/TerminalCanvas", () => ({
+  TerminalCanvas: ({ className }: { className?: string }) => (
+    <div data-testid="terminal-canvas" className={className}>
+      Terminal Canvas
+    </div>
+  ),
 }))
-vi.mock('@/features/worktrees/CreateWorktreeDialog', () => ({
-  CreateWorktreeDialog: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="create-worktree-dialog">Create Worktree Dialog</div> : null,
-}))
-vi.mock('@/features/cli/CreateSessionDialog', () => ({
+rstest.mock("@/features/cli/CreateSessionDialog", () => ({
   CreateSessionDialog: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="create-session-dialog">Create Session Dialog</div> : null,
+    open ? <div data-testid="create-session-dialog">Create Session</div> : null,
 }))
 
-const renderOperationsHub = () => {
-  return render(
+const project = {
+  id: "proj-1",
+  name: "Example Project",
+  path: "/repo/project",
+  type: "git" as const,
+  worktrees: [],
+}
+
+const defaultWorktrees = [
+  {
+    id: "default",
+    title: "default",
+    path: "/repo/project",
+    relativePath: "",
+    branch: "main",
+    head: "abc123",
+    isPrimary: true,
+    isDetached: false,
+    isLocked: false,
+  },
+  {
+    id: "feature",
+    title: "feature",
+    path: "/repo/project/feature",
+    relativePath: "feature",
+    branch: "feature",
+    head: "def456",
+    isPrimary: false,
+    isDetached: false,
+    isLocked: false,
+  },
+]
+
+const renderOperationsHub = () =>
+  render(
     <BrowserRouter>
       <OperationsHub />
     </BrowserRouter>
   )
+
+const sanitizeSegments = (value: string) => {
+  const normalized = value
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+  if (!normalized) return ""
+  return normalized
+    .replace(/^\/+/, "")
+    .split("/")
+    .map((segment) =>
+      segment
+        .trim()
+        .replace(/[\s_]+/g, "-")
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/(^-|-$)/g, "")
+    )
+    .filter(Boolean)
+    .join("/")
 }
 
-describe('OperationsHub', () => {
-  const mockLoadProjects = vi.fn()
-  const mockLoadSessions = vi.fn()
-  const mockLoadTools = vi.fn()
-  const mockCreateSession = vi.fn()
+describe("OperationsHub worktree flows", () => {
+  let fetchMock: ReturnType<typeof rstest.fn>
 
   beforeEach(() => {
-    vi.clearAllMocks()
+    if (typeof HTMLCanvasElement !== "undefined") {
+      HTMLCanvasElement.prototype.getContext = () => ({ clearRect: () => {}, fillRect: () => {} }) as any
+    }
 
-    // Setup store mocks
-    vi.mocked(useProjectsActions).mockReturnValue({
-      loadProjects: mockLoadProjects,
-      addProject: vi.fn(),
-      removeProject: vi.fn(),
-      selectProject: vi.fn(),
+    useProjectsStore.setState((state) => {
+      state.projects = [project]
+      state.currentProject = project
+      state.loading = false
+      state.error = null
     })
 
-    vi.mocked(useCurrentProject).mockReturnValue(null)
-
-    vi.mocked(useCliSessionsStore).mockReturnValue({
-      loadSessions: mockLoadSessions,
-      createSession: mockCreateSession,
-      loadTools: mockLoadTools,
-      tools: [],
-      sessions: [],
-    } as any)
-
-    vi.mocked(useWorktreesForProject).mockReturnValue([])
-
-    // Mock localStorage
-    Object.defineProperty(window, 'localStorage', {
-      value: {
-        getItem: vi.fn(() => null),
-        setItem: vi.fn(),
-        removeItem: vi.fn(),
-      },
-      writable: true,
+    useCliSessionsStore.setState((state) => {
+      state.sessions = []
+      state.tools = []
+      state.loading = false
+      state.error = null
+      state.activeSessionId = null
+      state.loadSessions = async () => {}
+      state.loadTools = async () => {}
+      state.createSession = async () => null
+      state.closeSession = async () => {}
+      state.setActiveSession = () => {}
+      state.updateSessionStatus = () => {}
     })
-  })
 
-  it('renders the main layout components', () => {
-    renderOperationsHub()
-
-    expect(screen.getByTestId('project-rail')).toBeInTheDocument()
-    expect(screen.getByTestId('terminal-canvas')).toBeInTheDocument()
-  })
-
-  it('loads projects, sessions, and tools on mount', async () => {
-    renderOperationsHub()
-
-    await waitFor(() => {
-      expect(mockLoadProjects).toHaveBeenCalledOnce()
-      expect(mockLoadSessions).toHaveBeenCalledOnce()
-      expect(mockLoadTools).toHaveBeenCalledOnce()
+    useWorktreesStore.setState((state) => {
+      state.worktreesByProject.set(project.id, defaultWorktrees)
+      state.loadingByProject.set(project.id, false)
+      state.errorByProject.set(project.id, null)
     })
-  })
 
-  it('renders command bar with action buttons', () => {
-    renderOperationsHub()
+    const branches = [
+      { name: "main", checkedOut: true },
+      { name: "feature/api", checkedOut: false },
+    ]
 
-    expect(screen.getByTestId('command-bar')).toBeInTheDocument()
-    expect(screen.getByTestId('btn-new-session')).toBeInTheDocument()
-    expect(screen.getByTestId('btn-new-worktree')).toBeInTheDocument()
-    expect(screen.getByTestId('btn-sessions')).toBeInTheDocument()
-    expect(screen.getByTestId('btn-worktrees')).toBeInTheDocument()
-  })
-
-  it('opens worktrees sheet when button is clicked', async () => {
-    const user = userEvent.setup()
-    renderOperationsHub()
-
-    const worktreesBtn = screen.getByTestId('btn-worktrees')
-    await user.click(worktreesBtn)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('worktrees-sheet')).toBeInTheDocument()
-    })
-  })
-
-  it('opens sessions sheet when button is clicked', async () => {
-    const user = userEvent.setup()
-    renderOperationsHub()
-
-    const sessionsBtn = screen.getByTestId('btn-sessions')
-    await user.click(sessionsBtn)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('sessions-sheet')).toBeInTheDocument()
-    })
-  })
-
-  it('opens create session dialog when new session button is clicked', async () => {
-    const user = userEvent.setup()
-    renderOperationsHub()
-
-    const newSessionBtn = screen.getByTestId('btn-new-session')
-    await user.click(newSessionBtn)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('create-session-dialog')).toBeInTheDocument()
-    })
-  })
-
-  it('opens create worktree dialog when new worktree button is clicked', async () => {
-    const user = userEvent.setup()
-    renderOperationsHub()
-
-    const newWorktreeBtn = screen.getByTestId('btn-new-worktree')
-    await user.click(newWorktreeBtn)
-
-    await waitFor(() => {
-      expect(screen.getByTestId('create-worktree-dialog')).toBeInTheDocument()
-    })
-  })
-
-  describe('keyboard shortcuts', () => {
-    it('opens worktrees sheet with Alt+W', async () => {
-      const user = userEvent.setup()
-      renderOperationsHub()
-
-      await user.keyboard('{Alt>}w{/Alt}')
-
-      await waitFor(() => {
-        expect(screen.getByTestId('worktrees-sheet')).toBeInTheDocument()
+    fetchMock = rstest.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : (input instanceof URL ? input.href : (input as Request).url)
+      if (url.includes("/projects/proj-1/git/branches")) {
+        return new Response(JSON.stringify(branches), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.endsWith("/projects")) {
+        return new Response(JSON.stringify([project]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.includes("/projects/proj-1/worktrees")) {
+        return new Response(JSON.stringify(defaultWorktrees), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.includes("/cli/sessions")) {
+        return new Response(JSON.stringify({ sessions: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.includes("/cli/tools")) {
+        return new Response(JSON.stringify({ tools: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      return new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
       })
     })
 
-    it('opens sessions sheet with Alt+S', async () => {
-      const user = userEvent.setup()
-      renderOperationsHub()
+    rstest.stubGlobal("fetch", fetchMock)
+  })
 
-      await user.keyboard('{Alt>}s{/Alt}')
+  afterEach(() => {
+    rstest.clearAllMocks()
+    rstest.unstubAllGlobals()
+  })
 
-      await waitFor(() => {
-        expect(screen.getByTestId('sessions-sheet')).toBeInTheDocument()
-      })
-    })
+  it("auto-populates worktree path and branch from the title", async () => {
+    const user = userEvent.setup()
+    renderOperationsHub()
 
-    it('opens create session dialog with Alt+N', async () => {
-      const user = userEvent.setup()
-      renderOperationsHub()
+    await user.click(screen.getByTestId("open-new-worktree"))
 
-      await user.keyboard('{Alt>}n{/Alt}')
+    const titleInput = await screen.findByLabelText("Title")
+    await user.type(titleInput, "New Feature 42")
 
-      await waitFor(() => {
-        expect(screen.getByTestId('create-session-dialog')).toBeInTheDocument()
-      })
-    })
+    const pathInput = await screen.findByLabelText("Relative Path") as HTMLInputElement
+    await waitFor(() => expect(pathInput.value).to.equal("worktrees/new-feature-42"))
 
-    it('opens create worktree dialog with Alt+Shift+N', async () => {
-      const user = userEvent.setup()
-      renderOperationsHub()
+    const branchInput = await screen.findByLabelText("New Branch Name") as HTMLInputElement
+    await waitFor(() => expect(branchInput.value).to.equal("new-feature-42"))
 
-      await user.keyboard('{Alt>}{Shift>}N{/Shift}{/Alt}')
-
-      await waitFor(() => {
-        expect(screen.getByTestId('create-worktree-dialog')).toBeInTheDocument()
-      })
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([input]) =>
+        typeof input === "string" ? input : (input instanceof URL ? input.href : (input as Request).url)
+      )
+      expect(urls.some((url) => url.includes("/projects/proj-1/git/branches"))).to.be.true
     })
   })
 
-  describe('project rail resizing', () => {
-    it('renders resize handle', () => {
-      renderOperationsHub()
+  it("keeps a manually edited path and sanitises the value", async () => {
+    const user = userEvent.setup()
+    renderOperationsHub()
 
-      const handle = screen.getByRole('separator', { name: /drag to resize/i })
-      expect(handle).toBeInTheDocument()
-    })
+    await user.click(screen.getByTestId("open-new-worktree"))
 
-    it('persists rail width to localStorage', async () => {
-      const user = userEvent.setup()
-      renderOperationsHub()
+    const titleInput = await screen.findByLabelText("Title")
+    await user.type(titleInput, "Gradient Alpha")
 
-      const handle = screen.getByRole('separator', { name: /drag to resize/i })
+    const pathInput = (await screen.findByLabelText("Relative Path")) as HTMLInputElement
+    await user.clear(pathInput)
+    await user.type(pathInput, "Worktrees / Custom Path!!!")
 
-      // Simulate drag
-      await user.pointer([
-        { keys: '[MouseLeft>]', target: handle },
-        { coords: { x: 350, y: 100 } },
-        { keys: '[/MouseLeft]' },
-      ])
+    await waitFor(() => expect(pathInput.value).to.match(/^worktrees[\w-]*$/))
 
-      expect(localStorage.setItem).toHaveBeenCalled()
-    })
+    await user.clear(titleInput)
+    await user.type(titleInput, "Another Title")
+
+    expect(pathInput.value).to.equal(pathInput.value.toLowerCase())
+    expect(pathInput.value.includes(" ")).to.be.false
   })
 
-  describe('with selected project', () => {
-    beforeEach(() => {
-      vi.mocked(useCurrentProject).mockReturnValue({
-        id: 'test-project',
-        name: 'Test Project',
-        path: '/test/path',
-      } as any)
+  it("keeps a manually edited branch name and sanitises the value", async () => {
+    const user = userEvent.setup()
+    renderOperationsHub()
 
-      vi.mocked(useWorktreesForProject).mockReturnValue([
-        { id: 'wt-1', name: 'main', path: '/test/path', branch: 'main' },
-        { id: 'wt-2', name: 'feature', path: '/test/path/feature', branch: 'feature' },
-      ] as any)
+    await user.click(screen.getByTestId("open-new-worktree"))
+
+    const titleInput = await screen.findByLabelText("Title")
+    await user.type(titleInput, "Login Drawer")
+
+    const branchInput = (await screen.findByLabelText("New Branch Name")) as HTMLInputElement
+    await user.clear(branchInput)
+    await user.type(branchInput, "Hot Fix / Release 🎉")
+
+    await waitFor(() => expect(branchInput.value).to.match(/^[a-z0-9/-]+$/))
+
+    await user.clear(titleInput)
+    await user.type(titleInput, "Drawer QA")
+
+    expect(branchInput.value).to.equal(branchInput.value.toLowerCase())
+    expect(branchInput.value.includes(" ")).to.be.false
+  })
+
+  it("toggles overlays with keyboard shortcuts", async () => {
+    const user = userEvent.setup()
+    renderOperationsHub()
+
+    await user.keyboard("{Alt>}w{/Alt}")
+    await waitFor(() => expect(Boolean(screen.queryByTestId("worktrees-drawer"))).to.be.true)
+
+    await user.keyboard("{Escape}")
+    await waitFor(() => {
+      const drawer = screen.queryByTestId("worktrees-drawer")
+      expect(drawer ? drawer.getAttribute("data-state") : "closed").to.equal("closed")
     })
 
-    it('displays worktrees for selected project', () => {
-      renderOperationsHub()
-
-      expect(useWorktreesForProject).toHaveBeenCalledWith('test-project')
-    })
+    await user.keyboard("{Alt>}s{/Alt}")
+    await waitFor(() => expect(Boolean(screen.queryByTestId("sessions-sheet"))).to.be.true)
   })
 })

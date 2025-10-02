@@ -188,10 +188,16 @@ export function CliSessionDock({ className }: CliSessionDockProps) {
                 onClick={async () => {
                   if (!confirmSessionId) return
                   setConfirmBusy(true)
-                  await closeSession(confirmSessionId)
-                  setConfirmBusy(false)
-                  setConfirmOpen(false)
-                  setConfirmSessionId(null)
+                  try {
+                    await closeSession(confirmSessionId)
+                    setConfirmOpen(false)
+                    setConfirmSessionId(null)
+                  } catch (error) {
+                    toast.error("Failed to close session")
+                    console.error("Session close error:", error)
+                  } finally {
+                    setConfirmBusy(false)
+                  }
                 }}
               >
                 {confirmBusy ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Ending...</>) : 'End Session'}

@@ -14,13 +14,13 @@ export default defineConfig({
     'test/**/*.test.tsx'
   ],
   
-  // Exclude patterns - exclude e2e tests and other directories
+  // Exclude patterns - exclude playwright e2e tests but keep unit tests
   exclude: [
-    'test/e2e/**/*',
+    'test/e2e/**/*.e2e.ts',
     'node_modules/**/*',
     'dist/**/*',
     'build/**/*',
-    
+
   ],
   
   // Setup files (none needed; E2E handles bootstrapping)

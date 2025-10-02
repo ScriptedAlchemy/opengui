@@ -31,6 +31,17 @@ const execFileAsync = promisify(execFile)
 const normalizePath = (value: string) =>
   nodePath.resolve(value).replace(/\\/g, "/").replace(/\/+$/, "")
 
+const humanizeSlug = (value: string | undefined): string => {
+  if (!value) return ""
+  const trimmed = value.trim()
+  if (!trimmed) return ""
+  return trimmed
+    .split(/[\/-_]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(" ")
+}
+
 const HOME_DIRECTORY = normalizePath(process.env["HOME"] || nodeOs.homedir())
 const TMP_DIRECTORY = normalizePath(nodeOs.tmpdir())
 const DIRECTORY_ENTRY_LIMIT = 200
@@ -456,21 +467,85 @@ const buildWorktreeResponses = async (projectId: string): Promise<WorktreeRespon
     parsed = parsed.filter((_, idx) => existence[idx])
   }
   const metadataList = projectManager.getWorktrees(projectId)
+  const metadataCandidates = await Promise.all(
+    metadataList.map(async (meta) => {
+      const normalizedPath = normalizePath(meta.path)
+      let realPath: string | null = null
+      try {
+        realPath = normalizePath(await nodeFs.realpath(meta.path))
+      } catch {
+        realPath = null
+      }
+      return { meta, normalizedPath, realPath }
+    })
+  )
+
+  const findMetadataForEntry = async (entryPath: string) => {
+    const normalizedEntry = normalizePath(entryPath)
+    let candidate = metadataCandidates.find((item) => item.normalizedPath === normalizedEntry)
+    if (candidate) return candidate.meta
+
+    let entryReal: string | null = null
+    try {
+      entryReal = normalizePath(await nodeFs.realpath(entryPath))
+    } catch {
+      entryReal = null
+    }
+
+    if (entryReal) {
+      candidate = metadataCandidates.find(
+        (item) => item.normalizedPath === entryReal || item.realPath === entryReal
+      )
+      if (candidate) return candidate.meta
+    }
+
+    candidate = metadataCandidates.find((item) => item.realPath && item.realPath === normalizedEntry)
+    if (candidate) return candidate.meta
+
+    return undefined
+  }
+
+  const registerMetadata = async (metadata: typeof metadataList[number]) => {
+    const existing = metadataCandidates.find((item) => item.meta === metadata)
+    if (existing) {
+      existing.normalizedPath = normalizePath(metadata.path)
+      try {
+        existing.realPath = normalizePath(await nodeFs.realpath(metadata.path))
+      } catch {
+        existing.realPath = null
+      }
+      return
+    }
+    let realPath: string | null = null
+    try {
+      realPath = normalizePath(await nodeFs.realpath(metadata.path))
+    } catch {
+      realPath = null
+    }
+    metadataCandidates.push({
+      meta: metadata,
+      normalizedPath: normalizePath(metadata.path),
+      realPath,
+    })
+  }
 
   const responses: WorktreeResponse[] = []
 
   for (const entry of parsed) {
-    const metadata =
-      metadataList.find((candidate) => normalizePath(candidate.path) === entry.path) ||
-      projectManager.ensureWorktreeMetadata(
+    let metadata = await findMetadataForEntry(entry.path)
+    if (!metadata) {
+      metadata = projectManager.ensureWorktreeMetadata(
         projectId,
         entry.path,
         entry.branch || entry.relativePath || entry.path
       )
-
-    if (!metadata) {
-      throw new Error(`Unable to resolve metadata for worktree ${entry.path}`)
+      if (!metadata) {
+        throw new Error(`Unable to resolve metadata for worktree ${entry.path}`)
+      }
+      await registerMetadata(metadata)
     }
+
+    await registerMetadata(metadata)
 
     // If this is the primary worktree (the project root), prefer showing the git branch
     // as the title instead of a generic "(default)" suffix seeded at project creation.
@@ -903,6 +978,18 @@ export function addIntegratedProjectRoutes(app: Hono) {
 
           try {
             const resolvedPath = resolveWorktreePath(project.path, body.path)
+            const requestedTitleRaw = body.title ?? ""
+            const requestedTitle = String(requestedTitleRaw).trim()
+            const requestedLooksSluggy =
+              !requestedTitle ||
+              /[\/_-]/.test(requestedTitle) ||
+              requestedTitle === requestedTitle.toLowerCase()
+            const branchTitle = humanizeSlug(body.branch)
+            const pathTitle = humanizeSlug(nodePath.basename(resolvedPath))
+            const displayTitle =
+              requestedLooksSluggy
+                ? branchTitle || pathTitle || "Worktree"
+                : requestedTitle
             const args = ["worktree", "add"] as string[]
             if (body.force) {
               args.push("--force")
@@ -943,41 +1030,46 @@ export function addIntegratedProjectRoutes(app: Hono) {
             // Wait briefly for filesystem to settle
             await new Promise(resolve => setTimeout(resolve, 100))
 
-            const metadata = projectManager.ensureWorktreeMetadata(id, resolvedPath, body.title)
+            const metadata = projectManager.ensureWorktreeMetadata(id, resolvedPath, displayTitle)
             if (!metadata) {
               throw new Error("Failed to persist worktree metadata")
             }
-            metadata.title = body.title
+            metadata.title = displayTitle
             await projectManager.saveProjects()
 
-            const worktrees = await buildWorktreeResponses(id)
-            // Compare by normalized path and realpath to avoid macOS /var ↔ /private/var mismatches
-            const normalizedTarget = normalizePath(resolvedPath)
-            let realTarget: string | null = null
+            const providedPath = body.path?.toString() ?? ""
+            const relativeFromProject = !nodePath.isAbsolute(providedPath) && providedPath
+              ? providedPath.replace(/\\/g, "/")
+              : (() => {
+                  const raw = nodePath.relative(project.path, metadata.path)
+                  return raw ? raw.replace(/\\/g, "/") : ""
+                })()
+
+            let headSha: string | null = null
             try {
-              realTarget = normalizePath(await nodeFs.realpath(resolvedPath))
+              const { stdout } = await execFileAsync(
+                "git",
+                ["rev-parse", "--verify", "HEAD"],
+                { cwd: metadata.path }
+              )
+              headSha = stdout.trim()
             } catch {
-              // ignore if not resolvable yet
+              headSha = null
             }
-            const candidates = await Promise.all(
-              worktrees.map(async (w) => {
-                const norm = normalizePath(w.path)
-                let real: string | null = null
-                try {
-                  real = normalizePath(await nodeFs.realpath(w.path))
-                } catch {
-                  // ignore
-                }
-                return { w, norm, real }
-              })
-            )
-            const created = candidates.find((c) =>
-              c.norm === normalizedTarget || (realTarget && c.real === realTarget)
-            )?.w
-            if (!created) {
-              throw new Error(`Unable to locate created worktree at ${normalizedTarget}`)
+
+            const responsePayload = {
+              id: metadata.id,
+              title: displayTitle,
+              path: metadata.path,
+              relativePath: relativeFromProject,
+              branch: body.branch,
+              head: headSha ?? undefined,
+              isPrimary: relativeFromProject === "",
+              isDetached: false,
+              isLocked: false,
             }
-            return c.json(created, 201)
+
+            return c.json(responsePayload, 201)
           } catch (error) {
             log.error("Failed to create worktree:", error)
             return c.json(
