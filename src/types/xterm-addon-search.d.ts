@@ -1,5 +1,5 @@
-declare module "xterm-addon-search" {
-  import type { Terminal } from "xterm"
+declare module "@xterm/addon-search" {
+  import type { Terminal } from "@xterm/xterm"
   export class SearchAddon {
     activate(terminal: Terminal): void
     dispose(): void

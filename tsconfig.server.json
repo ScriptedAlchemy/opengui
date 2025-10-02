@@ -18,7 +18,6 @@
     "src/server/**/*"
   ],
   "exclude": [
-    "./opencode/**/*",
     "src/components/**/*",
     "src/pages/**/*", 
     "src/hooks/**/*",

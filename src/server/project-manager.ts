@@ -1,8 +1,7 @@
 import { Log } from "../util/log"
-import { OpencodeClient, createOpencodeClient } from "@opencode-ai/sdk/client"
-import { execFile } from "child_process"
-import { promisify } from "util"
+// removed expensive git helpers from hot path
 import * as fs from "fs/promises"
+import fsSync from "node:fs"
 import * as crypto from "crypto"
 import * as path from "node:path"
 
@@ -27,7 +26,7 @@ export interface ProjectInfo {
 
 export interface ProjectInstance {
   info: ProjectInfo
-  sdk?: OpencodeClient
+  sdk?: unknown
 }
 
 const isNodeError = (error: unknown): error is NodeJS.ErrnoException => {
@@ -45,22 +44,35 @@ export class ProjectManager {
   private loaded = false
   private dirty = false
   private configDir = (() => {
-    const override = process.env["OPENCODE_CONFIG_DIR"]
+    const override = process.env["AGENT_ORANGE_CONFIG_DIR"]
     if (override && override.trim()) return override.trim()
-    const testMode = process.env["OPENCODE_TEST_MODE"]
+    const testMode = process.env["AGENT_ORANGE_TEST_MODE"]
     if (
       process.env["NODE_ENV"] === "test" ||
       (typeof testMode === "string" && /^(1|true)$/i.test(testMode))
     ) {
-      return "/tmp/.opencode-test"
+      return `${process.env["HOME"]}/.agent-orange-test`
     }
-    return `${process.env["HOME"]}/.opencode`
+    return `${process.env["HOME"]}/.agent-orange`
   })()
   private configFile = `${this.configDir}/web-projects.json`
   private log = Log.create({ service: "project-manager" })
 
   private normalizePath(value: string): string {
     return path.resolve(value).replace(/\\/g, "/").replace(/\/+$/, "")
+  }
+
+  private canonicalizePath(value: string): string {
+    const normalized = this.normalizePath(value)
+    try {
+      const real =
+        typeof fsSync.realpathSync.native === "function"
+          ? fsSync.realpathSync.native(normalized)
+          : fsSync.realpathSync(normalized)
+      return this.normalizePath(real)
+    } catch {
+      return normalized
+    }
   }
 
   private slugify(value: string): string {
@@ -74,7 +86,8 @@ export class ProjectManager {
   }
 
   private ensureDefaultWorktree(info: ProjectInfo): void {
-    const normalizedProjectPath = this.normalizePath(info.path)
+    const normalizedProjectPath = this.canonicalizePath(info.path)
+    info.path = normalizedProjectPath
     if (!info.worktrees) {
       info.worktrees = []
     }
@@ -95,7 +108,7 @@ export class ProjectManager {
 
     info.worktrees = info.worktrees.map((worktree) => ({
       ...worktree,
-      path: this.normalizePath(worktree.path || normalizedProjectPath),
+      path: this.canonicalizePath(worktree.path || normalizedProjectPath),
       title: worktree.title || worktree.id,
     }))
   }
@@ -228,57 +241,16 @@ export class ProjectManager {
   }
 
   async getGitProjectId(projectPath: string): Promise<string> {
-    // Resolve path - if relative, make it absolute from cwd
+    // Stable ID derived from normalized absolute path (no external processes)
     const resolvedPath = projectPath.startsWith("/")
       ? projectPath
       : `${process.cwd()}/${projectPath}`
-
-    // Try to find git root and get initial commit hash
-    const gitRoot = await this.findGitRoot(resolvedPath)
-    if (gitRoot) {
-      const commitHash = await this.getInitialCommitHash(gitRoot)
-      if (commitHash) {
-        return commitHash
-      }
-    }
-
-    // Fallback to path hash
     const hash = crypto.createHash("sha256")
     hash.update(resolvedPath)
     return hash.digest("hex").substring(0, 16)
   }
 
-  private async findGitRoot(startPath: string): Promise<string | null> {
-    try {
-      const execFileAsync = promisify(execFile)
-      const { stdout } = await execFileAsync("git", [
-        "-C",
-        startPath,
-        "rev-parse",
-        "--show-toplevel",
-      ])
-      return stdout.toString().trim()
-    } catch {
-      return null
-    }
-  }
-
-  private async getInitialCommitHash(gitRoot: string): Promise<string | null> {
-    try {
-      const execFileAsync = promisify(execFile)
-      const { stdout } = await execFileAsync("git", [
-        "-C",
-        gitRoot,
-        "rev-list",
-        "--max-parents=0",
-        "HEAD",
-      ])
-      const hash = stdout.toString().trim().split("\n")[0]
-      return hash ? hash.substring(0, 16) : null
-    } catch {
-      return null
-    }
-  }
+  // Git helpers removed from hot path; re-introduce if needed.
 
   async addProject(projectPath: string, name?: string): Promise<ProjectInfo> {
     if (!path.isAbsolute(projectPath)) {
@@ -302,7 +274,14 @@ export class ProjectManager {
       throw new Error(message)
     }
 
-    const projectId = await this.getGitProjectId(normalizedPath)
+    let canonicalPath = normalizedPath
+    try {
+      canonicalPath = this.normalizePath(await fs.realpath(normalizedPath))
+    } catch {
+      // Keep normalizedPath when realpath cannot resolve (e.g., permission issues)
+    }
+
+    const projectId = await this.getGitProjectId(canonicalPath)
 
     // Check if project already exists
     if (this.projects.has(projectId)) {
@@ -310,8 +289,8 @@ export class ProjectManager {
       const incomingName = name?.trim()
 
       let updated = false
-      if (existing.info.path !== normalizedPath) {
-        existing.info.path = normalizedPath
+      if (existing.info.path !== canonicalPath) {
+        existing.info.path = canonicalPath
         updated = true
       }
       if (incomingName && existing.info.name !== incomingName) {
@@ -329,22 +308,20 @@ export class ProjectManager {
       return existing.info
     }
 
-    const gitRoot = await this.findGitRoot(normalizedPath)
-    const commitHash = gitRoot ? await this.getInitialCommitHash(gitRoot) : undefined
-
+    const fallbackName = canonicalPath.split("/").pop() || "Unknown Project"
     const projectInfo: ProjectInfo = {
       id: projectId,
-      name: name || normalizedPath.split("/").pop() || "Unknown Project",
-      path: normalizedPath,
+      name: name || fallbackName,
+      path: canonicalPath,
       status: "running", // SDK mode - projects are always ready
       lastAccessed: Date.now(),
-      gitRoot: gitRoot || undefined,
-      commitHash: commitHash || undefined,
+      gitRoot: undefined,
+      commitHash: undefined,
       worktrees: [
         {
           id: "default",
-          path: normalizedPath,
-          title: `${name || normalizedPath.split("/").pop() || "Unknown Project"} (default)`.trim(),
+          path: canonicalPath,
+          title: `${name || fallbackName} (default)`.trim(),
         },
       ],
     }
@@ -366,85 +343,11 @@ export class ProjectManager {
       return false
     }
 
-    // Stop the instance if running
-    if (instance.info.status !== "stopped") {
-      await this.stopInstance(projectId)
-    }
-
     this.projects.delete(projectId)
     this.markDirty()
     await this.saveProjects()
     this.log.info(`Removed project: ${instance.info.name} (${projectId})`)
     return true
-  }
-
-  async spawnInstance(projectId: string): Promise<boolean> {
-    const instance = this.projects.get(projectId)
-    if (!instance) {
-      throw new Error(`Project ${projectId} not found`)
-    }
-
-    if (instance.info.status === "running") {
-      return true
-    }
-
-    // Create SDK instance for metadata purposes only
-    // Actual SDK operations are handled by the client
-    instance.sdk = createOpencodeClient({
-      baseUrl:
-        process.env.OPENCODE_API_URL ||
-        (() => {
-          throw new Error("OPENCODE_API_URL not set - OpenCode backend not started")
-        })(),
-    })
-
-    instance.info.status = "running"
-    instance.info.lastAccessed = Date.now()
-
-    this.log.info(
-      `Project marked as running with SDK: ${instance.info.name} at ${instance.info.path}`
-    )
-
-    this.markDirty()
-    await this.saveProjects()
-    return true
-  }
-
-  async stopInstance(projectId: string): Promise<boolean> {
-    const instance = this.projects.get(projectId)
-    if (!instance) {
-      return false
-    }
-
-    this.log.info(`Stopping SDK instance for project: ${instance.info.name}`)
-
-    // Clear SDK instance
-    instance.sdk = undefined
-    instance.info.status = "stopped"
-
-    this.markDirty()
-    await this.saveProjects()
-    return true
-  }
-
-  getSDKInstance(projectId: string): OpencodeClient | undefined {
-    const instance = this.projects.get(projectId)
-    if (!instance) {
-      return undefined
-    }
-
-    // SDK instance is for metadata only - client handles actual connections
-    if (!instance.sdk && instance.info.status === "running") {
-      instance.sdk = createOpencodeClient({
-        baseUrl:
-          process.env.OPENCODE_API_URL ||
-          (() => {
-            throw new Error("OPENCODE_API_URL not set - OpenCode backend not started")
-          })(),
-      })
-    }
-
-    return instance.sdk
   }
 
   getProjectPath(projectId: string): string | undefined {
@@ -485,14 +388,36 @@ export class ProjectManager {
     if (!instance) return undefined
     this.ensureDefaultWorktree(instance.info)
 
-    const normalizedPath = this.normalizePath(worktreePath)
+    const normalizedPath = this.canonicalizePath(worktreePath)
     const existing = instance.info.worktrees?.find(
-      (worktree) => this.normalizePath(worktree.path) === normalizedPath
+      (worktree) => this.canonicalizePath(worktree.path) === normalizedPath
     )
     if (existing) {
-      if (title && !existing.title) {
-        existing.title = title
+      if (existing.path !== normalizedPath) {
+        existing.path = normalizedPath
         this.markDirty()
+      }
+      if (title && existing.title !== title) {
+        const normalizedIncoming = title.trim()
+        const current = existing.title?.trim() ?? ""
+        const incomingSlug = this.slugify(normalizedIncoming)
+        const currentSlug = current ? this.slugify(current) : ""
+        const incomingLooksSluggy =
+          !normalizedIncoming ||
+          normalizedIncoming === incomingSlug ||
+          /[\/_]/.test(normalizedIncoming)
+        const currentLooksSluggy =
+          !current ||
+          current === existing.id ||
+          current === existing.path ||
+          current === path.basename(existing.path) ||
+          current === currentSlug ||
+          /[\/_]/.test(current)
+        const shouldOverwrite = !current || (currentLooksSluggy && !incomingLooksSluggy)
+        if (shouldOverwrite) {
+          existing.title = normalizedIncoming
+          this.markDirty()
+        }
       }
       return existing
     }
@@ -542,30 +467,8 @@ export class ProjectManager {
     }
   }
 
-  async monitorHealth(): Promise<void> {
-    // Health monitoring simplified - just track project metadata
-    // Client handles actual SDK connections
-    const instances = Array.from(this.projects.values())
-    for (const instance of instances) {
-      if (instance.info.status === "running" && !instance.sdk) {
-        // SDK instance for metadata only
-        instance.sdk = createOpencodeClient({
-          baseUrl:
-            process.env.OPENCODE_API_URL ||
-            (() => {
-              throw new Error("OPENCODE_API_URL not set - OpenCode backend not started")
-            })(),
-        })
-      }
-    }
-  }
-
   async shutdown(): Promise<void> {
     this.log.info("Shutting down project manager")
-
-    // Stop all running instances
-    const stopPromises = Array.from(this.projects.keys()).map((id) => this.stopInstance(id))
-    await Promise.all(stopPromises)
 
     // Save final state
     await this.saveProjects()

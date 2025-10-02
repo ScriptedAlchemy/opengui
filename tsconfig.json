@@ -26,6 +26,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "scripts", "test", "*.ts", "*.tsx"],
-  "exclude": ["node_modules", "web-dist", "server-dist", "./opencode/**/*", "test/e2e/**/*"]
+  "include": ["src", "scripts", "test", "types", "*.ts", "*.tsx"],
+  "exclude": ["node_modules", "web-dist", "server-dist", "test/e2e/**/*"]
 }

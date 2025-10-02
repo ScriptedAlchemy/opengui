@@ -1,12 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import { immer } from "zustand/middleware/immer"
-import type {
-  Project,
-  CreateProjectParams,
-  UpdateProjectParams,
-  ProjectManagerClient,
-} from "../../src/lib/api/project-manager"
+import type { Project, CreateProjectParams, UpdateProjectParams, ProjectManagerClient } from "@/lib/api/project-manager"
 // Note: Do not import ProjectManagerClient as a runtime value here.
 // We use dynamic import inside actions to allow tests to mock the module
 // before the first load and to avoid eager module caching between test files.
@@ -15,7 +10,7 @@ import type {
 let __pmc: ProjectManagerClient | null = null
 const getProjectClient = async (): Promise<ProjectManagerClient> => {
   if (__pmc) return __pmc
-  const mod = await import("../../src/lib/api/project-manager")
+  const mod = await import("../lib/api/project-manager")
   __pmc = new mod.ProjectManagerClient()
   return __pmc
 }
@@ -25,7 +20,6 @@ interface ProjectsState {
   currentProject: Project | null
   loading: boolean
   error: string | null
-  instanceOperations: Record<string, boolean> // Track ongoing operations per project
 }
 
 interface ProjectsActions {
@@ -35,19 +29,9 @@ interface ProjectsActions {
   createProject: (params: CreateProjectParams) => Promise<Project | null>
   updateProject: (id: string, params: UpdateProjectParams) => Promise<void>
   removeProject: (id: string) => Promise<void>
-
-  // Instance management
-  startInstance: (projectId: string) => Promise<void>
-  stopInstance: (projectId: string) => Promise<void>
-  refreshInstanceStatus: (projectId: string) => Promise<void>
-
   // Utility actions
   clearError: () => void
   setCurrentProject: (project: Project | null) => void
-
-  // Batch operations
-  refreshAllInstanceStatuses: () => Promise<void>
-  stopAllInstances: () => Promise<void>
 }
 
 type ProjectsStore = ProjectsState & ProjectsActions
@@ -63,6 +47,24 @@ const detachImmerProxy = <T>(value: T): T => {
   return value
 }
 
+// Migrate legacy localStorage key once on module import (browser only)
+(() => {
+  if (typeof window !== "undefined") {
+    try {
+      const legacyKey = "opencode-projects"
+      const nextKey = "agent-orange-projects"
+      if (!window.localStorage.getItem(nextKey)) {
+        const legacy = window.localStorage.getItem(legacyKey)
+        if (legacy) {
+          window.localStorage.setItem(nextKey, legacy)
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
+})()
+
 export const useProjectsStore = create<ProjectsStore>()(
   persist(
     immer((set, get) => ({
@@ -71,7 +73,6 @@ export const useProjectsStore = create<ProjectsStore>()(
       currentProject: null,
       loading: false,
       error: null,
-      instanceOperations: {},
 
       // Load all projects from API
       loadProjects: async () => {
@@ -245,167 +246,6 @@ export const useProjectsStore = create<ProjectsStore>()(
         }
       },
 
-      // Start a project instance
-      startInstance: async (projectId: string) => {
-        const { instanceOperations } = get()
-
-        // Prevent concurrent operations on same project
-        if (instanceOperations[projectId]) return
-
-        set((state) => {
-          state.instanceOperations[projectId] = true
-          state.error = null
-
-          // Optimistic update - set status to starting
-          const projectIndex = state.projects.findIndex((p: Project) => p.id === projectId)
-          if (projectIndex !== -1) {
-            state.projects[projectIndex].instance = {
-              id: projectId,
-              port: 0, // Will be updated with actual port
-              status: "starting",
-              startedAt: new Date(),
-            }
-          }
-
-          if (state.currentProject?.id === projectId) {
-            state.currentProject.instance = state.projects[projectIndex]?.instance
-          }
-        })
-
-        try {
-          const client = await getProjectClient()
-          const instance = await client.startInstance(projectId)
-
-          set((state) => {
-            const projectIndex = state.projects.findIndex((p: Project) => p.id === projectId)
-            if (projectIndex !== -1) {
-              state.projects[projectIndex].instance = instance
-            }
-
-            if (state.currentProject?.id === projectId) {
-              state.currentProject.instance = instance
-            }
-
-            delete state.instanceOperations[projectId]
-          })
-        } catch (error) {
-          set((state) => {
-            const projectIndex = state.projects.findIndex((p: Project) => p.id === projectId)
-            if (projectIndex !== -1) {
-              if (state.projects[projectIndex].instance) {
-                state.projects[projectIndex].instance!.status = "error"
-              }
-            }
-
-            if (state.currentProject?.id === projectId && state.currentProject.instance) {
-              state.currentProject.instance.status = "error"
-            }
-
-            delete state.instanceOperations[projectId]
-            state.error = error instanceof Error ? error.message : "Failed to start instance"
-          })
-        }
-      },
-
-      // Stop a project instance
-      stopInstance: async (projectId: string) => {
-        const { instanceOperations } = get()
-
-        // Prevent concurrent operations on same project
-        if (instanceOperations[projectId]) return
-
-        set((state) => {
-          state.instanceOperations[projectId] = true
-          state.error = null
-
-          // Optimistic update - set status to stopping
-          const projectIndex = state.projects.findIndex((p: Project) => p.id === projectId)
-          if (projectIndex !== -1 && state.projects[projectIndex].instance) {
-            state.projects[projectIndex].instance!.status = "stopped"
-          }
-
-          if (state.currentProject?.id === projectId && state.currentProject.instance) {
-            state.currentProject.instance.status = "stopped"
-          }
-        })
-
-        try {
-          const client = await getProjectClient()
-          await client.stopInstance(projectId)
-
-          set((state) => {
-            const projectIndex = state.projects.findIndex((p: Project) => p.id === projectId)
-            if (projectIndex !== -1) {
-              delete state.projects[projectIndex].instance
-            }
-
-            if (state.currentProject?.id === projectId) {
-              delete state.currentProject.instance
-            }
-
-            delete state.instanceOperations[projectId]
-          })
-        } catch (error) {
-          // Revert optimistic update on error
-          await get().refreshInstanceStatus(projectId)
-          set((state) => {
-            delete state.instanceOperations[projectId]
-            state.error = error instanceof Error ? error.message : "Failed to stop instance"
-          })
-        }
-      },
-
-      // Refresh instance status for a specific project
-      refreshInstanceStatus: async (projectId: string) => {
-        try {
-          const client = await getProjectClient()
-          const instance = await client.getInstanceStatus(projectId)
-
-          set((state) => {
-            const projectIndex = state.projects.findIndex((p: Project) => p.id === projectId)
-            if (projectIndex !== -1) {
-              if (instance) {
-                state.projects[projectIndex].instance = instance
-              } else {
-                delete state.projects[projectIndex].instance
-              }
-            }
-
-            if (state.currentProject?.id === projectId) {
-              if (instance) {
-                state.currentProject.instance = instance
-              } else {
-                delete state.currentProject.instance
-              }
-            }
-          })
-        } catch (error) {
-          set((state) => {
-            state.error =
-              error instanceof Error ? error.message : "Failed to refresh instance status"
-          })
-        }
-      },
-
-      // Refresh all instance statuses
-      refreshAllInstanceStatuses: async () => {
-        const { projects } = get()
-
-        await Promise.allSettled(
-          projects.map((project: Project) => get().refreshInstanceStatus(project.id))
-        )
-      },
-
-      // Stop all running instances
-      stopAllInstances: async () => {
-        const { projects } = get()
-        const runningProjects = projects.filter((p: Project) => p.instance?.status === "running")
-
-        await Promise.allSettled(
-          runningProjects.map((project: Project) => get().stopInstance(project.id))
-        )
-      },
-
       // Utility actions
       clearError: () => {
         set((state) => {
@@ -420,7 +260,8 @@ export const useProjectsStore = create<ProjectsStore>()(
       },
     })),
     {
-      name: "opencode-projects",
+      name: "agent-orange-projects",
+      version: 2,
       partialize: (state: ProjectsStore) => {
         const safeProjects = state.projects.map((project) => detachImmerProxy(project))
         const safeCurrent = state.currentProject ? detachImmerProxy(state.currentProject) : null
@@ -438,8 +279,6 @@ export const useProjects = () => useProjectsStore((state) => state.projects)
 export const useCurrentProject = () => useProjectsStore((state) => state.currentProject)
 export const useProjectsLoading = () => useProjectsStore((state) => state.loading)
 export const useProjectsError = () => useProjectsStore((state) => state.error)
-export const useInstanceOperations = () => useProjectsStore((state) => state.instanceOperations)
-
 // Action hooks - return individual functions with stable references
 export const useProjectsActions = () => {
   const loadProjects = useProjectsStore((state) => state.loadProjects)
@@ -447,11 +286,6 @@ export const useProjectsActions = () => {
   const createProject = useProjectsStore((state) => state.createProject)
   const updateProject = useProjectsStore((state) => state.updateProject)
   const removeProject = useProjectsStore((state) => state.removeProject)
-  const startInstance = useProjectsStore((state) => state.startInstance)
-  const stopInstance = useProjectsStore((state) => state.stopInstance)
-  const refreshInstanceStatus = useProjectsStore((state) => state.refreshInstanceStatus)
-  const refreshAllInstanceStatuses = useProjectsStore((state) => state.refreshAllInstanceStatuses)
-  const stopAllInstances = useProjectsStore((state) => state.stopAllInstances)
   const clearError = useProjectsStore((state) => state.clearError)
   const setCurrentProject = useProjectsStore((state) => state.setCurrentProject)
 
@@ -461,22 +295,12 @@ export const useProjectsActions = () => {
     createProject,
     updateProject,
     removeProject,
-    startInstance,
-    stopInstance,
-    refreshInstanceStatus,
-    refreshAllInstanceStatuses,
-    stopAllInstances,
     clearError,
     setCurrentProject,
   }
 }
 
 // Computed selectors
-export const useRunningProjects = () =>
-  useProjectsStore((state) =>
-    state.projects.filter((p: Project) => p.instance?.status === "running")
-  )
-
 export const useProjectById = (id: string) =>
   useProjectsStore((state) => state.projects.find((p: Project) => p.id === id))
 
